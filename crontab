@@ -1,0 +1,49 @@
+# ┌───────────── minute (0 - 59)
+# │ ┌───────────── hour (0 - 23)
+# │ │ ┌───────────── day of month (1 - 31)
+# │ │ │ ┌───────────── month (1 - 12)
+# │ │ │ │ ┌───────────── day of week (0 - 6) (Sun=0)
+# │ │ │ │ │
+# │ │ │ │ │
+# * * * * *  command
+
+# —————————————————————————————————————————————————————————————
+# 1) run-eam at 00:00 and 12:00 daily
+0 0,12 * * * \
+    export MY_USERNAME="jsapinat" \
+    && export MY_PASSWORD="REDACTED" \
+    && export DATABASE_URL="postgresql://avdaemon:oyasumi@dbod-avtools-cache.cern.ch:6613/av_cache" \
+    && cd /path/to/your/project \
+    && /usr/bin/python3 -m avtools run-eam \
+         --username "$MY_USERNAME" \
+         --password "$MY_PASSWORD" \
+         --dbod-url "$DATABASE_URL" \
+    >> /var/log/avtools/run-eam.log 2>&1
+
+# 2) run-landb at 00:05 and 12:05 daily
+5 0,12 * * * \
+    export LANDB_TOKEN_FILE="/path/to/token" \
+    && export DATABASE_URL="postgresql://avdaemon:oyasumi@dbod-avtools-cache.cern.ch:6613/av_cache" \
+    && cd /path/to/your/project \
+    && /usr/bin/python3 -m avtools run-landb \
+         --token-file "$LANDB_TOKEN_FILE" \
+         --dbod-url "$DATABASE_URL" \
+    >> /var/log/avtools/run-landb.log 2>&1
+
+# 3) snmp-influx every 5 minutes
+*/5 * * * * \
+    export INFLUX_HOST="dbod-avtools-ts.cern.ch" \
+    && export INFLUX_PORT="8090" \
+    && export INFLUX_USER="avdaemon" \
+    && export INFLUX_PASSWORD="hatsumimi" \
+    && export INFLUX_DB="av_ts" \
+    && export DATABASE_URL="postgresql://avdaemon:oyasumi@dbod-avtools-cache.cern.ch:6613/av_cache" \
+    && cd /path/to/your/project \
+    && /usr/bin/python3 -m avtools snmp-influx \
+         --influx-host "$INFLUX_HOST" \
+         --influx-port "$INFLUX_PORT" \
+         --influx-user "$INFLUX_USER" \
+         --influx-password "$INFLUX_PASSWORD" \
+         --influx-db "$INFLUX_DB" \
+         --dbod-url "$DATABASE_URL" \
+    >> /var/log/avtools/snmp-influx.log 2>&1

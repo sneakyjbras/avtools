@@ -1,0 +1,46 @@
+# pyproject.toml
+[tool.poetry]
+name = "avtools"
+version = "0.1.2"
+description = "Monitoring tools for the AV infrastructure of CERN."
+authors = [
+  "jsapinat <jose.bras@cern.ch>",
+  "zembrzus <pawel.zembrzuski@cern.ch>",
+  "jpolok <jarek.polok@cern.ch>"
+]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+click             = ">=8.1.8,<9.0.0"
+influxdb          = "^5.3.1"
+influxdb-client   = "^1.48.0"
+pexpect           = ">=4.8.0,<5.0.0"
+psycopg2-binary   = "^2.9.10"
+pyasn1            = ">=0.4.8,<0.5.0"
+pydantic          = "^2.10.6"
+pysnmp            = "4.4.12"
+python            = ">=3.11.8,<4.0"
+requests          = "^2.31.0"
+sqlalchemy        = "^2.0.39"
+structlog         = "^25.1.0"
+
+[[tool.poetry.packages]]
+include = "avtools"
+from    = "src"
+
+[tool.poetry.scripts]
+avtools   = "avtools.main:cli"
+get-token = "avtools.main:get_token"
+
+[build-system]
+requires    = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.lint.dependencies]
+black           = "^25.1.0"
+detect-secrets  = "^1.5.0"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "^4.1.0"
+ipython     = "^8.32.0"
+ipdb        = "^0.13.13"
