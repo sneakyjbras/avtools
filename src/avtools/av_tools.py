@@ -56,11 +56,11 @@ class AVTools:
         auth = HTTPBasicAuth(username, password)
         eam_helper = EAMHelper(auth)
         total: int = eam_helper.get_number_av_records()
-        api_list: list[EAMDevice] = eam_helper.get_device_list(total)
+        eam_list: list[EAMDevice] = eam_helper.get_device_list(total)
         cache_list: list[EAMDevice] = self.dbod_helper.get_all_eam_devices()
 
         self._sync_entities(
-            api_items=api_list,
+            api_items=eam_list,
             cached_items=cache_list,
             get_id=lambda d: d.equipmentno,
             sync_func=self.dbod_helper.sync_eam_devices,
@@ -175,7 +175,7 @@ class AVTools:
         chunk = (total + num_tasks - 1) // num_tasks
 
         async def process_slice(start: int, end: int) -> None:
-            helper = LanDBHelper(token)
+            helper = LanDBHelper(session=session)
             for idx in range(start, end):
                 rec = eam_records[idx]
                 try:
