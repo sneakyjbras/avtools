@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 from time import time
 from typing import Any, Dict, List, Optional, Tuple, TypeVar
 
+from cern_oauthlib.cern_session import ServiceAuthSession
 from pydantic import BaseModel
 from requests.auth import HTTPBasicAuth
 
@@ -14,7 +15,7 @@ from avtools.db_helper import DBHelper
 from avtools.eam_helper import EAMDevice, EAMHelper
 from avtools.errors import NoRecordsFound
 from avtools.influx_helper import InfluxHelper
-from avtools.landb_helper import LanDBDevice, LanDBHelper
+from avtools.landb_helper import LanDBConfig, LanDBDevice, LanDBHelper
 from avtools.logger import system_logger
 from avtools.snmp_helper import SNMPHelper
 
@@ -67,24 +68,45 @@ class AVTools:
             name="EAM",
         )
 
-    def run_landb(self, token: str) -> None:
+    def run_landb(
+        self,
+        client_id: str,
+        client_secret: str,
+        audience: str,
+        concurrency: int = 8,
+    ) -> None:
         """
-        Synchronize LanDB devices using cached EAM devices.
+        Synchronize LanDB devices using Auth0 client credentials.
 
-        Fetches data asynchronously from LanDB based on EAM cache,
-        then uses the generic sync routine to update the DB.
+        Uses your internal Auth0 service to exchange the provided client_id,
+        client_secret, and audience for a LanDB API token, then:
+
+        1. Fetches all EAM devices from the database cache.
+        2. If none are found, logs and exits.
+        3. Retrieves LanDB devices asynchronously against the EAM list.
+        4. Loads current LanDB devices from the database cache.
+        5. Calls the generic sync routine to update the database.
 
         Args:
-            token (str): LanDB API authentication token.
+            client_id (str): Auth0 Client ID for obtaining the LanDB API token.
+            client_secret (str): Auth0 Client Secret for obtaining the LanDB API token.
+            audience (str): Auth0 audience (API identifier) for the token request.
+            concurrency (int): Max number of parallel ping tasks.
         """
         eam_list: list[EAMDevice] = self.dbod_helper.get_all_eam_devices()
         if not eam_list:
             system_logger.info("No EAM devices—skipping LanDB sync.")
             return
 
-        landb_list: list[LanDBDevice] = asyncio_run(
-            self._get_landb_devices(eam_list, token)
+        session = ServiceAuthSession(
+            client_id=client_id, client_secret=client_secret, audience=audience
         )
+        self._ensure_token(session)
+
+        landb_list: list[LanDBDevice] = asyncio_run(
+            self._get_landb_devices(eam_list, session, concurrency)
+        )
+
         cache_list: list[LanDBDevice] = self.dbod_helper.get_all_landb_devices()
 
         self._sync_entities(
@@ -150,24 +172,29 @@ class AVTools:
     async def _get_landb_devices(
         self,
         eam_records: list[EAMDevice],
-        token: str,
+        session: ServiceAuthSession,
+        concurrency: int = 8,
     ) -> list[LanDBDevice]:
         """
         Fetch LanDB devices concurrently using asyncio.TaskGroup and chunking.
 
+        Uses the provided authenticated session to query the LanDB API in parallel,
+        breaking the EAM records into manageable chunks for efficient retrieval.
+
         Args:
-            eam_records (List[EAMDevice]): Cached EAM devices to lookup.
-            token (str): LanDB API token.
+            eam_records (List[EAMDevice]): Cached EAM devices to use as lookup keys.
+            session (ServiceAuthSession): Authenticated service session for LanDB API requests.
+            concurrency (int): Max number of parallel ping tasks.
 
         Returns:
-            List[LanDBDevice]: Retrieved LanDB devices.
+            List[LanDBDevice]: All LanDB devices retrieved for the given EAM records.
         """
         total = len(eam_records)
         if total == 0:
             system_logger.info("No EAM records provided; nothing to fetch.")
             return []
 
-        num_tasks = min(8, total)
+        num_tasks = min(concurrency, total)
         system_logger.info(f"Fetching {total} LanDB devices with {num_tasks} tasks.")
 
         # preallocate results
@@ -187,7 +214,6 @@ class AVTools:
                 except Exception as e:
                     system_logger.error(f"Error fetching {rec.equipmentno}: {e}")
                     continue
-
                 if dev and dev.serial_number is not None:
                     result[idx] = dev
 
@@ -270,3 +296,46 @@ class AVTools:
         old_data: dict[str, Any] = old.dict()
         new_data: dict[str, Any] = new.dict(exclude_unset=True)
         return {k: v for k, v in new_data.items() if old_data.get(k) != v}
+
+    def _ensure_token(
+        self,
+        session: ServiceAuthSession,
+        config: LanDBConfig = LanDBConfig(),
+    ) -> None:
+        """
+        Ensure that session.auth.token is populated by the CERN OAuth wrapper.
+        If no token exists, fire a dummy GET against the LanDB devices endpoint
+        (which under the hood will trigger the token fetch).
+
+        Args:
+            session: Authenticated ServiceAuthSession to verify.
+            config:  LanDBConfig holding base_url & endpoints.
+        """
+        token: Any = session.auth.token
+
+        if token:
+            expires_at = getattr(token, "expires_at", None)
+            if expires_at:
+                system_logger.info(
+                    f"Using cached access token (expires at {expires_at})"
+                )
+            else:
+                system_logger.info("Using cached access token")
+            return
+
+        # No token → hit the devices endpoint to force a token fetch
+        probe_url = f"{config.base_url}/{config.device_endpoint}"
+        system_logger.info(f"No access token found; probing {probe_url} to acquire one")
+        try:
+            resp = session.get(probe_url, params={"_limit": 1}, verify=True)
+            if resp.ok:
+                system_logger.info(
+                    "Successfully obtained new access token via probe GET."
+                )
+            else:
+                system_logger.error(
+                    f"Probe GET failed [{resp.status_code}] when obtaining token."
+                )
+        except Exception as e:
+            system_logger.error(f"Error during token-fetch probe: {e}")
+
