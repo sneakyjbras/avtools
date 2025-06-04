@@ -85,7 +85,14 @@ class EAMDevice(BaseModel):
         for cell in row.get("cell", []):
             t = cell.get("t")
             v = cell.get("value")
-            if t in {"serialnumber", "position", "equipmentno", "equipmentdesc", "class", "manufacturer"}:
+            if t in {
+                "serialnumber",
+                "position",
+                "equipmentno",
+                "equipmentdesc",
+                "class",
+                "manufacturer",
+            }:
                 data[t] = v
         return cls(**data)  # type: ignore[arg-type]
 
@@ -171,4 +178,3 @@ class EAMHelper:
             "INFOR_LOCALIZE_RESULTS": "true",
             "accept": "application/json",
         }
-

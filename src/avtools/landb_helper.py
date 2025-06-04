@@ -244,4 +244,3 @@ class LanDBHelper:
             "device.serialNumber.startsWith",
             landb_device.from_ip,
         )
-
