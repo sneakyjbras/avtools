@@ -15,18 +15,19 @@ set -euo pipefail
 #                                                                              #
 # Before running, export the required environment variables with your own values:
 #
-#export MY_USERNAME=
-#export MY_PASSWORD=
-#export DATABASE_URL=
-#export LANDB_CLIENT_ID=
-#export LANDB_CLIENT_SECRET=
-#export LANDB_AUDIENCE=
-#export INFLUX_HOST=
-#export INFLUX_PORT=
-#export INFLUX_USER=
-#export INFLUX_PASSWORD=
-#export INFLUX_DB=
-#export THREADS=1
+export MY_USERNAME="avtools"
+export MY_PASSWORD="bB2YNcwb8mtImlYg"
+export LANDB_CLIENT_ID="av-tools"
+export LANDB_CLIENT_SECRET="fsKOxhrAfMql6kPUCn3wEeYSCkXOo4c1"
+export LANDB_AUDIENCE="production-microservice-landb-rest"
+export DATABASE_URL="postgresql://avdaemon:oyasumi@dbod-avtools-cache.cern.ch:6613/av_cache"
+export LANDB_TOKEN_FILE="./token"
+export INFLUX_HOST="dbod-avtools-ts.cern.ch"
+export INFLUX_PORT="8090"
+export INFLUX_USER="avdaemon"
+export INFLUX_PASSWORD="hatsumimi"
+export INFLUX_DB="av_ts"
+export THREADS=1
 # Optionally, you can store these in a .env file in the same directory:
 #   .env
 #   MY_USERNAME=jsapinat
