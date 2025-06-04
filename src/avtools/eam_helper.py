@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from requests import Response, post
 from requests.auth import HTTPBasicAuth
 
@@ -71,6 +71,8 @@ class EAMDevice(BaseModel):
     position: str | None
     equipmentno: str | None
     equipmentdesc: str | None
+    eqclass: str | None = Field(None, alias="class")
+    manufacturer: str | None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -83,7 +85,7 @@ class EAMDevice(BaseModel):
         for cell in row.get("cell", []):
             t = cell.get("t")
             v = cell.get("value")
-            if t in {"serialnumber", "position", "equipmentno", "equipmentdesc"}:
+            if t in {"serialnumber", "position", "equipmentno", "equipmentdesc", "class", "manufacturer"}:
                 data[t] = v
         return cls(**data)  # type: ignore[arg-type]
 
@@ -94,6 +96,7 @@ class EAMDevice(BaseModel):
         system_logger.info(
             f"EquipmentNo: {self.equipmentno}, Position: {self.position}, "
             f"EquipmentDesc: {self.equipmentdesc}, SerialNumber: {self.serialnumber}"
+            f"Class: {self.eqclass}, Manufacturer: {self.manufacturer}"
         )
 
 

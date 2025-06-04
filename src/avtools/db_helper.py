@@ -67,6 +67,8 @@ class EAMDeviceORM(Base):
     serialnumber: str = Column(String, nullable=False)
     position: str | None = Column(String, nullable=True)
     equipmentdesc: str | None = Column(String, nullable=True)
+    eqclass: str | None = Column(String, nullable=True)
+    manufacturer: str | None = Column(String, nullable=True)
 
     @classmethod
     def from_device(cls, device: EAMDevice) -> EAMDeviceORM:
@@ -78,6 +80,8 @@ class EAMDeviceORM(Base):
             serialnumber=device.serialnumber,
             position=device.position,
             equipmentdesc=device.equipmentdesc,
+            eqclass=device.eqclass,
+            manufacturer=device.manufacturer,
         )
 
 
