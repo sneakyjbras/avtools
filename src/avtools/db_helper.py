@@ -30,6 +30,7 @@ class LanDBDeviceORM(Base):
     serial_number: str = Column(String, nullable=False)
     name: str | None = Column(String, nullable=True)
     manufacturer: str | None = Column(String, nullable=True)
+    eqclass: str | None = Column(String, nullable=True)
     building: str | None = Column(String, nullable=True)
     floor: str | None = Column(String, nullable=True)
     room: str | None = Column(String, nullable=True)
@@ -45,6 +46,7 @@ class LanDBDeviceORM(Base):
             serial_number=device.serial_number,
             name=device.name,
             manufacturer=device.manufacturer,
+            eqclass=device.eqclass,
             building=device.building,
             floor=device.floor,
             room=device.room,

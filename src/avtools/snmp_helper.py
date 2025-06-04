@@ -104,6 +104,7 @@ class SNMPHelper:
                     "equipmentno": target.equipmentno,
                     "serial_number": target.serial_number,
                     "name": target.name,
+                    "eqclass": target.eqclass,
                     "manufacturer": target.manufacturer,
                     "building": target.building,
                     "floor": target.floor,

@@ -27,7 +27,7 @@ export INFLUX_PORT="8090"
 export INFLUX_USER="avdaemon"
 export INFLUX_PASSWORD="hatsumimi"
 export INFLUX_DB="av_ts"
-export THREADS=1
+export THREADS=16
 # Optionally, you can store these in a .env file in the same directory:
 #   .env
 #   MY_USERNAME=jsapinat

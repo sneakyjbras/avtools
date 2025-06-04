@@ -210,6 +210,7 @@ class AVTools:
                         helper.get_data,
                         rec.equipmentno,
                         rec.serialnumber,
+                        rec.eqclass,
                     )
                 except Exception as e:
                     system_logger.error(f"Error fetching {rec.equipmentno}: {e}")

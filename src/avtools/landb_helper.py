@@ -63,6 +63,7 @@ class LanDBDevice(BaseModel):
     serial_number: str
     name: str | None = None
     manufacturer: str | None = None
+    eqclass: str | None = None
     building: str | None = None
     floor: str | None = None
     room: str | None = None
@@ -71,7 +72,9 @@ class LanDBDevice(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def create_device(cls, equipmentno: str, serial_number: str) -> LanDBDevice:
+    def create_device(
+        cls, equipmentno: str, serial_number: str, eqclass: str
+    ) -> LanDBDevice:
         """
         Factory method to initialize a device with only identifiers.
 
@@ -81,7 +84,9 @@ class LanDBDevice(BaseModel):
         Returns:
             A LanDBDevice with identifiers set.
         """
-        return cls(equipmentno=equipmentno, serial_number=serial_number)
+        return cls(
+            equipmentno=equipmentno, serial_number=serial_number, eqclass=eqclass
+        )
 
     def log_device(self) -> None:
         """
@@ -168,6 +173,10 @@ class LanDBHelper:
             system_logger.error(f"LanDB request failed [{response.status_code}]: {url}")
             return None
         data = response.json()
+        if url == "https://landb.cern.ch/api/beta/devices":
+            print(query)
+            print(url)
+            print(data)
         if not data:
             system_logger.info(f"No results for {endpoint} with query {query}")
             return None
@@ -197,7 +206,9 @@ class LanDBHelper:
             for rec in records:
                 update_fn(rec)
 
-    def get_data(self, equipmentno: str, serial_number: str) -> LanDBDevice:
+    def get_data(
+        self, equipmentno: str, serial_number: str, eqclass: str
+    ) -> LanDBDevice:
         """
         Instantiate a device and populate it with metadata then IP.
 
@@ -208,7 +219,7 @@ class LanDBHelper:
         Returns:
             A LanDBDevice with both metadata and IP applied.
         """
-        device = LanDBDevice.create_device(equipmentno, serial_number)
+        device = LanDBDevice.create_device(equipmentno, serial_number, eqclass)
         system_logger.info(f"Fetching LanDB data for {equipmentno}/{serial_number}")
         self.get_device(device)
         self.get_ip_address(device)
