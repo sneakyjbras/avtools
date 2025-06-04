@@ -188,7 +188,7 @@ class AVTools:
                     system_logger.error(f"Error fetching {rec.equipmentno}: {e}")
                     continue
 
-                if dev and dev.ip is not None and dev.serial_number is not None:
+                if dev and dev.serial_number is not None:
                     result[idx] = dev
 
         # use TaskGroup for clean task management
