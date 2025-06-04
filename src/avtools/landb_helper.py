@@ -227,7 +227,7 @@ class LanDBHelper:
             self.config.device_endpoint,
             self.config.device_query,
             "serialNumber.startsWith",
-            lambda data: landb_device.from_device(data),
+            landb_device.from_device,
         )
 
     def get_ip_address(self, landb_device: LanDBDevice) -> None:
@@ -242,6 +242,6 @@ class LanDBHelper:
             self.config.ip_endpoint,
             self.config.ip_address_query,
             "device.serialNumber.startsWith",
-            lambda data: landb_device.from_ip(data),
+            landb_device.from_ip,
         )
 
