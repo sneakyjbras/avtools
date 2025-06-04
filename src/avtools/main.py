@@ -113,11 +113,22 @@ def run_eam(
 # ---------------------------------------------------------------------------- #
 @cli.command("run-landb", help="Run LanDB CRUD operations.")
 @click.option(
-    "--token-file",
-    "token",
+    "--client-id",
+    "client_id",
     required=True,
-    callback=_load_landb_token,
-    help="Path to cached LanDB token file; loads the actual token.",
+    help="Auth0 Client ID.",
+)
+@click.option(
+    "--client-secret",
+    "client_secret",
+    required=True,
+    help="Auth0 Client Secret.",
+)
+@click.option(
+    "--audience",
+    "audience",
+    required=True,
+    help="Auth0 audience (API identifier).",
 )
 @click.option(
     "--dbod-url",
@@ -125,23 +136,42 @@ def run_eam(
     required=True,
     help="DBoD PostgreSQL URL (env DATABASE_URL).",
 )
+@click.option(
+    "--threads",
+    "-t",
+    envvar="THREADS",
+    default=8,
+    type=int,
+    show_default=True,
+    help="Number of threads for concurrent LanDB API requests.",
+)
 @click.pass_context
 def run_landb(
     ctx: click.Context,
-    token: str,
+    client_id: str,
+    client_secret: str,
+    audience: str,
     dbod_url: str,
+    threads: int,
 ) -> None:
     """
     CLI command to synchronize LanDB devices with the database.
 
     Args:
         ctx (click.Context): Context with shared options.
-        token (str): LanDB API bearer token.
+        client_id (str): Auth0 Client ID.
+        client_secret (str): Auth0 Client Secret.
+        audience (str): Auth0 audience.
         dbod_url (str): Database URL for DBoD operations.
     """
     av = AVTools(dbod_url=dbod_url, logs=ctx.obj["logs"])
     try:
-        av.run_landb(token)
+        av.run_landb(
+            client_id=client_id,
+            client_secret=client_secret,
+            audience=audience,
+            concurrency=threads,
+        )
         click.echo("LanDB CRUD operation completed successfully.")
     except NoRecordsFound as exc:
         click.echo(f"Error: {exc}")
@@ -194,7 +224,7 @@ def run_landb(
     "--threads",
     "-t",
     envvar="THREADS",
-    default=1,
+    default=8,
     type=int,
     show_default=True,
     help="Number of concurrent ping/SNMP worker threads.",
@@ -233,3 +263,4 @@ def snmp_influx(
 # ---------------------------------------------------------------------------- #
 if __name__ == "__main__":
     cli()
+
