@@ -15,6 +15,18 @@ set -euo pipefail
 #                                                                              #
 # Before running, export the required environment variables with your own values:
 #
+#export MY_USERNAME=
+#export MY_PASSWORD=
+#export DATABASE_URL=
+#export LANDB_CLIENT_ID=
+#export LANDB_CLIENT_SECRET=
+#export LANDB_AUDIENCE=
+#export INFLUX_HOST=
+#export INFLUX_PORT=
+#export INFLUX_USER=
+#export INFLUX_PASSWORD=
+#export INFLUX_DB=
+#export THREADS=1
 # Optionally, you can store these in a .env file in the same directory:
 #   .env
 #   MY_USERNAME=jsapinat
@@ -58,13 +70,20 @@ case "${COMMAND}" in
     ;;
 
   run-landb)
-    : "${LANDB_TOKEN_FILE:?Need to set LANDB_TOKEN_FILE}"
+    : "${LANDB_CLIENT_ID:?Need to set LANDB_CLIENT_ID}"
+    : "${LANDB_CLIENT_SECRET:?Need to set LANDB_CLIENT_SECRET}"
+    : "${LANDB_AUDIENCE:?Need to set LANDB_AUDIENCE}"
     : "${DATABASE_URL:?Need to set DATABASE_URL}"
+	# default THREADS to 8 if not set
+	: "${THREADS:=8}"
     poetry run avtools \
 	  --logs \
       --dbod-url "$DATABASE_URL" \
       run-landb \
-        --token-file "$LANDB_TOKEN_FILE" \
+        --client-id "$LANDB_CLIENT_ID" \
+		--client-secret "$LANDB_CLIENT_SECRET" \
+		--audience "$LANDB_AUDIENCE" \
+		--threads "$THREADS" \
         "$@"
     ;;
 
@@ -75,8 +94,8 @@ case "${COMMAND}" in
     : "${INFLUX_PASSWORD:?Need to set INFLUX_PASSWORD}"
     : "${INFLUX_DB:?Need to set INFLUX_DB}"
     : "${DATABASE_URL:?Need to set DATABASE_URL}"
-	# default THREADS to 1 if not set
-	: "${THREADS:=1}"
+	# default THREADS to 8 if not set
+	: "${THREADS:=8}"
     poetry run avtools \
 	  --logs \
       --dbod-url "$DATABASE_URL" \
@@ -96,3 +115,4 @@ case "${COMMAND}" in
     exit 1
     ;;
 esac
+
