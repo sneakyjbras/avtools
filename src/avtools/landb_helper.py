@@ -173,10 +173,6 @@ class LanDBHelper:
             system_logger.error(f"LanDB request failed [{response.status_code}]: {url}")
             return None
         data = response.json()
-        if url == "https://landb.cern.ch/api/beta/devices":
-            print(query)
-            print(url)
-            print(data)
         if not data:
             system_logger.info(f"No results for {endpoint} with query {query}")
             return None
