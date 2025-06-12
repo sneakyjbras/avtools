@@ -95,6 +95,7 @@ class LanDBDevice(BaseModel):
         system_logger.info(
             f"Device {self.equipmentno} | Serial: {self.serial_number} | "
             f"Name: {self.name} | Manufacturer: {self.manufacturer} | "
+            f"Eqclass: {self.eqclass} | "
             f"Location: {self.building}/{self.floor}/{self.room} | IP: {self.ip}"
         )
 

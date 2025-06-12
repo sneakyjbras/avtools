@@ -74,7 +74,7 @@ class EAMDevice(BaseModel):
     eqclass: str | None = Field(None, alias="class")
     manufacturer: str | None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     @classmethod
     def from_eam(cls, row: dict[str, Any]) -> EAMDevice:
