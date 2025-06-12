@@ -28,13 +28,6 @@ export INFLUX_USER="avdaemon"
 export INFLUX_PASSWORD="hatsumimi"
 export INFLUX_DB="av_ts"
 export THREADS=16
-# Optionally, you can store these in a .env file in the same directory:
-#   .env
-#   MY_USERNAME=jsapinat
-#   MY_PASSWORD=secret
-#   DATABASE_URL=postgresql://...
-#   ...
-# and load them automatically below.
 # ---------------------------------------------------------------------------- #
 
 # Load from .env if present
