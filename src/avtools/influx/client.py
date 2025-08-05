@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 from influxdb import InfluxDBClient
 
 
-class InfluxHelper:
+class InfluxClient:
     """
     Helper class for writing time-series data points to InfluxDB.
     Provides both synchronous and asynchronous methods, so you can
@@ -62,7 +62,7 @@ class InfluxHelper:
             self.client.write_points(points)
         except Exception as exc:
             # Replace with your logger if desired
-            print(f"[InfluxHelper] Error writing points: {exc}")
+            print(f"[InfluxClient] Error writing points: {exc}")
 
     async def write_points_async(self, points: list[dict[str, Any]]) -> None:
         """

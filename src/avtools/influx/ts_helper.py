@@ -6,7 +6,7 @@ from typing import Dict
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-from avtools.logger import system_logger
+from avtools.io.logger import system_logger
 
 
 class TimeSeriesHelper:
