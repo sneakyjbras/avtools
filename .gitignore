@@ -175,6 +175,3 @@ src/avtools/av_device_cache.json
 
 # Remove personal script
 src/avtools/avtools_client.sh
-
-# Avoid sending logs
-logs

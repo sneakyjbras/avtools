@@ -6,11 +6,11 @@ from typing import Any
 
 import click
 
-from avtools.av_tools import AVTools
-from avtools.errors import NoRecordsFound
-from avtools.logger import system_logger
-from avtools.snmp_helper import SNMPHelper
-from avtools.ts_helper import TimeSeriesHelper
+from avtools.core.av_tools import AVTools
+from avtools.exception.errors import NoRecordsFound
+from avtools.influx.ts_helper import TimeSeriesHelper
+from avtools.io.logger import system_logger
+from avtools.snmp.client import SNMPClient
 
 
 def _load_landb_token(ctx: click.Context, param: click.Parameter, value: str) -> str:
@@ -170,7 +170,7 @@ def run_landb(
             client_id=client_id,
             client_secret=client_secret,
             audience=audience,
-            concurrency=threads,
+            max_workers=threads,
         )
         click.echo("LanDB CRUD operation completed successfully.")
     except NoRecordsFound as exc:
@@ -254,7 +254,7 @@ def snmp_influx(
         influx_user=influx_user,
         influx_password=influx_password,
         influx_db=influx_db,
-        concurrency=threads,
+        max_workers=threads,
     )
 
 

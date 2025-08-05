@@ -1,4 +1,4 @@
--- sql/devices_not_in_landb.sql
+-- sql/devices_with_serials_not_in_landb.sql
 SELECT ed.*
 FROM eam_devices ed
 WHERE NOT EXISTS (
