@@ -17,13 +17,17 @@ class EAMConfig:
 
     base_url: str = "https://cmmsx.cern.ch/WSHub/REST/apis"
     endpoint: str = "grids/data"
+    asset_grid_id: int = 84
+    asset_grid_name: str = "OSOBJA"
+    position_grid_id: int = 113
+    position_grid_name: str = "OSOBJP"
     default_query: dict[str, Any] = field(
         default_factory=lambda: {
             "rowCount": 0,
             "cursorPosition": 1,
-            "gridID": 84,
-            "userFunctionName": "OSOBJA",
-            "gridName": "OSOBJA",
+            "gridID": 0,
+            "userFunctionName": "",
+            "gridName": "",
             "gridType": "LIST",
             "useNative": True,
             "gridFilter": [

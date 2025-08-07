@@ -46,7 +46,7 @@ class AVTools:
 
     def run_eam(self, username: str, password: str) -> None:
         """
-        Synchronize EAM devices with the local cache.
+        Synchronize EAM assets and positions with the local cache.
 
         Authenticates to the EAM API, retrieves all devices, and delegates
         to the generic sync routine.
@@ -57,7 +57,7 @@ class AVTools:
         """
         auth = HTTPBasicAuth(username, password)
         eam_helper = EAMClient(auth)
-        total: int = eam_helper.get_number_av_records()
+        total: int = eam_helper.get_number_av_assets()
         eam_list: list[EAMDevice] = eam_helper.get_device_list(total)
         cache_list: list[EAMDevice] = self.dbod_helper.get_all_eam_devices()
 
@@ -68,6 +68,10 @@ class AVTools:
             sync_func=self.dbod_helper.sync_eam_devices,
             name="EAM",
         )
+
+        # TODO function for each
+        # total: int = eam_helper.get_number_av_positions()
+        # eam_list: list[EAMDevice] = eam_helper.get_positions_list(total)
 
     def run_landb(
         self,

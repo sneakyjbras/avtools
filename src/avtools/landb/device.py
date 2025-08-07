@@ -66,7 +66,7 @@ class LanDBDevice(BaseModel):
         """
         Merge metadata fields (equipmentdesc, manufacturer, location) into this device.
         """
-        if equipmentdesc := device_data.get("equipmentdesc"):
+        if equipmentdesc := device_data.get("name"):
             self.equipmentdesc = equipmentdesc
         if manufacturer := device_data.get("manufacturer"):
             self.manufacturer = manufacturer

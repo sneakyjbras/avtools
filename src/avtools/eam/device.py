@@ -60,12 +60,12 @@ class EAMDevice(BaseModel):
         Log the details of this device to the system logger.
         """
         system_logger.info(
-            f"EquipmentNo: {self.equipmentno}, "
+            f"Equipment No.: {self.equipmentno}, "
             f"Position: {self.position}, "
-            f"EquipmentDesc: {self.equipmentdesc}, "
-            f"SerialNumber: {self.serialnumber}, "
+            f"Equipment Description: {self.equipmentdesc}, "
+            f"Serial Number: {self.serialnumber}, "
             f"Class: {self.eqclass}, "
             f"Category: {self.category}, "
             f"Manufacturer: {self.manufacturer}, "
-            f"CommissionDate: {self.commissiondate}"
+            f"Commission Date: {self.commissiondate}, "
         )
