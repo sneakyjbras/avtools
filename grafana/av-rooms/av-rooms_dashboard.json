@@ -131,7 +131,7 @@
             "properties": [
               {
                 "id": "custom.hidden",
-                "value": true
+                "value": false
               }
             ]
           },
@@ -178,8 +178,14 @@
           ],
           "show": false
         },
+        "frameIndex": 0,
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Room"
+          }
+        ]
       },
       "pluginVersion": "11.5.5",
       "targets": [
@@ -190,6 +196,7 @@
           },
           "editorMode": "code",
           "format": "table",
+          "hide": false,
           "rawQuery": true,
           "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.category            AS RoomCategory,\n    room.commissiondate      AS RoomCommissionDate,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE room.assetstatus_display = 'Installed'\n),\nagg AS (\n  SELECT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    ConferenceRoom,\n    RoomCategory,\n    RoomCommissionDate,\n    RoomStatus,\n    -- raw parts (X.Y.Z) for natural sorting\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms_with_devices\n  GROUP BY ConferenceRoomNo, ConferenceRoom, RoomCategory, RoomCommissionDate, RoomStatus\n),\nranked AS (\n  SELECT\n    *,\n    -- numeric prefixes and alpha suffixes for natural sort\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM agg\n)\nSELECT\n  ConferenceRoomNo,\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomCategory,\n  RoomCommissionDate,\n  RoomStatus\nFROM ranked\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo;\n",
           "refId": "A",
@@ -210,40 +217,206 @@
             ],
             "limit": 50
           }
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "-- PG_DEVICES (room \u2194 device equipmentno, only Installed)\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb_up AS (\n  SELECT\n    dp.position          AS start_pos,\n    p.equipmentno        AS cur_pos,\n    p.parentasset        AS parent_pos,\n    0                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb_up c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND p.equipmentno <> ALL (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb_up c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS ConferenceRoomNo\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE room.assetstatus_display = 'Installed'\n),\ndown AS (\n  SELECT\n    r.ConferenceRoomNo,\n    p.equipmentno,\n    1                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM rooms r\n  JOIN eam_positions p ON p.parentasset = r.ConferenceRoomNo\n\n  UNION ALL\n\n  SELECT\n    d.ConferenceRoomNo,\n    p.equipmentno,\n    d.depth + 1,\n    d.visited || p.equipmentno\n  FROM down d\n  JOIN eam_positions p ON p.parentasset = d.equipmentno\n  WHERE d.depth < 100\n    AND p.equipmentno <> ALL (d.visited)\n),\nleafs AS (\n  SELECT d.ConferenceRoomNo, d.equipmentno AS leaf_position\n  FROM down d\n  LEFT JOIN eam_positions ch ON ch.parentasset = d.equipmentno\n  WHERE ch.equipmentno IS NULL\n)\nSELECT DISTINCT\n  l.ConferenceRoomNo,\n  dev.equipmentno                 -- \u2190 device id to join with Influx\nFROM leafs l\nJOIN eam_devices   dev ON dev.position     = l.leaf_position\nJOIN eam_positions pos ON pos.equipmentno  = l.leaf_position\nWHERE pos.assetstatus_display = 'Installed'\n  AND (dev.assetstatus_display = 'Installed' OR dev.assetstatus_display IS NULL)\nORDER BY ConferenceRoomNo, equipmentno;\n",
+          "refId": "B",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "alias": "Ping Check",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "hide": false,
+          "query": "SELECT LAST(\"status\") AS ping_status\nFROM \"ping_check\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "table"
+        },
+        {
+          "alias": "SNMP Monitoring",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "hide": false,
+          "query": "SELECT LAST(\"status\") AS snmp_status\nFROM \"snmp_probe\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "table"
         }
       ],
       "title": "Installed Rooms: ${rooms_total}",
       "transformations": [
         {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:C|D)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "inner"
+          }
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:B|joinByField-C-D)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "outerTabular"
+          },
+          "topic": "series"
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:joinByField-joinByField-C-D-B)$/"
+          },
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Time ping_check": {
+                "aggregations": [],
+                "operation": "aggregate"
+              },
+              "Time snmp_probe": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "conferenceroomno": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              },
+              "equipmentno": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "ping_status": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              },
+              "snmp_status": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              },
+              "status": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          },
+          "topic": "series"
+        },
+        {
+          "disabled": true,
+          "id": "calculateField",
+          "options": {
+            "alias": "Disconnected",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "equipmentno (count)"
+                }
+              },
+              "operator": "-",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": false
+          }
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:|A)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "conferenceroomno",
+            "mode": "inner"
+          },
+          "topic": "series"
+        },
+        {
           "id": "organize",
           "options": {
             "excludeByName": {
-              "conferenceroomno": false,
-              "devicecount": true,
-              "roomstatus": true,
-              "totalrows": true
+              "conferenceroomno": true,
+              "roomstatus": true
             },
             "includeByName": {},
             "indexByName": {
-              "conferenceroom": 3,
-              "conferenceroomno": 2,
-              "conferenceroomnofmt": 1,
-              "devicecount": 7,
-              "roomcategory": 5,
-              "roomcommissiondate": 6,
-              "roomstatus": 4,
-              "rownumber": 0
+              "conferenceroom": 2,
+              "conferenceroomno": 1,
+              "conferenceroomnofmt": 0,
+              "equipmentno (count)": 6,
+              "ping_status (sum)": 7,
+              "roomcategory": 4,
+              "roomcommissiondate": 5,
+              "roomstatus": 3,
+              "snmp_status (sum)": 8
             },
             "renameByName": {
               "conferenceroom": "Name",
               "conferenceroomno": "Position",
               "conferenceroomnofmt": "Room",
-              "devicecount": "Devices",
+              "equipmentno (count)": "Device No.",
+              "ping_status (sum)": "Available",
               "roomcategory": "Category",
               "roomcommissiondate": "Commission Date",
               "roomstatus": "Status",
-              "rownumber": "#",
-              "totalrows": "Total Rows"
+              "snmp_status (sum)": "Monitorable"
             }
           }
         }
@@ -289,13 +462,13 @@
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-12h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "Europe/Zurich",
   "title": "AV-Rooms: Dashboard",
   "uid": "few9yty0nez28f",
-  "version": 36,
+  "version": 42,
   "weekStart": "monday"
 }
