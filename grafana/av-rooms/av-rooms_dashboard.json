@@ -38,7 +38,8 @@
           "custom": {
             "align": "auto",
             "cellOptions": {
-              "type": "auto"
+              "type": "auto",
+              "wrapText": true
             },
             "inspect": false
           },
@@ -47,11 +48,23 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": null
               },
               {
                 "color": "red",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 25
+              },
+              {
+                "color": "#EAB839",
+                "value": 50
+              },
+              {
+                "color": "green",
                 "value": 80
               }
             ]
@@ -113,7 +126,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 200
+                "value": 90
               }
             ]
           },
@@ -126,6 +139,10 @@
               {
                 "id": "custom.hidden",
                 "value": false
+              },
+              {
+                "id": "custom.width",
+                "value": 142
               }
             ]
           },
@@ -137,7 +154,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 615
+                "value": 585
               }
             ]
           },
@@ -172,6 +189,163 @@
                     "url": "https://eamlight.cern.ch/position/${__data.fields.conferenceroomno:default:}"
                   }
                 ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Commission Date"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              },
+              {
+                "id": "custom.width",
+                "value": 168
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 73
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Coverage %"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 1,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "index": 0,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "special"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text",
+                  "wrapText": true
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Health %"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 1,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "index": 0,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "special"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text",
+                  "wrapText": true
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Snmp %"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 1,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "index": 0,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "special"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text",
+                  "wrapText": true
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 0
               }
             ]
           }
@@ -317,16 +491,10 @@
           "options": {
             "fields": {
               "Time ping_check": {
-                "aggregations": [
-                  "max"
-                ],
-                "operation": "aggregate"
+                "aggregations": []
               },
               "Time snmp_probe": {
-                "aggregations": [
-                  "max"
-                ],
-                "operation": "aggregate"
+                "aggregations": []
               },
               "conferenceroomno": {
                 "aggregations": [
@@ -342,7 +510,8 @@
               },
               "ping_status": {
                 "aggregations": [
-                  "sum"
+                  "sum",
+                  "count"
                 ],
                 "operation": "aggregate"
               },
@@ -354,7 +523,8 @@
               },
               "snmp_status": {
                 "aggregations": [
-                  "sum"
+                  "sum",
+                  "count"
                 ],
                 "operation": "aggregate"
               },
@@ -392,37 +562,267 @@
           }
         },
         {
+          "id": "calculateField",
+          "options": {
+            "alias": "Offline",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              },
+              "operator": "-",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "include": [
+                "ping_status (count)",
+                "snmp_status (count)"
+              ],
+              "reducer": "max"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Coverage Gap",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "equipmentno (count)"
+                }
+              },
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Network Avail %",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              }
+            },
+            "cumulative": {
+              "reducer": "mean"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "median"
+            },
+            "window": {
+              "reducer": "mean",
+              "windowAlignment": "trailing",
+              "windowSize": 0.1,
+              "windowSizeMode": "percentage"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Network Avail %"
+                }
+              },
+              "operator": "*",
+              "right": {
+                "fixed": "100"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Coverage %",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "equipmentno (count)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Coverage %"
+                }
+              },
+              "operator": "*",
+              "right": {
+                "fixed": "100"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": false
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Snmp %",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "snmp_status (sum)"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Snmp %"
+                }
+              },
+              "operator": "*",
+              "right": {
+                "fixed": "100"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
           "id": "organize",
           "options": {
             "excludeByName": {
+              "Coverage %": true,
+              "Coverage Gap": true,
+              "Network Avail %": true,
+              "Offline": true,
+              "Snmp %": true,
               "conferenceroomno": false,
+              "ping_status (count)": true,
+              "ping_status (sum)": true,
               "room_sort_rank (max)": true,
-              "roomstatus": true
+              "roomstatus": true,
+              "snmp_status (count)": true,
+              "snmp_status (sum)": true
             },
             "includeByName": {},
             "indexByName": {
+              "Coverage %": 15,
+              "Coverage % * 100": 14,
+              "Coverage Gap": 13,
+              "Network Avail %": 16,
+              "Network Avail % * 100": 17,
+              "Offline": 10,
+              "Snmp %": 18,
               "conferenceroom": 3,
               "conferenceroomno": 2,
               "conferenceroomnofmt": 1,
-              "equipmentno (count)": 7,
-              "ping_status (sum)": 8,
+              "equipmentno (count)": 4,
+              "ping_status (count)": 8,
+              "ping_status (sum)": 9,
               "room_sort_rank (max)": 0,
-              "roomcategory": 5,
-              "roomcommissiondate": 6,
-              "roomstatus": 4,
-              "snmp_status (sum)": 9
+              "roomcategory": 6,
+              "roomcommissiondate": 7,
+              "roomstatus": 5,
+              "snmp_status (count)": 11,
+              "snmp_status (sum)": 12
             },
             "renameByName": {
+              "Coverage %": "",
+              "Coverage % * 100": "Coverage %",
+              "Coverage Gap": "Unmonitored Devices",
+              "Median": "Median",
+              "Network Avail %": "",
+              "Network Avail % * 100": "Health %",
+              "Offline": "Down Devices",
+              "Snmp %": "",
+              "Snmp % * 100": "Snmp %",
               "conferenceroom": "Name",
               "conferenceroomno": "Position",
               "conferenceroomnofmt": "Room",
-              "equipmentno (count)": "Device No.",
-              "ping_status (sum)": "Available",
+              "equipmentno (count)": "Total",
+              "ping_status (count)": "Eligible",
+              "ping_status (sum)": "Online Devices",
               "room_sort_rank (max)": "#",
               "roomcategory": "Category",
               "roomcommissiondate": "Commission Date",
               "roomstatus": "Status",
-              "snmp_status (sum)": "Monitorable"
+              "snmp_status (count)": "SNMP Eligible",
+              "snmp_status (sum)": "SNMP Online"
             }
           }
         }
@@ -475,6 +875,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV-Rooms: Dashboard",
   "uid": "few9yty0nez28f",
-  "version": 48,
+  "version": 72,
   "weekStart": "monday"
 }
