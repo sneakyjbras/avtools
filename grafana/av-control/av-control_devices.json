@@ -105,7 +105,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Infor EAM"
+              "options": "Asset"
             },
             "properties": [
               {
@@ -142,12 +142,7 @@
                 "id": "links",
                 "value": [
                   {
-                    "targetBlank": true,
-                    "title": "EAM",
-                    "url": "https://eamlight.cern.ch/position/${__data.fields.deepestparentequipmentno:default:}"
-                  },
-                  {
-                    "targetBlank": true,
+                    "targetBlank": false,
                     "title": "Grafana",
                     "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av-devices-by-room?orgId=12&var-room=${__data.fields.deepestparentequipmentno:default:}"
                   }
@@ -247,7 +242,17 @@
             "properties": [
               {
                 "id": "custom.hidden",
-                "value": true
+                "value": false
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "EAM",
+                    "url": "https://eamlight.cern.ch/position/${__data.fields.deepestparentequipmentno:default:}"
+                  }
+                ]
               }
             ]
           },
@@ -325,7 +330,7 @@
         "sortBy": [
           {
             "desc": false,
-            "displayName": "Infor EAM"
+            "displayName": "Asset"
           }
         ]
       },
@@ -454,15 +459,19 @@
             },
             "includeByName": {},
             "indexByName": {
+              "Time ping_check": 8,
+              "Time snmp_probe": 11,
               "commissiondate": 4,
-              "deepestparentequipmentno": 7,
-              "deepestparentequipmentno_fmt": 1,
+              "deepestparentequipmentno": 1,
+              "deepestparentequipmentno_fmt": 0,
               "equipmentno": 5,
-              "leafstatus": 8,
+              "leafstatus": 7,
               "manufacturer": 3,
               "name": 2,
+              "ping_status": 10,
               "resources": 6,
-              "rownumber": 0
+              "serialnumber": 9,
+              "snmp_status": 12
             },
             "renameByName": {
               "RowNumber": "#",
@@ -473,7 +482,7 @@
               "conferenceroom": "Location",
               "deepestparentequipmentno": "Position",
               "deepestparentequipmentno_fmt": "Room",
-              "equipmentno": "Infor EAM",
+              "equipmentno": "Asset",
               "leafstatus": "Status",
               "manufacturer": "Manufacturer",
               "name": "Name",
@@ -581,6 +590,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV-Control: Devices",
   "uid": "aexjyn8xeyeiof",
-  "version": 3,
+  "version": 4,
   "weekStart": "monday"
 }

@@ -105,7 +105,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Infor EAM"
+              "options": "Asset"
             },
             "properties": [
               {
@@ -142,12 +142,7 @@
                 "id": "links",
                 "value": [
                   {
-                    "targetBlank": true,
-                    "title": "EAM",
-                    "url": "https://eamlight.cern.ch/position/${__data.fields.deepestparentequipmentno:default:}"
-                  },
-                  {
-                    "targetBlank": true,
+                    "targetBlank": false,
                     "title": "Grafana",
                     "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av-devices-by-room?orgId=12&var-room=${__data.fields.deepestparentequipmentno:default:}"
                   }
@@ -247,7 +242,17 @@
             "properties": [
               {
                 "id": "custom.hidden",
-                "value": true
+                "value": false
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "EAM",
+                    "url": "https://eamlight.cern.ch/position/${__data.fields.deepestparentequipmentno:default:}"
+                  }
+                ]
               }
             ]
           },
@@ -322,12 +327,7 @@
         },
         "frameIndex": 0,
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "Infor EAM"
-          }
-        ]
+        "sortBy": []
       },
       "pluginVersion": "11.5.5",
       "targets": [
@@ -445,7 +445,7 @@
           "id": "organize",
           "options": {
             "excludeByName": {
-              "Time ping_check": true,
+              "Time ping_check": false,
               "Time snmp_probe": true,
               "deepestparentequipmentno": false,
               "equipmentno": false,
@@ -454,26 +454,30 @@
             },
             "includeByName": {},
             "indexByName": {
+              "Time ping_check": 10,
+              "Time snmp_probe": 12,
               "commissiondate": 4,
-              "deepestparentequipmentno": 7,
-              "deepestparentequipmentno_fmt": 1,
+              "deepestparentequipmentno": 1,
+              "deepestparentequipmentno_fmt": 0,
               "equipmentno": 5,
-              "leafstatus": 8,
+              "leafstatus": 7,
               "manufacturer": 3,
               "name": 2,
+              "ping_status": 9,
               "resources": 6,
-              "rownumber": 0
+              "serialnumber": 8,
+              "snmp_status": 11
             },
             "renameByName": {
               "RowNumber": "#",
-              "Time ping_check": "Ping Time",
-              "Time snmp_probe": "SNMP Probe",
+              "Time ping_check": "Last Response",
+              "Time snmp_probe": "Last Monitoring",
               "comissiondate": "Commission Date",
               "commissiondate": "Commission Date",
               "conferenceroom": "Location",
               "deepestparentequipmentno": "Position",
               "deepestparentequipmentno_fmt": "Room",
-              "equipmentno": "Infor EAM",
+              "equipmentno": "Asset",
               "leafstatus": "Status",
               "manufacturer": "Manufacturer",
               "name": "Name",
@@ -581,6 +585,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV-Audio: Devices",
   "uid": "aexjxczyywfeoa",
-  "version": 5,
+  "version": 8,
   "weekStart": "monday"
 }
