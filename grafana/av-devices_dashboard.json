@@ -399,12 +399,7 @@
         },
         "frameIndex": 0,
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "Response Time"
-          }
-        ]
+        "sortBy": []
       },
       "pluginVersion": "11.5.5",
       "targets": [
@@ -416,7 +411,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH RECURSIVE\nFilteredDevices AS (\n  SELECT\n    d.equipmentno         AS DeviceNo,\n    d.position            AS PositionNo,\n    d.equipmentdesc       AS DeviceDesc,\n    d.manufacturer        AS Manufacturer,\n    d.commissiondate      AS CommissionDate,\n    d.serialnumber,\n    d.assetstatus_display AS LeafStatus\n  FROM eam_devices d\n  WHERE\n    -- Status\n    d.assetstatus_display = 'Installed'\n    -- Single-select EqClass\n    AND d.eqclass = '${EqClass}'\n    -- Single-select Category; '__empty__' means NULL/blank\n    AND (\n      '${Category}' = '__empty__'\n      AND (d.category IS NULL OR d.category = '')\n      OR d.category = ${Category:sqlstring}\n    )\n),\n\n-- get each device\u2019s immediate parent position (anchor for the climb)\nPosAnchor AS (\n  SELECT\n    fd.DeviceNo,\n    fd.PositionNo,\n    p_cur.parentasset AS StartParent\n  FROM FilteredDevices fd\n  LEFT JOIN eam_positions p_cur\n    ON p_cur.equipmentno = fd.PositionNo\n),\n\n-- dedupe anchors so we climb each distinct parent once\nAnchors AS (\n  SELECT DISTINCT StartParent\n  FROM PosAnchor\n  WHERE StartParent IS NOT NULL\n),\n\n-- recursive climb from each anchor to the root\nclimb AS (\n  SELECT\n    a.StartParent        AS start_pos,\n    p.equipmentno        AS equipmentno,\n    p.parentasset        AS parentasset,\n    1                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM Anchors a\n  JOIN eam_positions p ON p.equipmentno = a.StartParent\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parentasset\n  WHERE c.parentasset IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)  -- cycle guard\n),\n\n-- pick the farthest ancestor per anchor\nDeepest AS (\n  SELECT DISTINCT ON (start_pos)\n    start_pos,\n    equipmentno AS deepest_positionno,\n    depth\n  FROM climb\n  ORDER BY start_pos, depth DESC\n)\n\nSELECT\n  fd.DeviceDesc AS Name,\n  fd.Manufacturer AS Manufacturer,\n\n  d.deepest_positionno AS DeepestParentEquipmentNo,\n\n  REGEXP_REPLACE(\n    d.deepest_positionno,\n    '(?i)^CCA-([^.]+)\\.([^.]+)\\.([^.]+)(?:\\..*)?$',\n    '\\1/\\2-\\3'\n  ) AS DeepestParentEquipmentNo_fmt,\n\n  -- NEW: GIS flag (1 if DeepestParentEquipmentNo exists, else NULL)\n  CASE WHEN d.deepest_positionno IS NOT NULL THEN 1 END AS GIS,\n\n  fd.LeafStatus       AS LeafStatus,\n  fd.CommissionDate   AS CommissionDate,\n  fd.DeviceNo         AS EquipmentNo,\n\n  CASE WHEN EXISTS (\n    SELECT 1\n    FROM landb_devices ld\n    WHERE ld.equipmentno = fd.DeviceNo\n      AND ld.serialnumber = fd.serialnumber\n  ) THEN 1 END AS Resources   -- 1 or NULL\n\nFROM FilteredDevices fd\nLEFT JOIN PosAnchor pa\n  ON pa.DeviceNo = fd.DeviceNo\nLEFT JOIN Deepest d\n  ON d.start_pos = pa.StartParent\nORDER BY Name;\n",
+          "rawSql": "WITH RECURSIVE\nFilteredDevices AS (\n  SELECT\n    d.equipmentno         AS DeviceNo,\n    d.position            AS PositionNo,\n    d.equipmentdesc       AS DeviceDesc,\n    d.manufacturer        AS Manufacturer,\n    d.commissiondate      AS CommissionDate,\n    d.serialnumber,\n    d.assetstatus_display AS LeafStatus\n  FROM eam_devices d\n  WHERE\n    -- Status\n    d.assetstatus_display = 'Installed'\n    -- Single-select EqClass\n    AND d.eqclass = '${EqClass}'\n    -- Single-select Category; '__empty__' means NULL/blank\n    AND (\n      '${Category}' = '__empty__'\n      AND (d.category IS NULL OR d.category = '')\n      OR d.category = ${Category:sqlstring}\n    )\n),\n\n-- get each device\u2019s immediate parent position (anchor for the climb)\nPosAnchor AS (\n  SELECT\n    fd.DeviceNo,\n    fd.PositionNo,\n    p_cur.parentasset AS StartParent\n  FROM FilteredDevices fd\n  LEFT JOIN eam_positions p_cur\n    ON p_cur.equipmentno = fd.PositionNo\n),\n\n-- dedupe anchors so we climb each distinct parent once\nAnchors AS (\n  SELECT DISTINCT StartParent\n  FROM PosAnchor\n  WHERE StartParent IS NOT NULL\n),\n\n-- recursive climb from each anchor to the root\nclimb AS (\n  SELECT\n    a.StartParent        AS start_pos,\n    p.equipmentno        AS equipmentno,\n    p.parentasset        AS parentasset,\n    1                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM Anchors a\n  JOIN eam_positions p ON p.equipmentno = a.StartParent\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parentasset\n  WHERE c.parentasset IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)  -- cycle guard\n),\n\n-- pick the farthest ancestor per anchor\nDeepest AS (\n  SELECT DISTINCT ON (start_pos)\n    start_pos,\n    equipmentno AS deepest_positionno,\n    depth\n  FROM climb\n  ORDER BY start_pos, depth DESC\n)\n\nSELECT\n  fd.DeviceDesc AS Name,\n  fd.Manufacturer AS Manufacturer,\n\n  d.deepest_positionno AS DeepestParentEquipmentNo,\n\n  REGEXP_REPLACE(\n    d.deepest_positionno,\n    '(?i)^CCA-([^.]+)\\.([^.]+)\\.([^.]+)(?:\\..*)?$',\n    '\\1/\\2-\\3'\n  ) AS DeepestParentEquipmentNo_fmt,\n\n  -- GIS flag (1 if DeepestParentEquipmentNo exists, else NULL)\n  CASE WHEN d.deepest_positionno IS NOT NULL THEN 1 END AS GIS,\n\n  fd.LeafStatus       AS LeafStatus,\n  fd.CommissionDate   AS CommissionDate,\n  fd.DeviceNo         AS EquipmentNo,\n\n  CASE WHEN EXISTS (\n    SELECT 1\n    FROM landb_devices ld\n    WHERE ld.equipmentno = fd.DeviceNo\n      AND ld.serialnumber = fd.serialnumber\n  ) THEN 1 END AS Resources   -- 1 or NULL\n\nFROM FilteredDevices fd\nLEFT JOIN PosAnchor pa\n  ON pa.DeviceNo = fd.DeviceNo\nLEFT JOIN Deepest d\n  ON d.start_pos = pa.StartParent\nORDER BY\n  -- natural sort by the three parts of CCA-<part1>.<part2>.<part3>\n  NULLIF(regexp_replace(split_part(split_part(d.deepest_positionno,'-',2),'.',1), '\\D.*$', ''), '')::int NULLS LAST,\n  regexp_replace(split_part(split_part(d.deepest_positionno,'-',2),'.',1), '^\\d+', ''),\n  NULLIF(regexp_replace(split_part(split_part(d.deepest_positionno,'-',2),'.',2), '\\D.*$', ''), '')::int NULLS LAST,\n  regexp_replace(split_part(split_part(d.deepest_positionno,'-',2),'.',2), '^\\d+', ''),\n  NULLIF(regexp_replace(split_part(split_part(d.deepest_positionno,'-',2),'.',3), '\\D.*$', ''), '')::int NULLS LAST,\n  regexp_replace(split_part(split_part(d.deepest_positionno,'-',2),'.',3), '^\\d+', ''),\n  Name;\n",
           "refId": "A",
           "sql": {
             "columns": [
@@ -632,8 +627,8 @@
         "allValue": "@all",
         "current": {
           "selected": false,
-          "text": "AVA",
-          "value": "AVA"
+          "text": "AVD",
+          "value": "AVD"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -657,8 +652,8 @@
       {
         "current": {
           "selected": false,
-          "text": "__empty__",
-          "value": "__empty__"
+          "text": "AV-PRO",
+          "value": "AV-PRO"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -689,6 +684,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV-Devices: Dashboard",
   "uid": "aez15jhahzldsc",
-  "version": 20,
+  "version": 22,
   "weekStart": "monday"
 }
