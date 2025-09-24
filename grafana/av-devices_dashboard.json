@@ -626,9 +626,9 @@
       {
         "allValue": "@all",
         "current": {
-          "selected": false,
-          "text": "AVD",
-          "value": "AVD"
+          "selected": true,
+          "text": "AVA",
+          "value": "AVA"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -652,14 +652,14 @@
       {
         "current": {
           "selected": false,
-          "text": "AV-PRO",
-          "value": "AV-PRO"
+          "text": "None",
+          "value": "__empty__"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
           "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
         },
-        "definition": "SELECT DISTINCT category\nFROM eam_devices\nWHERE eqclass = '${EqClass}'\n  AND category IS NOT NULL AND category <> ''\n\nUNION ALL\n-- Add a synthetic option if the selected class has empty/NULL categories\nSELECT '__empty__'\nWHERE EXISTS (\n  SELECT 1\n  FROM eam_devices\n  WHERE eqclass = '${EqClass}'\n    AND (category IS NULL OR category = '')\n)\nORDER BY 1\n",
+        "definition": "SELECT\n  CASE WHEN d.category IS NULL OR d.category = '' THEN '__empty__' ELSE d.category END AS \"__value\",\n  CASE WHEN d.category IS NULL OR d.category = '' THEN 'None'       ELSE d.category END AS \"__text\"\nFROM eam_devices d\nWHERE d.eqclass = ${EqClass:sqlstring}\nGROUP BY 1,2\nORDER BY \"__text\";\n",
         "description": "Pick exactly one category for the chosen class. Choose __empty__ to include devices with no category (NULL/blank).",
         "hide": 0,
         "includeAll": false,
@@ -667,7 +667,7 @@
         "multi": false,
         "name": "Category",
         "options": [],
-        "query": "SELECT DISTINCT category\nFROM eam_devices\nWHERE eqclass = '${EqClass}'\n  AND category IS NOT NULL AND category <> ''\n\nUNION ALL\n-- Add a synthetic option if the selected class has empty/NULL categories\nSELECT '__empty__'\nWHERE EXISTS (\n  SELECT 1\n  FROM eam_devices\n  WHERE eqclass = '${EqClass}'\n    AND (category IS NULL OR category = '')\n)\nORDER BY 1\n",
+        "query": "SELECT\n  CASE WHEN d.category IS NULL OR d.category = '' THEN '__empty__' ELSE d.category END AS \"__value\",\n  CASE WHEN d.category IS NULL OR d.category = '' THEN 'None'       ELSE d.category END AS \"__text\"\nFROM eam_devices d\nWHERE d.eqclass = ${EqClass:sqlstring}\nGROUP BY 1,2\nORDER BY \"__text\";\n",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -684,6 +684,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV-Devices: Dashboard",
   "uid": "aez15jhahzldsc",
-  "version": 22,
+  "version": 23,
   "weekStart": "monday"
 }
