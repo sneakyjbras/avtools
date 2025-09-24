@@ -107,7 +107,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Infor EAM"
+              "options": "Asset"
             },
             "properties": [
               {
@@ -222,7 +222,7 @@
                   {
                     "options": {
                       "0": {
-                        "color": "text",
+                        "color": "yellow",
                         "index": 1,
                         "text": "OFF"
                       },
@@ -555,7 +555,7 @@
               "conferenceroom": "Location",
               "deepestparentequipmentno": "Position",
               "deepestparentequipmentno_fmt": "Room",
-              "equipmentno": "Infor EAM",
+              "equipmentno": "Asset",
               "gis": "GIS",
               "leafstatus": "Status",
               "manufacturer": "Manufacturer",
@@ -687,8 +687,8 @@
   },
   "timepicker": {},
   "timezone": "Europe/Zurich",
-  "title": "AV-Devices: List and Metrics",
+  "title": "AV-Devices: Dashboard",
   "uid": "aez15jhahzldsc",
-  "version": 18,
+  "version": 20,
   "weekStart": "monday"
 }

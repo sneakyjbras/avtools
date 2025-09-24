@@ -102,7 +102,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Infor EAM"
+              "options": "Asset"
             },
             "properties": [
               {
@@ -215,10 +215,12 @@
                   {
                     "options": {
                       "0": {
+                        "color": "yellow",
                         "index": 1,
                         "text": "OFF"
                       },
                       "1": {
+                        "color": "green",
                         "index": 0,
                         "text": "ON"
                       }
@@ -229,6 +231,7 @@
                     "options": {
                       "match": "null+nan",
                       "result": {
+                        "color": "text",
                         "index": 2,
                         "text": "N/A"
                       }
@@ -236,6 +239,12 @@
                     "type": "special"
                   }
                 ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
               }
             ]
           },
@@ -396,7 +405,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Comission Date"
+              "options": "Commission Date"
             },
             "properties": [
               {
@@ -556,15 +565,15 @@
             "renameByName": {
               "Time ping_check": "Response Time",
               "Time snmp_probe": "SNMP Time",
-              "commissiondate": "Comission Date",
+              "commissiondate": "Commission Date",
               "conferenceroom": "Name",
               "conferenceroomno": "Position",
               "conferenceroomnofmt": "Room",
               "devicecategory": "Subclass",
               "deviceclass": "Class",
               "devicedesc": "Device",
-              "deviceno": "Infor EAM",
-              "equipmentno": "Infor EAM",
+              "deviceno": "Asset",
+              "equipmentno": "Asset",
               "leafstatus": "Status",
               "manufacturer": "Manufacturer",
               "ping_status": "Health",
@@ -597,7 +606,7 @@
                   "id": "isNotNull",
                   "options": {}
                 },
-                "fieldName": "Comission Date"
+                "fieldName": "Commission Date"
               }
             ],
             "match": "any",
@@ -691,6 +700,6 @@
   "timezone": "browser",
   "title": "AV-Rooms: Devices by Room",
   "uid": "eewd94f4muozkc",
-  "version": 117,
+  "version": 120,
   "weekStart": ""
 }

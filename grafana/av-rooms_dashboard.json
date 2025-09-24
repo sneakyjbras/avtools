@@ -343,10 +343,12 @@
                   {
                     "options": {
                       "0": {
+                        "color": "red",
                         "index": 1,
                         "text": "Critical"
                       },
                       "100": {
+                        "color": "green",
                         "index": 3,
                         "text": "Perfect"
                       }
@@ -357,6 +359,7 @@
                     "options": {
                       "match": "null+nan",
                       "result": {
+                        "color": "text",
                         "index": 0,
                         "text": "N/A"
                       }
@@ -367,6 +370,7 @@
                     "options": {
                       "from": 1,
                       "result": {
+                        "color": "yellow",
                         "index": 2,
                         "text": "Warning"
                       },
@@ -391,35 +395,8 @@
                 "value": "percent"
               },
               {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "text",
-                      "value": null
-                    },
-                    {
-                      "color": "red",
-                      "value": 0
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 1
-                    },
-                    {
-                      "color": "green",
-                      "value": 100
-                    }
-                  ]
-                }
-              },
-              {
                 "id": "custom.width",
                 "value": 486
-              },
-              {
-                "id": "custom.hidden"
               }
             ]
           },
@@ -435,10 +412,12 @@
                   {
                     "options": {
                       "0": {
+                        "color": "yellow",
                         "index": 1,
                         "text": "Critical"
                       },
                       "100": {
+                        "color": "green",
                         "index": 3,
                         "text": "Perfect"
                       }
@@ -449,6 +428,7 @@
                     "options": {
                       "match": "null+nan",
                       "result": {
+                        "color": "text",
                         "index": 0,
                         "text": "N/A"
                       }
@@ -459,6 +439,7 @@
                     "options": {
                       "from": 1,
                       "result": {
+                        "color": "red",
                         "index": 2,
                         "text": "Warning"
                       },
@@ -481,34 +462,6 @@
               {
                 "id": "unit",
                 "value": "percent"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "transparent",
-                      "value": null
-                    },
-                    {
-                      "color": "red",
-                      "value": 0
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 1
-                    },
-                    {
-                      "color": "green",
-                      "value": 100
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "custom.hidden",
-                "value": true
               }
             ]
           },
@@ -533,7 +486,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "gis"
+              "options": "GIS"
             },
             "properties": [
               {
@@ -989,6 +942,7 @@
               "Network Avail %": true,
               "Offline": true,
               "Snmp %": true,
+              "Snmp % * 100": true,
               "conferenceroomno": false,
               "ping_status (count)": true,
               "ping_status (sum)": true,
@@ -1070,6 +1024,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV-Rooms: Dashboard",
   "uid": "few9yty0nez28f",
-  "version": 109,
+  "version": 111,
   "weekStart": "monday"
 }
