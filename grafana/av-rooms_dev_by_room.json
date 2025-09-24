@@ -1,0 +1,696 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Mapping of devices by room",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 39749,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Retrieves all AV computing equipment by room (eqclass='AVC') from eam_devices, left-joins landb_devices for supplemental descriptions/manufacturers, displays room (defaulting to \u201cNo data\u201d), commission date, equipment ID, and a Resources flag marking matched records.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            },
+            "filterable": true,
+            "inspect": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Room"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": false,
+                    "title": "Grafana",
+                    "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av-devices-by-room?orgId=12&var-room=${__data.fields.conferenceroomno:default:}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Position"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": false
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": false,
+                    "title": "EAM",
+                    "url": "https://eamlight.cern.ch/position/${__data.fields.conferenceroomno:default:}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Infor EAM"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "EAM",
+                    "url": "https://eamlight.cern.ch/asset/${__data.fields.deviceno:default:}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 198
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Resources"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "1": {
+                        "index": 0,
+                        "text": "View"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "Hostpage",
+                    "url": "https://${__data.fields.Device}.cern.ch"
+                  },
+                  {
+                    "targetBlank": true,
+                    "title": "LanDB",
+                    "url": "https://landb.cern.ch/portal/devices/${__data.fields.Device}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Health"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "Critical"
+                      },
+                      "1": {
+                        "color": "green",
+                        "index": 0,
+                        "text": "Perfect"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "color": "text",
+                        "index": 2,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "special"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Monitoring"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 1,
+                        "text": "OFF"
+                      },
+                      "1": {
+                        "index": 0,
+                        "text": "ON"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "index": 2,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "special"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Manufacturer"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "BARC": {
+                        "index": 3,
+                        "text": "BARCO"
+                      },
+                      "EIKI": {
+                        "index": 4,
+                        "text": "EIKI"
+                      },
+                      "EPS": {
+                        "index": 0,
+                        "text": "EPSON"
+                      },
+                      "EPSO01": {
+                        "index": 5,
+                        "text": "EPSON"
+                      },
+                      "PANAS": {
+                        "index": 2,
+                        "text": "PANASONIC"
+                      },
+                      "SONY": {
+                        "index": 1,
+                        "text": "SONY"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Class"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "AVA": {
+                        "index": 0,
+                        "text": "AVA: Audio"
+                      },
+                      "AVC": {
+                        "index": 1,
+                        "text": "AVC: Computing"
+                      },
+                      "AVD": {
+                        "index": 2,
+                        "text": "AVD: Display"
+                      },
+                      "AVO": {
+                        "index": 3,
+                        "text": "AVO: Other"
+                      },
+                      "AVS": {
+                        "index": 4,
+                        "text": "AVS: Control"
+                      },
+                      "AVV": {
+                        "index": 5,
+                        "text": "AVV: Video Conference"
+                      },
+                      "AVVS": {
+                        "index": 6,
+                        "text": "AVVS: Video Systems"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Subclass"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "AV-PRO": {
+                        "index": 0,
+                        "text": "Projector"
+                      },
+                      "AV-PSC": {
+                        "index": 2,
+                        "text": "Projection Screen"
+                      },
+                      "AV-SCR": {
+                        "index": 1,
+                        "text": "LCD Screen"
+                      },
+                      "AV-WIR": {
+                        "index": 3,
+                        "text": "Wireless"
+                      },
+                      "AVC-AR": {
+                        "index": 4,
+                        "text": "Audio Recording"
+                      },
+                      "AVC-CO": {
+                        "index": 5,
+                        "text": "Control PC"
+                      },
+                      "AVC-EN": {
+                        "index": 6,
+                        "text": "Encoding PC"
+                      },
+                      "AVC-PR": {
+                        "index": 7,
+                        "text": "Presentation PC"
+                      },
+                      "AVC-SC": {
+                        "index": 8,
+                        "text": "Screen Control"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Response Time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Comission Date"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:YYYY-MM-DD"
+              },
+              {
+                "id": "custom.width",
+                "value": 173
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Device"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 235
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 19,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 20,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "enablePagination": true,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": true
+        },
+        "frameIndex": 1,
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\n-- Seed from any device that has a position and is Installed (no class/category filter)\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n    AND d.assetstatus_display = 'Installed'\n),\n\n-- Walk up the parent chain with cycle guard and depth cap\nclimb AS (\n  -- seed from each device position\n  SELECT\n    dp.position          AS start_pos,\n    p.equipmentno        AS cur_pos,\n    p.parentasset        AS parent_pos,\n    0                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\n\n-- Pick the DEEPEST ancestor (no class/category filter)\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\n\n-- Build listed rows, preferring LanDB manufacturer when available\nlisted AS (\n  SELECT\n    room.equipmentno AS ConferenceRoomNo,\n\n    -- Pre-split parts once via LATERAL to reduce repeated split_part calls\n    CONCAT(parts.part1_txt, '/', parts.part2_txt, '-', parts.part3_txt) AS ConferenceRoomNoFmt,\n    room.equipmentdesc AS ConferenceRoom,\n\n    d.equipmentno      AS EquipmentNo,\n    d.equipmentdesc    AS DeviceDesc,\n\n    -- Prefer LanDB manufacturer when present\n    COALESCE(ld.manufacturer, d.manufacturer) AS Manufacturer,\n\n    d.commissiondate   AS CommissionDate,\n    d.assetstatus_display AS LeafStatus,\n\n    -- Expose raw class/category of the device\n    d.eqclass          AS DeviceClass,\n    d.category         AS DeviceCategory,\n\n    -- \"exists in LanDB\" flag: 1 or NULL (no 0)\n    CASE WHEN ld.equipmentno IS NOT NULL THEN 1 END AS Resources,\n\n    -- Parts for natural sort by room\n    parts.part1_txt,\n    parts.part2_txt,\n    parts.part3_txt\n\n  FROM eam_devices d\n  JOIN pos_to_room pr     ON pr.start_pos = d.position\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n\n  -- Split 'A-1.2.3' middle section once\n  CROSS JOIN LATERAL (\n    SELECT\n      split_part(split_part(room.equipmentno,'-',2),'.',1) AS part1_txt,\n      split_part(split_part(room.equipmentno,'-',2),'.',2) AS part2_txt,\n      split_part(split_part(room.equipmentno,'-',2),'.',3) AS part3_txt\n  ) AS parts\n\n  -- LanDB join: prefer match on equipmentno; if serial exists, also honor it.\n  LEFT JOIN LATERAL (\n    SELECT DISTINCT ON (equipmentno)\n           equipmentno, manufacturer\n    FROM landb_devices\n    WHERE equipmentno = d.equipmentno\n      AND (d.serialnumber IS NULL OR serialnumber = d.serialnumber)\n    ORDER BY equipmentno\n  ) ld ON true\n\n  WHERE\n    ('${room:raw}' = '__all' OR room.equipmentno IN (${room:sqlstring}))\n    AND d.assetstatus_display = 'Installed'\n)\n\n-- Final projection + natural sort keys\nSELECT\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  EquipmentNo,\n  DeviceDesc,\n  Manufacturer,\n  CommissionDate,\n  LeafStatus,\n  DeviceClass,\n  DeviceCategory,\n  Resources,\n  ConferenceRoomNo\nFROM (\n  SELECT *,\n    NULLIF(regexp_replace(part1_txt,'\\D.*$',''),'')::int AS part1_num,\n    regexp_replace(part1_txt,'^\\d+','')                  AS part1_suf,\n    NULLIF(regexp_replace(part2_txt,'\\D.*$',''),'')::int AS part2_num,\n    regexp_replace(part2_txt,'^\\d+','')                  AS part2_suf,\n    NULLIF(regexp_replace(part3_txt,'\\D.*$',''),'')::int AS part3_num,\n    regexp_replace(part3_txt,'^\\d+','')                  AS part3_suf\n  FROM listed\n) s\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo,\n  DeviceDesc;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "alias": "Ping Status",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "hide": false,
+          "query": "SELECT\n  LAST(\"status\")   AS ping_status\nFROM \"ping_check\" \nWHERE $timeFilter\nGROUP BY \"equipmentno\", \"serialnumber\"",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "table"
+        },
+        {
+          "alias": "SNMP Status",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "hide": false,
+          "query": "SELECT\n  LAST(\"status\")   AS snmp_status\nFROM \"snmp_probe\"\nWHERE $timeFilter \nGROUP BY \"equipmentno\", \"serialnumber\"",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "table"
+        }
+      ],
+      "title": "Devices (Installed)",
+      "transformations": [
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "outerTabular"
+          },
+          "topic": "series"
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time ping_check": false,
+              "Time snmp_probe": true,
+              "conferenceroom": true,
+              "conferenceroomno": true,
+              "conferenceroomnofmt": true,
+              "devicecategory": true,
+              "leafstatus": true,
+              "serialnumber": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Time ping_check": 11,
+              "Time snmp_probe": 14,
+              "commissiondate": 6,
+              "conferenceroom": 7,
+              "conferenceroomno": 1,
+              "conferenceroomnofmt": 0,
+              "devicecategory": 3,
+              "deviceclass": 2,
+              "devicedesc": 4,
+              "equipmentno": 10,
+              "leafstatus": 8,
+              "manufacturer": 5,
+              "ping_status": 13,
+              "resources": 9,
+              "serialnumber": 12,
+              "snmp_status": 15
+            },
+            "renameByName": {
+              "Time ping_check": "Response Time",
+              "Time snmp_probe": "SNMP Time",
+              "commissiondate": "Comission Date",
+              "conferenceroom": "Name",
+              "conferenceroomno": "Position",
+              "conferenceroomnofmt": "Room",
+              "devicecategory": "Subclass",
+              "deviceclass": "Class",
+              "devicedesc": "Device",
+              "deviceno": "Infor EAM",
+              "equipmentno": "Infor EAM",
+              "leafstatus": "Status",
+              "manufacturer": "Manufacturer",
+              "ping_status": "Health",
+              "resources": "Resources",
+              "serialnumber": "Serial Number",
+              "snmp_status": "Monitoring"
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Device"
+              },
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Manufacturer"
+              },
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Comission Date"
+              }
+            ],
+            "match": "any",
+            "type": "include"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Class"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 40,
+  "tags": [
+    "av",
+    "monitoring",
+    "devices",
+    "room",
+    "videoconference"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": "",
+        "current": {
+          "selected": false,
+          "text": "1/1-025",
+          "value": "CCA-1.1.025"
+        },
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        },
+        "definition": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT dp.position AS start_pos,\n         p.equipmentno AS cur_pos,\n         p.parentasset  AS parent_pos,\n         0 AS depth,\n         ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL AND c.depth < 100 AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos) c.start_pos, c.cur_pos AS room_no, c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR' AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS room_no\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE room.assetstatus_display = 'Installed'\n),\nfmt AS (\n  SELECT\n    room_no AS __value,\n    CONCAT(\n      split_part(split_part(room_no,'-',2),'.',1), '/',\n      split_part(split_part(room_no,'-',2),'.',2), '-',\n      split_part(split_part(room_no,'-',2),'.',3)\n    ) AS __text,\n    split_part(split_part(room_no,'-',2),'.',1) AS p1,\n    split_part(split_part(room_no,'-',2),'.',2) AS p2,\n    split_part(split_part(room_no,'-',2),'.',3) AS p3\n  FROM rooms\n)\nSELECT __value, __text\nFROM (\n  SELECT *,\n    NULLIF(regexp_replace(p1,'\\D.*$',''),'')::int AS p1n, regexp_replace(p1,'^\\d+','') AS p1s,\n    NULLIF(regexp_replace(p2,'\\D.*$',''),'')::int AS p2n, regexp_replace(p2,'^\\d+','') AS p2s,\n    NULLIF(regexp_replace(p3,'\\D.*$',''),'')::int AS p3n, regexp_replace(p3,'^\\d+','') AS p3s\n  FROM fmt\n) q\nORDER BY p1n NULLS LAST, p1s, p2n NULLS LAST, p2s, p3n NULLS LAST, p3s, __value;\n",
+        "description": "Multi-select list of installed AVR rooms (AV-VCR/AV-VIS/AV-MRO), found by climbing to the deepest matching ancestor. Display uses X/Y-Z; value is the raw equipment number (CCA-X.Y.Z). Choose one or more rooms, or \u201cAll\u201d to show everything.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Rooms (Installed)",
+        "multi": false,
+        "name": "room",
+        "options": [],
+        "query": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT dp.position AS start_pos,\n         p.equipmentno AS cur_pos,\n         p.parentasset  AS parent_pos,\n         0 AS depth,\n         ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL AND c.depth < 100 AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos) c.start_pos, c.cur_pos AS room_no, c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR' AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS room_no\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE room.assetstatus_display = 'Installed'\n),\nfmt AS (\n  SELECT\n    room_no AS __value,\n    CONCAT(\n      split_part(split_part(room_no,'-',2),'.',1), '/',\n      split_part(split_part(room_no,'-',2),'.',2), '-',\n      split_part(split_part(room_no,'-',2),'.',3)\n    ) AS __text,\n    split_part(split_part(room_no,'-',2),'.',1) AS p1,\n    split_part(split_part(room_no,'-',2),'.',2) AS p2,\n    split_part(split_part(room_no,'-',2),'.',3) AS p3\n  FROM rooms\n)\nSELECT __value, __text\nFROM (\n  SELECT *,\n    NULLIF(regexp_replace(p1,'\\D.*$',''),'')::int AS p1n, regexp_replace(p1,'^\\d+','') AS p1s,\n    NULLIF(regexp_replace(p2,'\\D.*$',''),'')::int AS p2n, regexp_replace(p2,'^\\d+','') AS p2s,\n    NULLIF(regexp_replace(p3,'\\D.*$',''),'')::int AS p3n, regexp_replace(p3,'^\\d+','') AS p3s\n  FROM fmt\n) q\nORDER BY p1n NULLS LAST, p1s, p2n NULLS LAST, p2s, p3n NULLS LAST, p3s, __value;\n",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "7",
+          "value": "7"
+        },
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        },
+        "definition": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT dp.position AS start_pos, p.equipmentno AS cur_pos, p.parentasset AS parent_pos,\n         0 AS depth, ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nlisted AS (\n  SELECT\n    room.equipmentno AS ConferenceRoomNo,\n    d.equipmentno    AS DeviceNo\n  FROM eam_devices d\n  JOIN pos_to_room pr     ON pr.start_pos = d.position\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    ('${room:raw}' = '__all' OR room.equipmentno IN (${room:sqlstring}))\n    AND d.assetstatus_display = 'Installed'\n)\nSELECT COUNT(*) AS value\nFROM listed;\n",
+        "description": "Single-value count of installed devices for the selected rooms (uses deepest AVR ancestor logic and respects the ${room} filter). Use in titles as ${room_devices_total}.",
+        "hide": 2,
+        "includeAll": false,
+        "label": "Installed Devices (Selected Rooms)",
+        "multi": false,
+        "name": "room_devices_total",
+        "options": [],
+        "query": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT dp.position AS start_pos, p.equipmentno AS cur_pos, p.parentasset AS parent_pos,\n         0 AS depth, ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nlisted AS (\n  SELECT\n    room.equipmentno AS ConferenceRoomNo,\n    d.equipmentno    AS DeviceNo\n  FROM eam_devices d\n  JOIN pos_to_room pr     ON pr.start_pos = d.position\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    ('${room:raw}' = '__all' OR room.equipmentno IN (${room:sqlstring}))\n    AND d.assetstatus_display = 'Installed'\n)\nSELECT COUNT(*) AS value\nFROM listed;\n",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "AV-Rooms: Devices by Room",
+  "uid": "eewd94f4muozkc",
+  "version": 117,
+  "weekStart": ""
+}

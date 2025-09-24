@@ -1,0 +1,1075 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Global monitoring table for every room. Displaying data from EAM and giving a summary of the status of each room.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 39744,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "Single-value query variable that returns the total number of installed AVR rooms (categories: AV-VCR, AV-VIS, AV-MRO), computed from the deepest ancestor of each device position. Use in panel titles as ${rooms_total}.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            },
+            "filterable": true,
+            "inspect": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Category"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "AV-MRO": {
+                        "index": 0,
+                        "text": "Meeting"
+                      },
+                      "AV-VCR": {
+                        "index": 2,
+                        "text": "Videoconference"
+                      },
+                      "AV-VIS": {
+                        "index": 1,
+                        "text": "Visit"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 146
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Room"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": []
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Grafana",
+                    "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av-devices-by-room?orgId=12&var-room=${__data.fields.conferenceroomno:default:}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 137
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "EAM"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": false
+              },
+              {
+                "id": "custom.width",
+                "value": 142
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Name"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 444
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "#"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 37
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "EAM"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": false
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "EAM",
+                    "url": "https://eamlight.cern.ch/position/${__data.fields.conferenceroomno:default:}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Commission Date"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:YYYY-MM-DD"
+              },
+              {
+                "id": "custom.width",
+                "value": 299
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 73
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Availability"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 1,
+                        "text": "N/A"
+                      },
+                      "100": {
+                        "index": 6,
+                        "text": "Perfect"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "index": 0,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "special"
+                  },
+                  {
+                    "options": {
+                      "from": 1,
+                      "result": {
+                        "index": 2,
+                        "text": "Critical"
+                      },
+                      "to": 49
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 50,
+                      "result": {
+                        "index": 3,
+                        "text": "Warning"
+                      },
+                      "to": 79
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 80,
+                      "result": {
+                        "index": 4,
+                        "text": "Good"
+                      },
+                      "to": 90
+                    },
+                    "type": "range"
+                  },
+                  {
+                    "options": {
+                      "from": 90,
+                      "result": {
+                        "index": 5,
+                        "text": "Great"
+                      },
+                      "to": 99
+                    },
+                    "type": "range"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 50
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 80
+                    },
+                    {
+                      "color": "green",
+                      "value": 90
+                    },
+                    {
+                      "color": "#6ed0e0",
+                      "value": 100
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Health"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 1,
+                        "text": "Critical"
+                      },
+                      "100": {
+                        "index": 3,
+                        "text": "Perfect"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "index": 0,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "special"
+                  },
+                  {
+                    "options": {
+                      "from": 1,
+                      "result": {
+                        "index": 2,
+                        "text": "Warning"
+                      },
+                      "to": 99
+                    },
+                    "type": "range"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "green",
+                      "value": 100
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 486
+              },
+              {
+                "id": "custom.hidden"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Snmp"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "0": {
+                        "index": 1,
+                        "text": "Critical"
+                      },
+                      "100": {
+                        "index": 3,
+                        "text": "Perfect"
+                      }
+                    },
+                    "type": "value"
+                  },
+                  {
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "index": 0,
+                        "text": "N/A"
+                      }
+                    },
+                    "type": "special"
+                  },
+                  {
+                    "options": {
+                      "from": 1,
+                      "result": {
+                        "index": 2,
+                        "text": "Warning"
+                      },
+                      "to": 99
+                    },
+                    "type": "range"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "transparent",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "green",
+                      "value": 100
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Devices"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 79
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "gis"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 147
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "1": {
+                        "index": 0,
+                        "text": "View"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "GIS",
+                    "url": "https://maps.cern.ch/?mode=2D&n=[%27${__data.fields.conferenceroomnofmt:percentencode}%27]\n"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 26,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": true,
+          "enablePagination": true,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": true
+        },
+        "frameIndex": 0,
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.category            AS RoomCategory,\n    room.commissiondate      AS RoomCommissionDate,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE room.assetstatus_display = 'Installed'\n),\nagg AS (\n  SELECT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    ConferenceRoom,\n    RoomCategory,\n    RoomCommissionDate,\n    RoomStatus,\n    -- raw parts (X.Y.Z) for natural sorting\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms_with_devices\n  GROUP BY ConferenceRoomNo, ConferenceRoom, RoomCategory, RoomCommissionDate, RoomStatus\n),\nranked AS (\n  SELECT\n    *,\n    -- numeric prefixes and alpha suffixes for natural sort\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM agg\n)\nSELECT\n  ConferenceRoomNo,\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomCategory,\n  RoomCommissionDate,\n  RoomStatus,\n  CASE WHEN ConferenceRoomNo IS NOT NULL THEN 1 END AS GIS\nFROM ranked\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "-- PG_DEVICES (room \u2194 device equipmentno, only Installed) with stable room_sort_rank\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb_up AS (\n  SELECT\n    dp.position          AS start_pos,\n    p.equipmentno        AS cur_pos,\n    p.parentasset        AS parent_pos,\n    0                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb_up c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND p.equipmentno <> ALL (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb_up c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS ConferenceRoomNo\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE room.assetstatus_display = 'Installed'\n),\n\n-- build same natural-sort pieces as Query A\nroom_keys AS (\n  SELECT\n    r.ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms r\n),\nranked AS (\n  SELECT\n    ConferenceRoomNo,\n    ConferenceRoomNoFmt,\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM room_keys\n),\n-- produce a single numeric rank to carry through Grafana grouping\nroom_order AS (\n  SELECT\n    ConferenceRoomNo,\n    ConferenceRoomNoFmt,\n    DENSE_RANK() OVER (\n      ORDER BY\n        part1_num NULLS LAST, part1_suf,\n        part2_num NULLS LAST, part2_suf,\n        part3_num NULLS LAST, part3_suf,\n        ConferenceRoomNo\n    ) AS room_sort_rank\n  FROM ranked\n),\n\ndown AS (\n  SELECT\n    r.ConferenceRoomNo,\n    p.equipmentno,\n    1                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM rooms r\n  JOIN eam_positions p ON p.parentasset = r.ConferenceRoomNo\n  UNION ALL\n  SELECT\n    d.ConferenceRoomNo,\n    p.equipmentno,\n    d.depth + 1,\n    d.visited || p.equipmentno\n  FROM down d\n  JOIN eam_positions p ON p.parentasset = d.equipmentno\n  WHERE d.depth < 100\n    AND p.equipmentno <> ALL (d.visited)\n),\nleafs AS (\n  SELECT d.ConferenceRoomNo, d.equipmentno AS leaf_position\n  FROM down d\n  LEFT JOIN eam_positions ch ON ch.parentasset = d.equipmentno\n  WHERE ch.equipmentno IS NULL\n)\nSELECT DISTINCT\n  ro.ConferenceRoomNo,\n  ro.ConferenceRoomNoFmt,     -- optional, for display\n  ro.room_sort_rank,          -- **carry this into Grafana**\n  dev.equipmentno\nFROM leafs l\nJOIN room_order     ro  ON ro.ConferenceRoomNo = l.ConferenceRoomNo\nJOIN eam_devices    dev ON dev.position        = l.leaf_position\nJOIN eam_positions  pos ON pos.equipmentno     = l.leaf_position\nWHERE pos.assetstatus_display = 'Installed'\n  AND (dev.assetstatus_display = 'Installed' OR dev.assetstatus_display IS NULL)\nORDER BY ro.room_sort_rank, ro.ConferenceRoomNo, dev.equipmentno;\n",
+          "refId": "B",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "alias": "Ping Check",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "hide": false,
+          "query": "SELECT LAST(\"status\") AS ping_status\nFROM \"ping_check\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "table"
+        },
+        {
+          "alias": "SNMP Monitoring",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "hide": false,
+          "query": "SELECT LAST(\"status\") AS snmp_status\nFROM \"snmp_probe\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "table"
+        }
+      ],
+      "title": "Rooms (Installed)",
+      "transformations": [
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:C|D)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:B|joinByField-C-D)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "outerTabular"
+          },
+          "topic": "series"
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:joinByField-joinByField-C-D-B)$/"
+          },
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Time ping_check": {
+                "aggregations": []
+              },
+              "Time snmp_probe": {
+                "aggregations": []
+              },
+              "conferenceroomno": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              },
+              "equipmentno": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "ping_status": {
+                "aggregations": [
+                  "sum",
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "room_sort_rank": {
+                "aggregations": [
+                  "max"
+                ],
+                "operation": "aggregate"
+              },
+              "snmp_status": {
+                "aggregations": [
+                  "sum",
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "status": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          },
+          "topic": "series"
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:|A)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "conferenceroomno",
+            "mode": "inner"
+          },
+          "topic": "series"
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "room_sort_rank (max)"
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Offline",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              },
+              "operator": "-",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "include": [
+                "ping_status (count)",
+                "snmp_status (count)"
+              ],
+              "reducer": "max"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Coverage Gap",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "equipmentno (count)"
+                }
+              },
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Network Avail %",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              }
+            },
+            "cumulative": {
+              "reducer": "mean"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "median"
+            },
+            "window": {
+              "reducer": "mean",
+              "windowAlignment": "trailing",
+              "windowSize": 0.1,
+              "windowSizeMode": "percentage"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Network Avail %"
+                }
+              },
+              "operator": "*",
+              "right": {
+                "fixed": "100"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Coverage %",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "equipmentno (count)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Coverage %"
+                }
+              },
+              "operator": "*",
+              "right": {
+                "fixed": "100"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": false
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Snmp %",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "snmp_status (sum)"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Snmp %"
+                }
+              },
+              "operator": "*",
+              "right": {
+                "fixed": "100"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Coverage %": true,
+              "Coverage Gap": true,
+              "Network Avail %": true,
+              "Offline": true,
+              "Snmp %": true,
+              "conferenceroomno": false,
+              "ping_status (count)": true,
+              "ping_status (sum)": true,
+              "room_sort_rank (max)": true,
+              "roomstatus": true,
+              "snmp_status (count)": true,
+              "snmp_status (sum)": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Coverage %": 16,
+              "Coverage % * 100": 14,
+              "Coverage Gap": 13,
+              "Network Avail %": 17,
+              "Network Avail % * 100": 18,
+              "Offline": 10,
+              "Snmp %": 19,
+              "Snmp % * 100": 20,
+              "conferenceroom": 3,
+              "conferenceroomno": 2,
+              "conferenceroomnofmt": 1,
+              "equipmentno (count)": 4,
+              "gis": 15,
+              "ping_status (count)": 8,
+              "ping_status (sum)": 9,
+              "room_sort_rank (max)": 0,
+              "roomcategory": 6,
+              "roomcommissiondate": 7,
+              "roomstatus": 5,
+              "snmp_status (count)": 11,
+              "snmp_status (sum)": 12
+            },
+            "renameByName": {
+              "Coverage %": "",
+              "Coverage % * 100": "Availability",
+              "Coverage Gap": "Unmonitored Devices",
+              "Median": "Median",
+              "Network Avail %": "",
+              "Network Avail % * 100": "Health",
+              "Offline": "Down Devices",
+              "Snmp %": "",
+              "Snmp % * 100": "Snmp",
+              "conferenceroom": "Name",
+              "conferenceroomno": "EAM",
+              "conferenceroomnofmt": "Room",
+              "equipmentno (count)": "Devices",
+              "gis": "GIS",
+              "ping_status (count)": "Eligible",
+              "ping_status (sum)": "Online Devices",
+              "room_sort_rank (max)": "#",
+              "roomcategory": "Category",
+              "roomcommissiondate": "Commission Date",
+              "roomstatus": "Status",
+              "snmp_status (count)": "SNMP Eligible",
+              "snmp_status (sum)": "SNMP Online"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": "5m",
+  "schemaVersion": 40,
+  "tags": [
+    "av",
+    "monitoring",
+    "videoconference",
+    "devices"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "Europe/Zurich",
+  "title": "AV-Rooms: Dashboard",
+  "uid": "few9yty0nez28f",
+  "version": 109,
+  "weekStart": "monday"
+}
