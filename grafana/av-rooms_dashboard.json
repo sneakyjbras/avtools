@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Global monitoring table for every room. Displaying data from EAM and giving a summary of the status of each room.",
+  "description": "Global monitoring table for every room. Displaying data from EAM, LanDB and giving a summary of the status of each room.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -25,11 +25,35 @@
   "panels": [
     {
       "datasource": {
+        "type": "datasource",
+        "uid": "grafana"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "<div style=\"text-align:center\">\n  <h1 style=\"margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji;font-size:clamp(28px,6vw,52px);font-weight:700;letter-spacing:.5px;line-height:1.1;color:inherit;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased\">\n    <span style=\"font-weight:800\">AV</span> <span style=\"font-weight:600;opacity:.9\">Rooms</span>\n  </h1>\n</div>\n",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.5.5",
+      "type": "text"
+    },
+    {
+      "datasource": {
         "default": false,
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "Single-value query variable that returns the total number of installed AVR rooms (categories: AV-VCR, AV-VIS, AV-MRO), computed from the deepest ancestor of each device position. Use in panel titles as ${rooms_total}.",
+      "description": "This table summarizes each room\u2019s availability and AV readiness, displaying building and site, capacity, whether it is in use right now, the next booking, aggregated AV health (online, degraded, offline), the most recent telemetry seen for devices in the room, and recent utilization within the dashboard\u2019s time range. Start by filtering to a site or building, then sort by AV health or In use now to prioritize interventions. Clicking a room opens its room overview with device-level detail and booking context. \u201cNo AV data\u201d or many devices marked unknown usually means missing telemetry or a network issue; verify cabling, power, or upstream monitoring before reassigning meetings. Use the time range to compare peak vs. quiet periods and to spot underused rooms. When capacity mismatches or frequent conflicts appear, coordinate with scheduling to adjust bookings or suggest alternative rooms.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -146,25 +170,9 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "#"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 37
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
               "options": "EAM"
             },
             "properties": [
-              {
-                "id": "custom.hidden",
-                "value": false
-              },
               {
                 "id": "links",
                 "value": [
@@ -189,19 +197,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 299
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Total"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 73
+                "value": 215
               }
             ]
           },
@@ -216,19 +212,6 @@
                 "value": [
                   {
                     "options": {
-                      "0": {
-                        "index": 1,
-                        "text": "N/A"
-                      },
-                      "100": {
-                        "index": 6,
-                        "text": "Perfect"
-                      }
-                    },
-                    "type": "value"
-                  },
-                  {
-                    "options": {
                       "match": "null+nan",
                       "result": {
                         "index": 0,
@@ -236,50 +219,6 @@
                       }
                     },
                     "type": "special"
-                  },
-                  {
-                    "options": {
-                      "from": 1,
-                      "result": {
-                        "index": 2,
-                        "text": "Critical"
-                      },
-                      "to": 49
-                    },
-                    "type": "range"
-                  },
-                  {
-                    "options": {
-                      "from": 50,
-                      "result": {
-                        "index": 3,
-                        "text": "Warning"
-                      },
-                      "to": 79
-                    },
-                    "type": "range"
-                  },
-                  {
-                    "options": {
-                      "from": 80,
-                      "result": {
-                        "index": 4,
-                        "text": "Good"
-                      },
-                      "to": 90
-                    },
-                    "type": "range"
-                  },
-                  {
-                    "options": {
-                      "from": 90,
-                      "result": {
-                        "index": 5,
-                        "text": "Great"
-                      },
-                      "to": 99
-                    },
-                    "type": "range"
                   }
                 ]
               },
@@ -345,12 +284,12 @@
                       "0": {
                         "color": "red",
                         "index": 1,
-                        "text": "Critical"
+                        "text": "Offline"
                       },
                       "100": {
                         "color": "green",
                         "index": 3,
-                        "text": "Perfect"
+                        "text": "Online"
                       }
                     },
                     "type": "value"
@@ -403,80 +342,9 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Snmp"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "0": {
-                        "color": "yellow",
-                        "index": 1,
-                        "text": "Critical"
-                      },
-                      "100": {
-                        "color": "green",
-                        "index": 3,
-                        "text": "Perfect"
-                      }
-                    },
-                    "type": "value"
-                  },
-                  {
-                    "options": {
-                      "match": "null+nan",
-                      "result": {
-                        "color": "text",
-                        "index": 0,
-                        "text": "N/A"
-                      }
-                    },
-                    "type": "special"
-                  },
-                  {
-                    "options": {
-                      "from": 1,
-                      "result": {
-                        "color": "red",
-                        "index": 2,
-                        "text": "Warning"
-                      },
-                      "to": 99
-                    },
-                    "type": "range"
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
-                "id": "decimals",
-                "value": 0
-              },
-              {
-                "id": "unit",
-                "value": "percent"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
               "options": "Devices"
             },
             "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
               {
                 "id": "custom.width",
                 "value": 79
@@ -522,10 +390,10 @@
         ]
       },
       "gridPos": {
-        "h": 26,
+        "h": 21,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 3
       },
       "id": 1,
       "options": {
@@ -628,7 +496,6 @@
           "resultFormat": "table"
         }
       ],
-      "title": "Rooms (Installed)",
       "transformations": [
         {
           "filter": {
@@ -1022,8 +889,8 @@
   },
   "timepicker": {},
   "timezone": "Europe/Zurich",
-  "title": "AV-Rooms: Dashboard",
+  "title": "AV: Rooms",
   "uid": "few9yty0nez28f",
-  "version": 111,
-  "weekStart": "monday"
+  "version": 122,
+  "weekStart": "sunday"
 }
