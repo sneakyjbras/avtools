@@ -422,7 +422,7 @@
           "format": "table",
           "hide": false,
           "rawQuery": true,
-          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.category            AS RoomCategory,\n    room.commissiondate      AS RoomCommissionDate,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE room.assetstatus_display = 'Installed'\n),\nagg AS (\n  SELECT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    ConferenceRoom,\n    RoomCategory,\n    RoomCommissionDate,\n    RoomStatus,\n    -- raw parts (X.Y.Z) for natural sorting\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms_with_devices\n  GROUP BY ConferenceRoomNo, ConferenceRoom, RoomCategory, RoomCommissionDate, RoomStatus\n),\nranked AS (\n  SELECT\n    *,\n    -- numeric prefixes and alpha suffixes for natural sort\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM agg\n)\nSELECT\n  ConferenceRoomNo,\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomCategory,\n  RoomCommissionDate,\n  RoomStatus,\n  CASE WHEN ConferenceRoomNo IS NOT NULL THEN 1 END AS GIS\nFROM ranked\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo;\n",
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.category            AS RoomCategory,\n    room.commissiondate      AS RoomCommissionDate,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'                                  -- All\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL) -- None\n      OR room.assetstatus_display = ANY(STRING_TO_ARRAY('${status:csv}', ','))\n    )\n),\nagg AS (\n  SELECT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    ConferenceRoom,\n    RoomCategory,\n    RoomCommissionDate,\n    RoomStatus,\n    -- raw parts (X.Y.Z) for natural sorting\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms_with_devices\n  GROUP BY ConferenceRoomNo, ConferenceRoom, RoomCategory, RoomCommissionDate, RoomStatus\n),\nranked AS (\n  SELECT\n    *,\n    -- numeric prefixes and alpha suffixes for natural sort\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM agg\n)\nSELECT\n  ConferenceRoomNo,\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomCategory,\n  RoomCommissionDate,\n  RoomStatus,\n  CASE WHEN ConferenceRoomNo IS NOT NULL THEN 1 END AS GIS\nFROM ranked\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo;\n",
           "refId": "A",
           "sql": {
             "columns": [
@@ -867,6 +867,45 @@
               "snmp_status (sum)": "SNMP Online"
             }
           }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Room"
+              },
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "EAM"
+              },
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Name"
+              },
+              {
+                "config": {
+                  "id": "greater",
+                  "options": {
+                    "value": "0"
+                  }
+                },
+                "fieldName": "Devices"
+              }
+            ],
+            "match": "any",
+            "type": "include"
+          }
         }
       ],
       "type": "table"
@@ -881,7 +920,34 @@
     "devices"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "allValue": "__all",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        },
+        "definition": "SELECT DISTINCT room.assetstatus_display AS __text, room.assetstatus_display AS __value\nFROM eam_positions room\nWHERE room.eqclass = 'AVR'\n  AND room.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  AND room.assetstatus_display IS NOT NULL\n  AND room.assetstatus_display <> ''\nORDER BY 1;\n",
+        "description": "Rooms containing AV devices (Site/Building/Room naming).",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Status",
+        "multi": true,
+        "name": "status",
+        "options": [],
+        "query": "SELECT DISTINCT room.assetstatus_display AS __text, room.assetstatus_display AS __value\nFROM eam_positions room\nWHERE room.eqclass = 'AVR'\n  AND room.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  AND room.assetstatus_display IS NOT NULL\n  AND room.assetstatus_display <> ''\nORDER BY 1;\n",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-6h",
@@ -891,6 +957,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms",
   "uid": "few9yty0nez28f",
-  "version": 122,
+  "version": 124,
   "weekStart": "sunday"
 }
