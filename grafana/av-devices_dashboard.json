@@ -745,9 +745,9 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": false,
-          "text": "Installed",
-          "value": "Installed"
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -771,15 +771,15 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": false,
-          "text": "1/1-025",
-          "value": "CCA-1.1.025"
+          "selected": true,
+          "text": "107/E-B01",
+          "value": "CCA-107.E.B01"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
           "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
         },
-        "definition": "WITH RECURSIVE\ndevice_positions AS ( SELECT DISTINCT d.position FROM eam_devices d WHERE d.position IS NOT NULL ),\nclimb AS (\n  SELECT dp.position AS start_pos, p.equipmentno AS cur_pos, p.parentasset AS parent_pos, 0 AS depth, ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL AND c.depth < 100 AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos) c.start_pos, c.cur_pos AS room_no, c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR' AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS room_no\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  -- \u25bc Filter rooms by the selected status values (single, multi, or All= .*)\n  AND room.assetstatus_display ~ '^(${status:regex})$'\n),\nfmt AS (\n  SELECT room_no AS __value,\n         CONCAT(\n           split_part(split_part(room_no,'-',2),'.',1), '/',\n           split_part(split_part(room_no,'-',2),'.',2), '-',\n           split_part(split_part(room_no,'-',2),'.',3)\n         ) AS __text,\n         split_part(split_part(room_no,'-',2),'.',1) AS p1,\n         split_part(split_part(room_no,'-',2),'.',2) AS p2,\n         split_part(split_part(room_no,'-',2),'.',3) AS p3\n  FROM rooms\n)\nSELECT __value, __text\nFROM (\n  SELECT *,\n         NULLIF(regexp_replace(p1,'\\D.*$',''),'')::int AS p1n, regexp_replace(p1,'^\\d+','') AS p1s,\n         NULLIF(regexp_replace(p2,'\\D.*$',''),'')::int AS p2n, regexp_replace(p2,'^\\d+','') AS p2s,\n         NULLIF(regexp_replace(p3,'\\D.*$',''),'')::int AS p3n, regexp_replace(p3,'^\\d+','') AS p3s\n  FROM fmt\n) q\nORDER BY p1n NULLS LAST, p1s, p2n NULLS LAST, p2s, p3n NULLS LAST, p3s, __value;\n",
+        "definition": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position AS start_pos,\n    p.equipmentno AS cur_pos,\n    p.parentasset AS parent_pos,\n    0 AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n         c.start_pos,\n         c.cur_pos AS room_no,\n         c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS room_no\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'\n      OR room.assetstatus_display = ANY(STRING_TO_ARRAY('${status:csv}', ','))\n    )\n),\nfmt AS (\n  SELECT\n    room_no AS __value,\n    CONCAT(\n      split_part(split_part(room_no,'-',2),'.',1), '/',\n      split_part(split_part(room_no,'-',2),'.',2), '-',\n      split_part(split_part(room_no,'-',2),'.',3)\n    ) AS __text,\n    split_part(split_part(room_no,'-',2),'.',1) AS p1,\n    split_part(split_part(room_no,'-',2),'.',2) AS p2,\n    split_part(split_part(room_no,'-',2),'.',3) AS p3\n  FROM rooms\n)\nSELECT __value, __text\nFROM (\n  SELECT *,\n         NULLIF(regexp_replace(p1,'\\D.*$',''),'')::int AS p1n, regexp_replace(p1,'^\\d+','') AS p1s,\n         NULLIF(regexp_replace(p2,'\\D.*$',''),'')::int AS p2n, regexp_replace(p2,'^\\d+','') AS p2s,\n         NULLIF(regexp_replace(p3,'\\D.*$',''),'')::int AS p3n, regexp_replace(p3,'^\\d+','') AS p3s\n  FROM fmt\n) q\nORDER BY\n  p1n NULLS LAST, p1s,\n  p2n NULLS LAST, p2s,\n  p3n NULLS LAST, p3s,\n  __value;\n",
         "description": "Rooms containing AV devices (Site/Building/Room naming).",
         "hide": 0,
         "includeAll": true,
@@ -787,7 +787,7 @@
         "multi": false,
         "name": "room",
         "options": [],
-        "query": "WITH RECURSIVE\ndevice_positions AS ( SELECT DISTINCT d.position FROM eam_devices d WHERE d.position IS NOT NULL ),\nclimb AS (\n  SELECT dp.position AS start_pos, p.equipmentno AS cur_pos, p.parentasset AS parent_pos, 0 AS depth, ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL AND c.depth < 100 AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos) c.start_pos, c.cur_pos AS room_no, c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR' AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS room_no\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  -- \u25bc Filter rooms by the selected status values (single, multi, or All= .*)\n  AND room.assetstatus_display ~ '^(${status:regex})$'\n),\nfmt AS (\n  SELECT room_no AS __value,\n         CONCAT(\n           split_part(split_part(room_no,'-',2),'.',1), '/',\n           split_part(split_part(room_no,'-',2),'.',2), '-',\n           split_part(split_part(room_no,'-',2),'.',3)\n         ) AS __text,\n         split_part(split_part(room_no,'-',2),'.',1) AS p1,\n         split_part(split_part(room_no,'-',2),'.',2) AS p2,\n         split_part(split_part(room_no,'-',2),'.',3) AS p3\n  FROM rooms\n)\nSELECT __value, __text\nFROM (\n  SELECT *,\n         NULLIF(regexp_replace(p1,'\\D.*$',''),'')::int AS p1n, regexp_replace(p1,'^\\d+','') AS p1s,\n         NULLIF(regexp_replace(p2,'\\D.*$',''),'')::int AS p2n, regexp_replace(p2,'^\\d+','') AS p2s,\n         NULLIF(regexp_replace(p3,'\\D.*$',''),'')::int AS p3n, regexp_replace(p3,'^\\d+','') AS p3s\n  FROM fmt\n) q\nORDER BY p1n NULLS LAST, p1s, p2n NULLS LAST, p2s, p3n NULLS LAST, p3s, __value;\n",
+        "query": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position AS start_pos,\n    p.equipmentno AS cur_pos,\n    p.parentasset AS parent_pos,\n    0 AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n         c.start_pos,\n         c.cur_pos AS room_no,\n         c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS room_no\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'\n      OR room.assetstatus_display = ANY(STRING_TO_ARRAY('${status:csv}', ','))\n    )\n),\nfmt AS (\n  SELECT\n    room_no AS __value,\n    CONCAT(\n      split_part(split_part(room_no,'-',2),'.',1), '/',\n      split_part(split_part(room_no,'-',2),'.',2), '-',\n      split_part(split_part(room_no,'-',2),'.',3)\n    ) AS __text,\n    split_part(split_part(room_no,'-',2),'.',1) AS p1,\n    split_part(split_part(room_no,'-',2),'.',2) AS p2,\n    split_part(split_part(room_no,'-',2),'.',3) AS p3\n  FROM rooms\n)\nSELECT __value, __text\nFROM (\n  SELECT *,\n         NULLIF(regexp_replace(p1,'\\D.*$',''),'')::int AS p1n, regexp_replace(p1,'^\\d+','') AS p1s,\n         NULLIF(regexp_replace(p2,'\\D.*$',''),'')::int AS p2n, regexp_replace(p2,'^\\d+','') AS p2s,\n         NULLIF(regexp_replace(p3,'\\D.*$',''),'')::int AS p3n, regexp_replace(p3,'^\\d+','') AS p3s\n  FROM fmt\n) q\nORDER BY\n  p1n NULLS LAST, p1s,\n  p2n NULLS LAST, p2s,\n  p3n NULLS LAST, p3s,\n  __value;\n",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -858,6 +858,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices",
   "uid": "eewd94f4muozkc",
-  "version": 175,
+  "version": 176,
   "weekStart": "sunday"
 }
