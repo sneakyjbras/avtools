@@ -536,7 +536,7 @@
         ]
       },
       "gridPos": {
-        "h": 19,
+        "h": 17,
         "w": 24,
         "x": 0,
         "y": 3
@@ -572,7 +572,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position          AS start_pos,\n    p.equipmentno        AS cur_pos,\n    p.parentasset        AS parent_pos,\n    0                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nlisted AS (\n  SELECT\n    room.equipmentno AS ConferenceRoomNo,\n    CONCAT(parts.part1_txt, '/', parts.part2_txt, '-', parts.part3_txt) AS ConferenceRoomNoFmt,\n    room.equipmentdesc AS ConferenceRoom,\n    room.assetstatus_display AS RoomStatus,\n    d.equipmentno      AS EquipmentNo,\n    d.equipmentdesc    AS DeviceDesc,\n    COALESCE(ld.manufacturer, d.manufacturer) AS Manufacturer,\n    d.commissiondate   AS CommissionDate,\n    d.assetstatus_display AS LeafStatus,\n    d.eqclass          AS DeviceClass,\n    d.category         AS DeviceCategory,\n    CASE WHEN ld.equipmentno IS NOT NULL THEN 1 END AS Resources,\n    parts.part1_txt, parts.part2_txt, parts.part3_txt\n  FROM eam_devices d\n  JOIN pos_to_room pr     ON pr.start_pos = d.position\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  CROSS JOIN LATERAL (\n    SELECT\n      split_part(split_part(room.equipmentno,'-',2),'.',1) AS part1_txt,\n      split_part(split_part(room.equipmentno,'-',2),'.',2) AS part2_txt,\n      split_part(split_part(room.equipmentno,'-',2),'.',3) AS part3_txt\n  ) AS parts\n  LEFT JOIN LATERAL (\n    SELECT DISTINCT ON (equipmentno)\n           equipmentno, manufacturer\n    FROM landb_devices\n    WHERE equipmentno = d.equipmentno\n      AND (d.serialnumber IS NULL OR serialnumber = d.serialnumber)\n    ORDER BY equipmentno\n  ) ld ON true\n  WHERE\n    -- ROOM: All (__all) = no filter, else CSV list\n    ( '${room:raw}' = '__all'\n      OR room.equipmentno = ANY( STRING_TO_ARRAY('${room:csv}', ',') ) )\n\n    -- EQCLASS: All (__all) = no filter, else CSV list\n    AND (\n      '${eqclass:raw}' = '__all'\n      OR d.eqclass = ANY( STRING_TO_ARRAY('${eqclass:csv}', ',') )\n    )\n\n    -- ROOM STATUS: regex on room status\n    AND (\n      '${status:raw}' = '__all'\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')\n    )\n\n    -- CATEGORY: All (__all) = no filter; otherwise include real cats and __none__\n    AND (\n      '${category:raw}' = '__all'\n      OR COALESCE(NULLIF(d.category,''), '__none__')\n           = ANY( STRING_TO_ARRAY('${category:csv}', ',') )\n    )\n\n    -- DEVICE STATUS: All (__all) or multi via regex\n    AND (\n      '${devstatus:raw}' = '__all'\n      OR d.assetstatus_display ~ ('^(' || '${devstatus:regex}' || ')$')\n    )\n\n    -- >>> NEW: DEVICE NAME filter (equipmentdesc) \u2014 All (__all) or multi via regex\n    AND (\n      '${device:raw}' = '__all'\n      OR d.equipmentdesc ~ ('^(' || '${device:regex}' || ')$')\n    )\n)\nSELECT\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomStatus,\n  EquipmentNo,\n  DeviceDesc,\n  Manufacturer,\n  CommissionDate,\n  LeafStatus,\n  DeviceClass,\n  DeviceCategory,\n  Resources,\n  ConferenceRoomNo\nFROM (\n  SELECT *,\n    NULLIF(regexp_replace(part1_txt,'\\D.*$',''),'')::int AS part1_num,\n    regexp_replace(part1_txt,'^\\d+','')                  AS part1_suf,\n    NULLIF(regexp_replace(part2_txt,'\\D.*$',''),'')::int AS part2_num,\n    regexp_replace(part2_txt,'^\\d+','')                  AS part2_suf,\n    NULLIF(regexp_replace(part3_txt,'\\D.*$',''),'')::int AS part3_num,\n    regexp_replace(part3_txt,'^\\d+','')                  AS part3_suf\n  FROM listed\n) s\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo,\n  DeviceDesc;\n",
+          "rawSql": "-- Panel query (device filter uses Grafana device variable VALUE = equipmentno)\n\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position          AS start_pos,\n    p.equipmentno        AS cur_pos,\n    p.parentasset        AS parent_pos,\n    0                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nlisted AS (\n  SELECT\n    room.equipmentno AS ConferenceRoomNo,\n    CONCAT(parts.part1_txt, '/', parts.part2_txt, '-', parts.part3_txt) AS ConferenceRoomNoFmt,\n    room.equipmentdesc AS ConferenceRoom,\n    room.assetstatus_display AS RoomStatus,\n    d.equipmentno      AS EquipmentNo,\n    d.equipmentdesc    AS DeviceDesc,\n    COALESCE(ld.manufacturer, d.manufacturer) AS Manufacturer,\n    d.commissiondate   AS CommissionDate,\n    d.assetstatus_display AS LeafStatus,\n    d.eqclass          AS DeviceClass,\n    d.category         AS DeviceCategory,\n    CASE WHEN ld.equipmentno IS NOT NULL THEN 1 END AS Resources,\n    parts.part1_txt, parts.part2_txt, parts.part3_txt\n  FROM eam_devices d\n  JOIN pos_to_room pr     ON pr.start_pos = d.position\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  CROSS JOIN LATERAL (\n    SELECT\n      split_part(split_part(room.equipmentno,'-',2),'.',1) AS part1_txt,\n      split_part(split_part(room.equipmentno,'-',2),'.',2) AS part2_txt,\n      split_part(split_part(room.equipmentno,'-',2),'.',3) AS part3_txt\n  ) AS parts\n  LEFT JOIN LATERAL (\n    SELECT DISTINCT ON (equipmentno)\n           equipmentno, manufacturer\n    FROM landb_devices\n    WHERE equipmentno = d.equipmentno\n      AND (d.serialnumber IS NULL OR serialnumber = d.serialnumber)\n    ORDER BY equipmentno\n  ) ld ON true\n  WHERE\n    -- ROOM: All (__all) = no filter, else CSV list\n    ( '${room:raw}' = '__all'\n      OR room.equipmentno = ANY( STRING_TO_ARRAY('${room:csv}', ',') ) )\n\n    -- EQCLASS: All (__all) = no filter, else CSV list\n    AND (\n      '${eqclass:raw}' = '__all'\n      OR d.eqclass = ANY( STRING_TO_ARRAY('${eqclass:csv}', ',') )\n    )\n\n    -- ROOM STATUS: regex on room status\n    AND (\n      '${status:raw}' = '__all'\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')\n    )\n\n    -- CATEGORY: All (__all) = no filter; otherwise include real cats and __none__\n    AND (\n      '${category:raw}' = '__all'\n      OR COALESCE(NULLIF(d.category,''), '__none__')\n           = ANY( STRING_TO_ARRAY('${category:csv}', ',') )\n    )\n\n    -- DEVICE STATUS: All (__all) or multi via regex\n    AND (\n      '${devstatus:raw}' = '__all'\n      OR d.assetstatus_display ~ ('^(' || '${devstatus:regex}' || ')$')\n    )\n\n    -- DEVICE filter (VALUE = equipmentno)\n    AND (\n      '${device:raw}' = '__all'\n      OR d.equipmentno = ANY( STRING_TO_ARRAY('${device:csv}', ',') )\n    )\n)\nSELECT\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomStatus,\n  EquipmentNo,\n  DeviceDesc,\n  Manufacturer,\n  CommissionDate,\n  LeafStatus,\n  DeviceClass,\n  DeviceCategory,\n  Resources,\n  ConferenceRoomNo\nFROM (\n  SELECT *,\n    NULLIF(regexp_replace(part1_txt,'\\D.*$',''),'')::int AS part1_num,\n    regexp_replace(part1_txt,'^\\d+','')                  AS part1_suf,\n    NULLIF(regexp_replace(part2_txt,'\\D.*$',''),'')::int AS part2_num,\n    regexp_replace(part2_txt,'^\\d+','')                  AS part2_suf,\n    NULLIF(regexp_replace(part3_txt,'\\D.*$',''),'')::int AS part3_num,\n    regexp_replace(part3_txt,'^\\d+','')                  AS part3_suf\n  FROM listed\n) s\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo,\n  DeviceDesc;\n",
           "refId": "A",
           "sql": {
             "columns": [
@@ -745,7 +745,7 @@
         "h": 2,
         "w": 11,
         "x": 7,
-        "y": 22
+        "y": 20
       },
       "id": 23,
       "options": {
@@ -776,13 +776,9 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": true,
-          "text": [
-            "All"
-          ],
-          "value": [
-            "$__all"
-          ]
+          "selected": false,
+          "text": "Installed",
+          "value": "Installed"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -806,13 +802,9 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": true,
-          "text": [
-            "All"
-          ],
-          "value": [
-            "$__all"
-          ]
+          "selected": false,
+          "text": "1/1-025",
+          "value": "CCA-1.1.025"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -836,7 +828,7 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": true,
+          "selected": false,
           "text": [
             "All"
           ],
@@ -928,17 +920,17 @@
         "current": {
           "selected": true,
           "text": [
-            "All"
+            "Amplifier EXTRON"
           ],
           "value": [
-            "$__all"
+            "CCAX-001312"
           ]
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
           "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
         },
-        "definition": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT dp.position AS start_pos,\n         p.equipmentno AS cur_pos,\n         p.parentasset  AS parent_pos,\n         0 AS depth,\n         ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos) c.start_pos, c.cur_pos AS room_no, c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n)\nSELECT DISTINCT\n  COALESCE(NULLIF(d.equipmentdesc,''), '[' || d.equipmentno || ']') AS __text,\n  d.equipmentno                                                     AS __value\nFROM eam_devices d\nJOIN pos_to_room pr     ON pr.start_pos       = d.position\nJOIN eam_positions room ON room.equipmentno   = pr.room_no\nWHERE\n  -- Room (ALL or CSV)\n  ( '${room:raw}' = '__all'\n    OR room.equipmentno = ANY(STRING_TO_ARRAY('${room:csv}', ',')) )\n\n  -- Room Status (regex on ROOM)\n  AND ( '${status:raw}' = '__all'\n        OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$') )\n\n  -- Class (ALL or CSV)\n  AND ( '${eqclass:raw}' = '__all'\n        OR d.eqclass = ANY(STRING_TO_ARRAY('${eqclass:csv}', ',')) )\n\n  -- Category (ALL, real values, or __none__)\n  AND (\n       '${category:raw}' = '__all'\n       OR d.category = ANY(STRING_TO_ARRAY('${category:csv}', ','))\n       OR ('${category:csv}' LIKE '%__none__%' AND (d.category IS NULL OR d.category = ''))\n      )\n\n  -- Device Status (ALL or regex on DEVICE status)\n  AND ( '${devstatus:raw}' = '__all'\n        OR d.assetstatus_display ~ ('^(' || '${devstatus:regex}' || ')$') )\nORDER BY __text;",
+        "definition": "-- Grafana variable: device\n-- Label (__text) = equipmentdesc (fallback: [equipmentno])\n-- Value (__value) = equipmentno\n\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position          AS start_pos,\n    p.equipmentno        AS cur_pos,\n    p.parentasset        AS parent_pos,\n    0                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n)\nSELECT DISTINCT\n  COALESCE(NULLIF(d.equipmentdesc,''), '[' || d.equipmentno || ']') AS __text,\n  d.equipmentno                                                     AS __value\nFROM eam_devices d\nJOIN pos_to_room pr     ON pr.start_pos     = d.position\nJOIN eam_positions room ON room.equipmentno = pr.room_no\nWHERE\n  -- Room (ALL or CSV)\n  ( '${room:raw}' = '__all'\n    OR room.equipmentno = ANY(STRING_TO_ARRAY('${room:csv}', ',')) )\n\n  -- Room Status (regex on ROOM)\n  AND (\n    '${status:raw}' = '__all'\n    OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')\n  )\n\n  -- Class (ALL or CSV)\n  AND (\n    '${eqclass:raw}' = '__all'\n    OR d.eqclass = ANY(STRING_TO_ARRAY('${eqclass:csv}', ','))\n  )\n\n  -- Category (ALL, real values, or __none__)\n  AND (\n    '${category:raw}' = '__all'\n    OR d.category = ANY(STRING_TO_ARRAY('${category:csv}', ','))\n    OR ('${category:csv}' LIKE '%__none__%' AND (d.category IS NULL OR d.category = ''))\n  )\n\n  -- Device Status (ALL or regex on DEVICE status)\n  AND (\n    '${devstatus:raw}' = '__all'\n    OR d.assetstatus_display ~ ('^(' || '${devstatus:regex}' || ')$')\n  )\nORDER BY __text, __value;\n",
         "description": "Narrow down to specific devices. The list only shows devices that match your chosen Rooms, Room Status, Class, and Category. Choose All to include every device.",
         "hide": 0,
         "includeAll": true,
@@ -946,7 +938,7 @@
         "multi": true,
         "name": "device",
         "options": [],
-        "query": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT dp.position AS start_pos,\n         p.equipmentno AS cur_pos,\n         p.parentasset  AS parent_pos,\n         0 AS depth,\n         ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos) c.start_pos, c.cur_pos AS room_no, c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n)\nSELECT DISTINCT\n  COALESCE(NULLIF(d.equipmentdesc,''), '[' || d.equipmentno || ']') AS __text,\n  d.equipmentno                                                     AS __value\nFROM eam_devices d\nJOIN pos_to_room pr     ON pr.start_pos       = d.position\nJOIN eam_positions room ON room.equipmentno   = pr.room_no\nWHERE\n  -- Room (ALL or CSV)\n  ( '${room:raw}' = '__all'\n    OR room.equipmentno = ANY(STRING_TO_ARRAY('${room:csv}', ',')) )\n\n  -- Room Status (regex on ROOM)\n  AND ( '${status:raw}' = '__all'\n        OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$') )\n\n  -- Class (ALL or CSV)\n  AND ( '${eqclass:raw}' = '__all'\n        OR d.eqclass = ANY(STRING_TO_ARRAY('${eqclass:csv}', ',')) )\n\n  -- Category (ALL, real values, or __none__)\n  AND (\n       '${category:raw}' = '__all'\n       OR d.category = ANY(STRING_TO_ARRAY('${category:csv}', ','))\n       OR ('${category:csv}' LIKE '%__none__%' AND (d.category IS NULL OR d.category = ''))\n      )\n\n  -- Device Status (ALL or regex on DEVICE status)\n  AND ( '${devstatus:raw}' = '__all'\n        OR d.assetstatus_display ~ ('^(' || '${devstatus:regex}' || ')$') )\nORDER BY __text;",
+        "query": "-- Grafana variable: device\n-- Label (__text) = equipmentdesc (fallback: [equipmentno])\n-- Value (__value) = equipmentno\n\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position          AS start_pos,\n    p.equipmentno        AS cur_pos,\n    p.parentasset        AS parent_pos,\n    0                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n)\nSELECT DISTINCT\n  COALESCE(NULLIF(d.equipmentdesc,''), '[' || d.equipmentno || ']') AS __text,\n  d.equipmentno                                                     AS __value\nFROM eam_devices d\nJOIN pos_to_room pr     ON pr.start_pos     = d.position\nJOIN eam_positions room ON room.equipmentno = pr.room_no\nWHERE\n  -- Room (ALL or CSV)\n  ( '${room:raw}' = '__all'\n    OR room.equipmentno = ANY(STRING_TO_ARRAY('${room:csv}', ',')) )\n\n  -- Room Status (regex on ROOM)\n  AND (\n    '${status:raw}' = '__all'\n    OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')\n  )\n\n  -- Class (ALL or CSV)\n  AND (\n    '${eqclass:raw}' = '__all'\n    OR d.eqclass = ANY(STRING_TO_ARRAY('${eqclass:csv}', ','))\n  )\n\n  -- Category (ALL, real values, or __none__)\n  AND (\n    '${category:raw}' = '__all'\n    OR d.category = ANY(STRING_TO_ARRAY('${category:csv}', ','))\n    OR ('${category:csv}' LIKE '%__none__%' AND (d.category IS NULL OR d.category = ''))\n  )\n\n  -- Device Status (ALL or regex on DEVICE status)\n  AND (\n    '${devstatus:raw}' = '__all'\n    OR d.assetstatus_display ~ ('^(' || '${devstatus:regex}' || ')$')\n  )\nORDER BY __text, __value;\n",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -965,6 +957,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices",
   "uid": "eewd94f4muozkc",
-  "version": 227,
+  "version": 230,
   "weekStart": "sunday"
 }
