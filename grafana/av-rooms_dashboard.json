@@ -41,7 +41,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "<div style=\"text-align:center\">\n  <h1 style=\"margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji;font-size:clamp(28px,6vw,52px);font-weight:700;letter-spacing:.5px;line-height:1.1;color:inherit;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased\">\n    <span style=\"font-weight:800\">AV</span> <span style=\"font-weight:600;opacity:.9\">Rooms</span>\n  </h1>\n</div>\n",
+        "content": "<div style=\"text-align:center\">\n  <h1 style=\"margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji;font-size:clamp(28px,6vw,52px);font-weight:700;letter-spacing:.5px;line-height:1.1;color:inherit;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased\">\n    <span style=\"font-weight:800\">Conference</span> <span style=\"font-weight:600;opacity:.9\">Rooms</span>\n  </h1>\n</div>\n",
         "mode": "markdown"
       },
       "pluginVersion": "11.5.5",
@@ -223,12 +223,6 @@
                 ]
               },
               {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              },
-              {
                 "id": "decimals",
                 "value": 0
               },
@@ -335,7 +329,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 486
+                "value": 551
               }
             ]
           },
@@ -359,7 +353,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 147
+                "value": 155
               },
               {
                 "id": "mappings",
@@ -400,7 +394,7 @@
         "cellHeight": "sm",
         "footer": {
           "countRows": true,
-          "enablePagination": true,
+          "enablePagination": false,
           "fields": "",
           "reducer": [
             "count"
@@ -957,6 +951,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms",
   "uid": "few9yty0nez28f",
-  "version": 124,
+  "version": 127,
   "weekStart": "sunday"
 }

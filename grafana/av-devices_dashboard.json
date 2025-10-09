@@ -20,7 +20,32 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": 39749,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "GIS  \ud83d\udccd",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://maps.cern.ch/?mode=2D&n=[%27${room:value:percentencode}%27]"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "AV Rooms",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://monit-grafana.cern.ch/d/few9yty0nez28f/av3a-rooms?orgId=12&refresh=5m&var-status=Installed"
+    }
+  ],
   "liveNow": true,
   "panels": [
     {
@@ -497,7 +522,7 @@
         "cellHeight": "sm",
         "footer": {
           "countRows": true,
-          "enablePagination": true,
+          "enablePagination": false,
           "fields": "",
           "reducer": [
             "count"
@@ -687,58 +712,8 @@
       },
       "gridPos": {
         "h": 2,
-        "w": 2,
-        "x": 0,
-        "y": 22
-      },
-      "id": 21,
-      "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        },
-        "content": "<a href=\"https://maps.cern.ch/?mode=2D&n=[%27${room:value:percentencode}%27]\"\n   target=\"_blank\"\n   style=\"display:inline-block;padding:10px 16px;border-radius:10px;\n          text-decoration:none;font-weight:600;border:1px solid currentColor;\">\n  \ud83d\udccd GIS\n</a>\n",
-        "mode": "markdown"
-      },
-      "pluginVersion": "11.5.5",
-      "transparent": true,
-      "type": "text"
-    },
-    {
-      "datasource": {
-        "type": "datasource",
-        "uid": "grafana"
-      },
-      "gridPos": {
-        "h": 2,
-        "w": 2,
-        "x": 2,
-        "y": 22
-      },
-      "id": 24,
-      "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        },
-        "content": "<div style=\"height:100%;display:flex;align-items:center;justify-content:center\">\n  <a href=\"https://monit-grafana.cern.ch/d/few9yty0nez28f/av3a-rooms?orgId=12&refresh=5m&var-status=Installed\"\n     style=\"display:inline-block;padding:.75rem 1.25rem;border-radius:10px;\n            text-decoration:none;font-weight:600;font-size:16px;\n            border:1px solid rgba(255,255,255,.2);\n            box-shadow:0 4px 14px rgba(0,0,0,.15);\n            backdrop-filter: blur(6px);\n            transition: transform .06s ease, box-shadow .2s ease;\n            \">\n    AV Rooms\n  </a>\n</div>",
-        "mode": "markdown"
-      },
-      "pluginVersion": "11.5.5",
-      "transparent": true,
-      "type": "text"
-    },
-    {
-      "datasource": {
-        "type": "datasource",
-        "uid": "grafana"
-      },
-      "gridPos": {
-        "h": 2,
         "w": 8,
-        "x": 9,
+        "x": 8,
         "y": 22
       },
       "id": 23,
@@ -883,6 +858,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices",
   "uid": "eewd94f4muozkc",
-  "version": 155,
+  "version": 175,
   "weekStart": "sunday"
 }
