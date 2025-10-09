@@ -28,7 +28,7 @@
       "keepTime": false,
       "tags": [],
       "targetBlank": false,
-      "title": "GIS  \ud83d\udccd",
+      "title": "GIS",
       "tooltip": "",
       "type": "link",
       "url": "https://maps.cern.ch/?mode=2D&n=[%27${room:value:percentencode}%27]"
@@ -352,37 +352,37 @@
                   {
                     "options": {
                       "AVA": {
-                        "color": "super-light-red",
+                        "color": "light-red",
                         "index": 0,
                         "text": "AVA: Audio"
                       },
                       "AVC": {
-                        "color": "super-light-orange",
+                        "color": "light-orange",
                         "index": 1,
                         "text": "AVC: Computing"
                       },
                       "AVD": {
-                        "color": "super-light-yellow",
+                        "color": "green",
                         "index": 2,
                         "text": "AVD: Display"
                       },
                       "AVO": {
-                        "color": "super-light-green",
+                        "color": "#07e1f3",
                         "index": 3,
                         "text": "AVO: Other"
                       },
                       "AVS": {
-                        "color": "super-light-blue",
+                        "color": "light-blue",
                         "index": 4,
                         "text": "AVS: Control"
                       },
                       "AVV": {
-                        "color": "super-light-purple",
+                        "color": "#e695dcc4",
                         "index": 5,
                         "text": "AVV: Video Conference"
                       },
                       "AVVS": {
-                        "color": "dark-purple",
+                        "color": "semi-dark-purple",
                         "index": 6,
                         "text": "AVVS: Video Systems"
                       }
@@ -531,7 +531,12 @@
         },
         "frameIndex": 1,
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Status"
+          }
+        ]
       },
       "pluginVersion": "11.5.5",
       "targets": [
@@ -616,25 +621,25 @@
               "Time snmp_probe": true,
               "conferenceroom": true,
               "conferenceroomno": true,
-              "conferenceroomnofmt": true,
-              "devicecategory": false,
-              "leafstatus": true,
+              "conferenceroomnofmt": false,
+              "devicecategory": true,
+              "leafstatus": false,
               "serialnumber": true
             },
             "includeByName": {},
             "indexByName": {
               "Time ping_check": 13,
               "Time snmp_probe": 14,
-              "commissiondate": 6,
-              "conferenceroom": 7,
-              "conferenceroomno": 1,
-              "conferenceroomnofmt": 0,
-              "devicecategory": 5,
-              "deviceclass": 2,
-              "devicedesc": 3,
+              "commissiondate": 7,
+              "conferenceroom": 8,
+              "conferenceroomno": 0,
+              "conferenceroomnofmt": 5,
+              "devicecategory": 6,
+              "deviceclass": 1,
+              "devicedesc": 2,
               "equipmentno": 10,
-              "leafstatus": 8,
-              "manufacturer": 4,
+              "leafstatus": 4,
+              "manufacturer": 3,
               "ping_status": 12,
               "resources": 9,
               "serialnumber": 11,
@@ -712,8 +717,8 @@
       },
       "gridPos": {
         "h": 2,
-        "w": 8,
-        "x": 8,
+        "w": 11,
+        "x": 7,
         "y": 22
       },
       "id": 23,
@@ -723,7 +728,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "<div style=\"display:flex;gap:.5rem;flex-wrap:wrap;font:12px/1.3 Inter,system-ui;\">\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#b91c1c33;border:1px solid #b91c1c80;\">AVA: Audio</span>\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#a1620733;border:1px solid #a1620780;\">AVC: Computing</span>\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#065f4633;border:1px solid #065f4680;\">AVD: Display</span>\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#1d4ed833;border:1px solid #1d4ed880;\">AVS: Control</span>\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#7c3aed33;border:1px solid #7c3aed80;\">AVV: Video Conference</span>\n</div>\n",
+        "content": "<div style=\"display:flex;gap:.5rem;flex-wrap:wrap;font:12px/1.3 Inter,system-ui;\">\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#b91c1c33;border:1px solid #b91c1c80;\">AVA: Audio</span>\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#a1620733;border:1px solid #a1620780;\">AVC: Computing</span>\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#065f4633;border:1px solid #065f4680;\">AVD: Display</span>\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#06b6d433;border:1px solid #06b6d480;\">AVO: Other</span>\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#1d4ed833;border:1px solid #1d4ed880;\">AVS: Control</span>\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#db277733;border:1px solid #db277780;\">AVV: Video Conference</span>\n  <span style=\"padding:.25rem .6rem;border-radius:999px;background:#7c3aed33;border:1px solid #7c3aed80;\">AVVS: Video Systems</span>\n</div>\n",
         "mode": "markdown"
       },
       "pluginVersion": "11.5.5",
@@ -745,17 +750,9 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": true,
-          "text": [
-            "Installed",
-            "Accepted",
-            "Stored"
-          ],
-          "value": [
-            "Installed",
-            "Accepted",
-            "Stored"
-          ]
+          "selected": false,
+          "text": "Installed",
+          "value": "Installed"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -779,13 +776,9 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": true,
-          "text": [
-            "1/1-025"
-          ],
-          "value": [
-            "CCA-1.1.025"
-          ]
+          "selected": false,
+          "text": "1/1-025",
+          "value": "CCA-1.1.025"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -809,21 +802,9 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": true,
-          "text": [
-            "AVA",
-            "AVC",
-            "AVD",
-            "AVS",
-            "AVV"
-          ],
-          "value": [
-            "AVA",
-            "AVC",
-            "AVD",
-            "AVS",
-            "AVV"
-          ]
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -847,19 +828,15 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": true,
-          "text": [
-            "All"
-          ],
-          "value": [
-            "$__all"
-          ]
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
           "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
         },
-        "definition": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT dp.position AS start_pos, p.equipmentno AS cur_pos, p.parentasset AS parent_pos,\n         0 AS depth, ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos) c.start_pos, c.cur_pos AS room_no, c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nfiltered AS (\n  SELECT d.category\n  FROM pos_to_room pr\n  JOIN eam_devices d ON d.position = pr.start_pos\n  WHERE\n    ( '${status:raw}' = '__all'\n      OR d.assetstatus_display ~ ('^(' || '${status:regex}' || ')$') )\n    AND ( '${room:raw}' = '__all'\n          OR pr.room_no ~ '${room:regex}' )\n    AND ( '${eqclass:raw}' = '__all'\n          OR d.eqclass = ANY(STRING_TO_ARRAY('${eqclass:csv}', ',')) )\n)\n-- Always offer the explicit \"None\" option (uncategorized devices)\nSELECT 'None' AS __text, '__none__' AS __value\nUNION ALL\nSELECT DISTINCT f.category AS __text, f.category AS __value\nFROM filtered f\nWHERE f.category IS NOT NULL AND f.category <> ''\nORDER BY __text;\n",
+        "definition": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT dp.position AS start_pos, p.equipmentno AS cur_pos, p.parentasset AS parent_pos,\n         0 AS depth, ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos) c.start_pos, c.cur_pos AS room_no, c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nfiltered AS (\n  SELECT d.category\n  FROM pos_to_room pr\n  JOIN eam_devices d ON d.position = pr.start_pos\n  WHERE\n    ( '${status:raw}' = '__all'\n      OR d.assetstatus_display ~ ('^(' || '${status:regex}' || ')$') )\n    AND ( '${room:raw}' = '__all' OR pr.room_no ~ '${room:regex}' )\n    AND ( '${eqclass:raw}' = '__all'\n          OR d.eqclass = ANY(STRING_TO_ARRAY('${eqclass:csv}', ',')) )\n),\nmapped AS (\n  SELECT DISTINCT\n    CASE f.category\n      WHEN 'AV-PRO' THEN 'Projector'\n      WHEN 'AV-PSC' THEN 'projection Screen'\n      WHEN 'AV-SCR' THEN 'LCD Screen'\n      WHEN 'AV-WIR' THEN 'Wireless Display'\n      WHEN 'AVC-AR' THEN 'Audio Recording'\n      WHEN 'AVC-CO' THEN 'Control PC'\n      WHEN 'AVC-EN' THEN 'Encoding PC'\n      WHEN 'AVC-PR' THEN 'Presentation PC'\n      WHEN 'AVC-SC' THEN 'Screen Control PC'\n      ELSE f.category\n    END AS __text,\n    f.category AS __value\n  FROM filtered f\n  WHERE f.category IS NOT NULL AND f.category <> ''\n)\nSELECT __text, __value\nFROM (\n  SELECT __text, __value FROM mapped\n  UNION ALL\n  SELECT 'None' AS __text, '__none__' AS __value\n) x\nORDER BY\n  CASE WHEN __value = '__none__' THEN 1 ELSE 0 END,\n  __text;\n",
         "description": "Functional category/taxonomy for devices (e.g., Display, Audio, Network, VC).",
         "hide": 0,
         "includeAll": true,
@@ -867,11 +844,11 @@
         "multi": true,
         "name": "category",
         "options": [],
-        "query": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT dp.position AS start_pos, p.equipmentno AS cur_pos, p.parentasset AS parent_pos,\n         0 AS depth, ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos) c.start_pos, c.cur_pos AS room_no, c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nfiltered AS (\n  SELECT d.category\n  FROM pos_to_room pr\n  JOIN eam_devices d ON d.position = pr.start_pos\n  WHERE\n    ( '${status:raw}' = '__all'\n      OR d.assetstatus_display ~ ('^(' || '${status:regex}' || ')$') )\n    AND ( '${room:raw}' = '__all'\n          OR pr.room_no ~ '${room:regex}' )\n    AND ( '${eqclass:raw}' = '__all'\n          OR d.eqclass = ANY(STRING_TO_ARRAY('${eqclass:csv}', ',')) )\n)\n-- Always offer the explicit \"None\" option (uncategorized devices)\nSELECT 'None' AS __text, '__none__' AS __value\nUNION ALL\nSELECT DISTINCT f.category AS __text, f.category AS __value\nFROM filtered f\nWHERE f.category IS NOT NULL AND f.category <> ''\nORDER BY __text;\n",
+        "query": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT dp.position AS start_pos, p.equipmentno AS cur_pos, p.parentasset AS parent_pos,\n         0 AS depth, ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT c.start_pos, p.equipmentno, p.parentasset, c.depth + 1, c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos) c.start_pos, c.cur_pos AS room_no, c.depth\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nfiltered AS (\n  SELECT d.category\n  FROM pos_to_room pr\n  JOIN eam_devices d ON d.position = pr.start_pos\n  WHERE\n    ( '${status:raw}' = '__all'\n      OR d.assetstatus_display ~ ('^(' || '${status:regex}' || ')$') )\n    AND ( '${room:raw}' = '__all' OR pr.room_no ~ '${room:regex}' )\n    AND ( '${eqclass:raw}' = '__all'\n          OR d.eqclass = ANY(STRING_TO_ARRAY('${eqclass:csv}', ',')) )\n),\nmapped AS (\n  SELECT DISTINCT\n    CASE f.category\n      WHEN 'AV-PRO' THEN 'Projector'\n      WHEN 'AV-PSC' THEN 'projection Screen'\n      WHEN 'AV-SCR' THEN 'LCD Screen'\n      WHEN 'AV-WIR' THEN 'Wireless Display'\n      WHEN 'AVC-AR' THEN 'Audio Recording'\n      WHEN 'AVC-CO' THEN 'Control PC'\n      WHEN 'AVC-EN' THEN 'Encoding PC'\n      WHEN 'AVC-PR' THEN 'Presentation PC'\n      WHEN 'AVC-SC' THEN 'Screen Control PC'\n      ELSE f.category\n    END AS __text,\n    f.category AS __value\n  FROM filtered f\n  WHERE f.category IS NOT NULL AND f.category <> ''\n)\nSELECT __text, __value\nFROM (\n  SELECT __text, __value FROM mapped\n  UNION ALL\n  SELECT 'None' AS __text, '__none__' AS __value\n) x\nORDER BY\n  CASE WHEN __value = '__none__' THEN 1 ELSE 0 END,\n  __text;\n",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
-        "sort": 1,
+        "sort": 0,
         "type": "query"
       }
     ]
@@ -886,6 +863,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices",
   "uid": "eewd94f4muozkc",
-  "version": 190,
+  "version": 200,
   "weekStart": "sunday"
 }
