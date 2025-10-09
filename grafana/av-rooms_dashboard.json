@@ -329,7 +329,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 551
+                "value": 159
               }
             ]
           },
@@ -353,7 +353,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 111
+                "value": 100
               },
               {
                 "id": "mappings",
@@ -389,7 +389,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 211
+                "value": 270
               }
             ]
           }
@@ -931,12 +931,8 @@
         "allValue": "__all",
         "current": {
           "selected": false,
-          "text": [
-            "Accepted"
-          ],
-          "value": [
-            "Accepted"
-          ]
+          "text": "All",
+          "value": "$__all"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -967,6 +963,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms",
   "uid": "few9yty0nez28f",
-  "version": 133,
+  "version": 135,
   "weekStart": "sunday"
 }
