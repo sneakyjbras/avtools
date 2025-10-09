@@ -129,7 +129,7 @@
                 "value": [
                   {
                     "title": "Grafana",
-                    "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av-devices-by-room?orgId=12&var-room=${__data.fields.conferenceroomno:default:}"
+                    "url": "/d/eewd94f4muozkc/av-devices-by-room?orgId=12&var-room=${__data.fields.conferenceroomno:raw}&var-status=${status:regex}"
                   }
                 ]
               },
@@ -930,12 +930,12 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": true,
+          "selected": false,
           "text": [
-            "All"
+            "Accepted"
           ],
           "value": [
-            "$__all"
+            "Accepted"
           ]
         },
         "datasource": {
@@ -967,6 +967,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms",
   "uid": "few9yty0nez28f",
-  "version": 132,
+  "version": 133,
   "weekStart": "sunday"
 }

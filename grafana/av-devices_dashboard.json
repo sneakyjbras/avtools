@@ -43,7 +43,7 @@
       "title": "AV Rooms",
       "tooltip": "",
       "type": "link",
-      "url": "https://monit-grafana.cern.ch/d/few9yty0nez28f/av3a-rooms?orgId=12&refresh=5m"
+      "url": "https://monit-grafana.cern.ch/d/few9yty0nez28f/av3a-rooms?orgId=12&refresh=5m&var-status=${status:regex}"
     }
   ],
   "liveNow": true,
@@ -863,6 +863,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices",
   "uid": "eewd94f4muozkc",
-  "version": 200,
+  "version": 201,
   "weekStart": "sunday"
 }
