@@ -91,7 +91,8 @@
               "wrapText": false
             },
             "filterable": true,
-            "inspect": true
+            "inspect": true,
+            "minWidth": 60
           },
           "mappings": [],
           "thresholds": {
@@ -124,10 +125,6 @@
                     "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices?orgId=12&refresh=5m&var-status=${__data.fields.roomstatus:default}&var-room=${__data.fields.conferenceroomno:default}"
                   }
                 ]
-              },
-              {
-                "id": "custom.width",
-                "value": 112
               }
             ]
           },
@@ -140,16 +137,6 @@
               {
                 "id": "custom.hidden",
                 "value": true
-              },
-              {
-                "id": "links",
-                "value": [
-                  {
-                    "targetBlank": false,
-                    "title": "EAM",
-                    "url": "https://eamlight.cern.ch/position/${__data.fields.conferenceroomno:default:}"
-                  }
-                ]
               }
             ]
           },
@@ -168,10 +155,6 @@
                     "url": "https://eamlight.cern.ch/asset/${__data.fields.equipmentno:default:}"
                   }
                 ]
-              },
-              {
-                "id": "custom.width",
-                "value": 128
               }
             ]
           },
@@ -209,10 +192,6 @@
                     "url": "https://landb.cern.ch/portal/devices/${__data.fields.Device}"
                   }
                 ]
-              },
-              {
-                "id": "custom.width",
-                "value": 65
               }
             ]
           },
@@ -261,10 +240,6 @@
                   "type": "color-background",
                   "wrapText": false
                 }
-              },
-              {
-                "id": "custom.width",
-                "value": 78
               }
             ]
           },
@@ -313,10 +288,6 @@
                   "type": "color-background",
                   "wrapText": false
                 }
-              },
-              {
-                "id": "custom.width",
-                "value": 75
               }
             ]
           },
@@ -376,64 +347,6 @@
                 "value": {
                   "type": "color-background"
                 }
-              },
-              {
-                "id": "custom.width",
-                "value": 76
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Category"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "AV-PRO": {
-                        "index": 0,
-                        "text": "Projector"
-                      },
-                      "AV-PSC": {
-                        "index": 2,
-                        "text": "Projection Screen"
-                      },
-                      "AV-SCR": {
-                        "index": 1,
-                        "text": "LCD Screen"
-                      },
-                      "AV-WIR": {
-                        "index": 3,
-                        "text": "Wireless"
-                      },
-                      "AVC-AR": {
-                        "index": 4,
-                        "text": "Audio Recording"
-                      },
-                      "AVC-CO": {
-                        "index": 5,
-                        "text": "Control PC"
-                      },
-                      "AVC-EN": {
-                        "index": 6,
-                        "text": "Encoding PC"
-                      },
-                      "AVC-PR": {
-                        "index": 7,
-                        "text": "Presentation PC"
-                      },
-                      "AVC-SC": {
-                        "index": 8,
-                        "text": "Screen Control"
-                      }
-                    },
-                    "type": "value"
-                  }
-                ]
               }
             ]
           },
@@ -477,10 +390,6 @@
               {
                 "id": "unit",
                 "value": "time:YYYY-MM-DD"
-              },
-              {
-                "id": "custom.width",
-                "value": 105
               }
             ]
           },
@@ -489,48 +398,28 @@
               "id": "byName",
               "options": "Device"
             },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 205
-              }
-            ]
+            "properties": []
           },
           {
             "matcher": {
               "id": "byName",
               "options": "Status"
             },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 102
-              }
-            ]
+            "properties": []
           },
           {
             "matcher": {
               "id": "byName",
               "options": "Device Status"
             },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 178
-              }
-            ]
+            "properties": []
           },
           {
             "matcher": {
               "id": "byName",
               "options": "Manufacturer"
             },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 57
-              }
-            ]
+            "properties": []
           }
         ]
       },
@@ -554,12 +443,7 @@
         },
         "frameIndex": 1,
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "Manufacturer"
-          }
-        ]
+        "sortBy": []
       },
       "pluginVersion": "11.5.5",
       "targets": [
@@ -723,6 +607,17 @@
               }
             ]
           }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Status"
+              }
+            ]
+          }
         }
       ],
       "type": "table"
@@ -880,6 +775,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices",
   "uid": "eewd94f4muozkc",
-  "version": 271,
+  "version": 274,
   "weekStart": "sunday"
 }
