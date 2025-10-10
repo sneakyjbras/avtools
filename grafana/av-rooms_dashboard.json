@@ -66,7 +66,8 @@
               "wrapText": false
             },
             "filterable": true,
-            "inspect": true
+            "inspect": true,
+            "minWidth": 60
           },
           "mappings": [],
           "thresholds": {
@@ -107,10 +108,6 @@
                     "type": "value"
                   }
                 ]
-              },
-              {
-                "id": "custom.width",
-                "value": 146
               }
             ]
           },
@@ -132,38 +129,6 @@
                     "url": "/d/eewd94f4muozkc/av-devices-by-room?orgId=12&var-room=${__data.fields.conferenceroomno:raw}&var-status=${status:regex}"
                   }
                 ]
-              },
-              {
-                "id": "custom.width",
-                "value": 137
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "EAM"
-            },
-            "properties": [
-              {
-                "id": "custom.hidden",
-                "value": false
-              },
-              {
-                "id": "custom.width",
-                "value": 142
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Name"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 209
               }
             ]
           },
@@ -194,73 +159,6 @@
               {
                 "id": "unit",
                 "value": "time:YYYY-MM-DD"
-              },
-              {
-                "id": "custom.width",
-                "value": 118
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Availability"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "match": "null+nan",
-                      "result": {
-                        "index": 0,
-                        "text": "N/A"
-                      }
-                    },
-                    "type": "special"
-                  }
-                ]
-              },
-              {
-                "id": "decimals",
-                "value": 0
-              },
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "red",
-                      "value": null
-                    },
-                    {
-                      "color": "orange",
-                      "value": 50
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 80
-                    },
-                    {
-                      "color": "green",
-                      "value": 90
-                    },
-                    {
-                      "color": "#6ed0e0",
-                      "value": 100
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "custom.hidden",
-                "value": true
               }
             ]
           },
@@ -329,22 +227,6 @@
               {
                 "id": "unit",
                 "value": "percent"
-              },
-              {
-                "id": "custom.width",
-                "value": 91
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Devices"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 41
               }
             ]
           },
@@ -354,10 +236,6 @@
               "options": "GIS"
             },
             "properties": [
-              {
-                "id": "custom.width",
-                "value": 72
-              },
               {
                 "id": "mappings",
                 "value": [
@@ -383,18 +261,6 @@
                 ]
               }
             ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 85
-              }
-            ]
           }
         ]
       },
@@ -418,12 +284,7 @@
         },
         "frameIndex": 0,
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "Name"
-          }
-        ]
+        "sortBy": []
       },
       "pluginVersion": "11.5.5",
       "targets": [
@@ -819,6 +680,7 @@
           "options": {
             "excludeByName": {
               "Coverage %": true,
+              "Coverage % * 100": true,
               "Coverage Gap": true,
               "Network Avail %": true,
               "Offline": true,
@@ -858,27 +720,27 @@
             },
             "renameByName": {
               "Coverage %": "",
-              "Coverage % * 100": "Availability",
-              "Coverage Gap": "Unmonitored Devices",
+              "Coverage % * 100": "",
+              "Coverage Gap": "",
               "Median": "Median",
               "Network Avail %": "",
               "Network Avail % * 100": "Health",
-              "Offline": "Down Devices",
+              "Offline": "",
               "Snmp %": "",
-              "Snmp % * 100": "Snmp",
+              "Snmp % * 100": "",
               "conferenceroom": "Name",
               "conferenceroomno": "EAM",
               "conferenceroomnofmt": "Room",
               "equipmentno (count)": "Devices",
               "gis": "GIS",
-              "ping_status (count)": "Eligible",
-              "ping_status (sum)": "Online Devices",
-              "room_sort_rank (max)": "#",
+              "ping_status (count)": "",
+              "ping_status (sum)": "",
+              "room_sort_rank (max)": "",
               "roomcategory": "Category",
               "roomcommissiondate": "Commission",
               "roomstatus": "Status",
-              "snmp_status (count)": "SNMP Eligible",
-              "snmp_status (sum)": "SNMP Online"
+              "snmp_status (count)": "",
+              "snmp_status (sum)": ""
             }
           }
         },
@@ -971,6 +833,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms",
   "uid": "few9yty0nez28f",
-  "version": 139,
+  "version": 141,
   "weekStart": "sunday"
 }
