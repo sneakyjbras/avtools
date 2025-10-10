@@ -163,7 +163,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 444
+                "value": 209
               }
             ]
           },
@@ -188,7 +188,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Commission Date"
+              "options": "Commission"
             },
             "properties": [
               {
@@ -197,7 +197,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 184
+                "value": 118
               }
             ]
           },
@@ -292,7 +292,7 @@
                     "options": {
                       "match": "null+nan",
                       "result": {
-                        "color": "text",
+                        "color": "transparent",
                         "index": 0,
                         "text": "N/A"
                       }
@@ -316,7 +316,10 @@
               {
                 "id": "custom.cellOptions",
                 "value": {
-                  "type": "color-text"
+                  "applyToRow": false,
+                  "mode": "basic",
+                  "type": "color-background",
+                  "wrapText": false
                 }
               },
               {
@@ -329,7 +332,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 159
+                "value": 91
               }
             ]
           },
@@ -341,7 +344,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 79
+                "value": 41
               }
             ]
           },
@@ -353,7 +356,7 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 100
+                "value": 72
               },
               {
                 "id": "mappings",
@@ -389,14 +392,14 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 270
+                "value": 85
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 21,
+        "h": 15,
         "w": 24,
         "x": 0,
         "y": 3
@@ -415,7 +418,12 @@
         },
         "frameIndex": 0,
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Name"
+          }
+        ]
       },
       "pluginVersion": "11.5.5",
       "targets": [
@@ -867,7 +875,7 @@
               "ping_status (sum)": "Online Devices",
               "room_sort_rank (max)": "#",
               "roomcategory": "Category",
-              "roomcommissiondate": "Commission Date",
+              "roomcommissiondate": "Commission",
               "roomstatus": "Status",
               "snmp_status (count)": "SNMP Eligible",
               "snmp_status (sum)": "SNMP Online"
@@ -963,6 +971,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms",
   "uid": "few9yty0nez28f",
-  "version": 135,
+  "version": 139,
   "weekStart": "sunday"
 }
