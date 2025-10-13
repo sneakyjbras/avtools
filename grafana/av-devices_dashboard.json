@@ -91,7 +91,7 @@
               "wrapText": false
             },
             "filterable": true,
-            "inspect": true,
+            "inspect": false,
             "minWidth": 60
           },
           "mappings": [],
@@ -190,6 +190,10 @@
                     "targetBlank": true,
                     "title": "LanDB",
                     "url": "https://landb.cern.ch/portal/devices/${__data.fields.Device}"
+                  },
+                  {
+                    "title": "Details",
+                    "url": "https://monit-grafana.cern.ch/d/ef0wybelgufwgd/av3a-device-details?orgId=12&refresh=5m&var-status=${status:regex}\ufeff\ufeff&var-room=\ufeff\ufeff${room:value}\ufeff\ufeff&var-eqclass=${eqclass:value}&var-category=${category:value}&var-device=\ufeff\ufeff${__data.fields.equipmentno}"
                   }
                 ]
               }
@@ -392,34 +396,6 @@
                 "value": "time:YYYY-MM-DD"
               }
             ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Device"
-            },
-            "properties": []
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": []
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Device Status"
-            },
-            "properties": []
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Manufacturer"
-            },
-            "properties": []
           }
         ]
       },
@@ -773,8 +749,8 @@
     "hidden": false
   },
   "timezone": "Europe/Zurich",
-  "title": "AV: Devices",
+  "title": "AV: Devices Table",
   "uid": "eewd94f4muozkc",
-  "version": 282,
+  "version": 291,
   "weekStart": "sunday"
 }
