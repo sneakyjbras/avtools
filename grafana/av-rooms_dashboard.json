@@ -265,7 +265,7 @@
         ]
       },
       "gridPos": {
-        "h": 15,
+        "h": 21,
         "w": 24,
         "x": 0,
         "y": 3
@@ -707,14 +707,14 @@
               "conferenceroom": 3,
               "conferenceroomno": 2,
               "conferenceroomnofmt": 1,
-              "equipmentno (count)": 4,
+              "equipmentno (count)": 7,
               "gis": 15,
               "ping_status (count)": 8,
               "ping_status (sum)": 9,
               "room_sort_rank (max)": 0,
-              "roomcategory": 5,
-              "roomcommissiondate": 7,
-              "roomstatus": 6,
+              "roomcategory": 4,
+              "roomcommissiondate": 6,
+              "roomstatus": 5,
               "snmp_status (count)": 11,
               "snmp_status (sum)": 12
             },
@@ -833,6 +833,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms Table",
   "uid": "few9yty0nez28f",
-  "version": 143,
+  "version": 146,
   "weekStart": "sunday"
 }
