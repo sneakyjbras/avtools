@@ -20,7 +20,104 @@
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": 39744,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "All",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&refresh=5m&var-status=${status:value}&var-room=All&var-eqclass=All&var-category=All"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "AVA: Audio",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&var-room=All&var-status=${status:value}&refresh=5m&var-eqclass=AVA&var-category=All"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "AVC: Computing",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&var-room=All&var-status=${status:value}&refresh=5m&var-eqclass=AVC&var-category=All"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "AVD: Display",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&var-room=All&var-status=${status:value}&refresh=5m&var-eqclass=AVD&var-category=All"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "AVO: Other",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&var-room=All&var-status=${status:value}&refresh=5m&var-eqclass=AVO&var-category=All"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "AVS: Control",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&var-room=All&var-status=${status:value}&refresh=5m&var-eqclass=AVS&var-category=All"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "AVV: Video Conference",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&var-room=All&var-status=${status:value}&refresh=5m&var-eqclass=AVV&var-category=All"
+    },
+    {
+      "asDropdown": false,
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": false,
+      "title": "AVVS: Video Systems",
+      "tooltip": "",
+      "type": "link",
+      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&var-room=All&var-status=${status:value}&refresh=5m&var-eqclass=AVVS&var-category=All"
+    }
+  ],
   "liveNow": true,
   "panels": [
     {
@@ -48,6 +145,19 @@
       "type": "text"
     },
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 3,
+      "panels": [],
+      "title": "Rooms Table",
+      "type": "row"
+    },
+    {
       "datasource": {
         "default": false,
         "type": "datasource",
@@ -66,8 +176,7 @@
               "wrapText": false
             },
             "filterable": true,
-            "inspect": true,
-            "minWidth": 60
+            "inspect": true
           },
           "mappings": [],
           "thresholds": {
@@ -108,6 +217,10 @@
                     "type": "value"
                   }
                 ]
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 140
               }
             ]
           },
@@ -129,6 +242,10 @@
                     "url": "/d/eewd94f4muozkc/av-devices-by-room?orgId=12&var-room=${__data.fields.conferenceroomno:raw}&var-status=${status:regex}"
                   }
                 ]
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 100
               }
             ]
           },
@@ -147,6 +264,10 @@
                     "url": "https://eamlight.cern.ch/position/${__data.fields.conferenceroomno:default:}"
                   }
                 ]
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 128
               }
             ]
           },
@@ -159,6 +280,10 @@
               {
                 "id": "unit",
                 "value": "time:YYYY-MM-DD"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 120
               }
             ]
           },
@@ -227,6 +352,10 @@
               {
                 "id": "unit",
                 "value": "percent"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 120
               }
             ]
           },
@@ -243,7 +372,7 @@
                     "options": {
                       "1": {
                         "index": 0,
-                        "text": "View"
+                        "text": "Open"
                       }
                     },
                     "type": "value"
@@ -259,16 +388,20 @@
                     "url": "https://maps.cern.ch/?mode=2D&n=[%27${__data.fields.conferenceroomnofmt:percentencode}%27]\n"
                   }
                 ]
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 50
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 21,
+        "h": 25,
         "w": 24,
         "x": 0,
-        "y": 3
+        "y": 4
       },
       "id": 1,
       "options": {
@@ -284,7 +417,12 @@
         },
         "frameIndex": 0,
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Room"
+          }
+        ]
       },
       "pluginVersion": "11.5.5",
       "targets": [
@@ -785,6 +923,42 @@
         }
       ],
       "type": "table"
+    },
+    {
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 4,
+      "title": "Legend",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "datasource",
+        "uid": "grafana"
+      },
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 5,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "<div style=\"display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;font:12px/1.3 Inter,system-ui;\">\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#f2495c;border:1px solid #f2495c;color:#fff;\">AVA: Audio</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#ff9830;border:1px solid #ff9830;color:#fff;\">AVC: Computing</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#56a64b;border:1px solid #56a64b;color:#fff;\">AVD: Display</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#07e1f3;border:1px solid #07e1f3;color:#fff;\">AVO: Other</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#5794f2;border:1px solid #5794f2;color:#fff;\">AVS: Control</span>\n  <!-- AVV with 0.77 alpha -->\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:rgba(230,149,220,0.77);border:1px solid rgba(230,149,220,0.77);color:#000;\">AVV: Video Conference</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#8f3bb8;border:1px solid #8f3bb8;color:#fff;\">AVVS: Video Systems</span>\n</div>\n",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.5.5",
+      "transparent": true,
+      "type": "text"
     }
   ],
   "refresh": "5m",
@@ -833,6 +1007,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms Table",
   "uid": "few9yty0nez28f",
-  "version": 146,
+  "version": 161,
   "weekStart": "sunday"
 }

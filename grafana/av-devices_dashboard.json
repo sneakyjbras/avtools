@@ -73,6 +73,19 @@
       "type": "text"
     },
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 25,
+      "panels": [],
+      "title": "Device Table",
+      "type": "row"
+    },
+    {
       "datasource": {
         "default": false,
         "type": "datasource",
@@ -91,8 +104,7 @@
               "wrapText": false
             },
             "filterable": true,
-            "inspect": true,
-            "minWidth": 60
+            "inspect": true
           },
           "mappings": [],
           "thresholds": {
@@ -125,6 +137,10 @@
                     "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices?orgId=12&refresh=5m&var-status=${status:value}&var-room=${__data.fields.conferenceroomno:default}"
                   }
                 ]
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 128
               }
             ]
           },
@@ -155,6 +171,10 @@
                     "url": "https://eamlight.cern.ch/asset/${__data.fields.equipmentno:default:}"
                   }
                 ]
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 150
               }
             ]
           },
@@ -203,6 +223,10 @@
                   "type": "color-background",
                   "wrapText": false
                 }
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 120
               }
             ]
           },
@@ -251,6 +275,10 @@
                   "type": "color-background",
                   "wrapText": false
                 }
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 120
               }
             ]
           },
@@ -310,6 +338,10 @@
                 "value": {
                   "type": "color-background"
                 }
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 50
               }
             ]
           },
@@ -339,8 +371,8 @@
                 ]
               },
               {
-                "id": "custom.width",
-                "value": 108
+                "id": "custom.minWidth",
+                "value": 120
               }
             ]
           },
@@ -353,6 +385,10 @@
               {
                 "id": "unit",
                 "value": "time:YYYY-MM-DD"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 120
               }
             ]
           },
@@ -385,6 +421,10 @@
                     "type": "value"
                   }
                 ]
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 50
               }
             ]
           },
@@ -417,6 +457,10 @@
                     "type": "value"
                   }
                 ]
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 50
               }
             ]
           },
@@ -449,16 +493,56 @@
                     "type": "value"
                   }
                 ]
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 50
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Device"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 420
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Manufacturer"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 120
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 20,
+        "h": 23,
         "w": 24,
         "x": 0,
-        "y": 3
+        "y": 4
       },
       "id": 20,
       "options": {
@@ -665,7 +749,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 27
       },
       "id": 24,
       "panels": [],
@@ -681,7 +765,7 @@
         "h": 2,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 28
       },
       "id": 23,
       "options": {
@@ -825,6 +909,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices Table",
   "uid": "eewd94f4muozkc",
-  "version": 303,
+  "version": 313,
   "weekStart": "sunday"
 }
