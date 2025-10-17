@@ -453,12 +453,7 @@
         },
         "frameIndex": 0,
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "Room"
-          }
-        ]
+        "sortBy": []
       },
       "pluginVersion": "11.5.5",
       "targets": [
@@ -1043,6 +1038,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms Table",
   "uid": "few9yty0nez28f",
-  "version": 168,
+  "version": 169,
   "weekStart": "sunday"
 }
