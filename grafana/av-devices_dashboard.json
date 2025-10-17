@@ -424,7 +424,7 @@
               },
               {
                 "id": "custom.minWidth",
-                "value": 50
+                "value": 70
               }
             ]
           },
@@ -460,7 +460,7 @@
               },
               {
                 "id": "custom.minWidth",
-                "value": 50
+                "value": 70
               }
             ]
           },
@@ -496,7 +496,7 @@
               },
               {
                 "id": "custom.minWidth",
-                "value": 50
+                "value": 70
               }
             ]
           },
@@ -532,14 +532,14 @@
             "properties": [
               {
                 "id": "custom.minWidth",
-                "value": 120
+                "value": 220
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 23,
+        "h": 21,
         "w": 24,
         "x": 0,
         "y": 4
@@ -749,7 +749,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 25
       },
       "id": 24,
       "panels": [],
@@ -765,7 +765,7 @@
         "h": 2,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 26
       },
       "id": 23,
       "options": {
@@ -909,6 +909,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices Table",
   "uid": "eewd94f4muozkc",
-  "version": 313,
+  "version": 318,
   "weekStart": "sunday"
 }

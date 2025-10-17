@@ -391,14 +391,50 @@
               },
               {
                 "id": "custom.minWidth",
-                "value": 50
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Name"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 500
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 260
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Devices"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 60
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 25,
+        "h": 22,
         "w": 24,
         "x": 0,
         "y": 4
@@ -929,7 +965,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 26
       },
       "id": 4,
       "title": "Legend",
@@ -944,7 +980,7 @@
         "h": 2,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 27
       },
       "id": 5,
       "options": {
@@ -1007,6 +1043,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms Table",
   "uid": "few9yty0nez28f",
-  "version": 161,
+  "version": 168,
   "weekStart": "sunday"
 }
