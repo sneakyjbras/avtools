@@ -956,17 +956,6 @@
       "type": "table"
     },
     {
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 26
-      },
-      "id": 4,
-      "title": "Legend",
-      "type": "row"
-    },
-    {
       "datasource": {
         "type": "datasource",
         "uid": "grafana"
@@ -975,7 +964,7 @@
         "h": 2,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 26
       },
       "id": 5,
       "options": {
@@ -990,6 +979,1070 @@
       "pluginVersion": "11.5.5",
       "transparent": true,
       "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 6,
+      "panels": [],
+      "title": "Statistics",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": true,
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 12,
+      "options": {
+        "barRadius": 0.25,
+        "barWidth": 0.7,
+        "colorByField": "equipmentno (count)",
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": false
+        },
+        "orientation": "vertical",
+        "showValue": "always",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "conferenceroomnofmt",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.category            AS RoomCategory,\n    room.commissiondate      AS RoomCommissionDate,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'                                   -- All\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL) -- None\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')      -- selected values (comma-safe)\n    )\n),\nagg AS (\n  SELECT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    ConferenceRoom,\n    RoomCategory,\n    RoomCommissionDate,\n    RoomStatus,\n    -- raw parts (X.Y.Z) for natural sorting\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms_with_devices\n  GROUP BY ConferenceRoomNo, ConferenceRoom, RoomCategory, RoomCommissionDate, RoomStatus\n),\nranked AS (\n  SELECT\n    *,\n    -- numeric prefixes and alpha suffixes for natural sort\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM agg\n)\nSELECT\n  ConferenceRoomNo\nFROM ranked;",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "-- PG_DEVICES (room \u2194 device equipmentno) with stable room_sort_rank\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb_up AS (\n  SELECT\n    dp.position          AS start_pos,\n    p.equipmentno        AS cur_pos,\n    p.parentasset        AS parent_pos,\n    0                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb_up c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND p.equipmentno <> ALL (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb_up c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS ConferenceRoomNo\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL)\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')\n    )\n),\n\n-- build same natural-sort pieces as Query A\nroom_keys AS (\n  SELECT\n    r.ConferenceRoomNo\n  , CONCAT(\n      split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt\n  , split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1) AS part1_txt\n  , split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2) AS part2_txt\n  , split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms r\n),\nranked AS (\n  SELECT\n    ConferenceRoomNo\n  , ConferenceRoomNoFmt\n  , NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num\n  , regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf\n  , NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num\n  , regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf\n  , NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num\n  , regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM room_keys\n),\n-- produce a single numeric rank to carry through Grafana grouping\nroom_order AS (\n  SELECT\n    ConferenceRoomNo\n  , ConferenceRoomNoFmt\n  , DENSE_RANK() OVER (\n      ORDER BY\n        part1_num NULLS LAST, part1_suf,\n        part2_num NULLS LAST, part2_suf,\n        part3_num NULLS LAST, part3_suf,\n        ConferenceRoomNo\n    ) AS room_sort_rank\n  FROM ranked\n),\n\ndown AS (\n  SELECT\n    r.ConferenceRoomNo\n  , p.equipmentno\n  , 1                    AS depth\n  , ARRAY[p.equipmentno] AS visited\n  FROM rooms r\n  JOIN eam_positions p ON p.parentasset = r.ConferenceRoomNo\n  UNION ALL\n  SELECT\n    d.ConferenceRoomNo\n  , p.equipmentno\n  , d.depth + 1\n  , d.visited || p.equipmentno\n  FROM down d\n  JOIN eam_positions p ON p.parentasset = d.equipmentno\n  WHERE d.depth < 100\n    AND p.equipmentno <> ALL (d.visited)\n),\nleafs AS (\n  SELECT d.ConferenceRoomNo, d.equipmentno AS leaf_position\n  FROM down d\n  LEFT JOIN eam_positions ch ON ch.parentasset = d.equipmentno\n  WHERE ch.equipmentno IS NULL\n)\nSELECT DISTINCT\n  ro.ConferenceRoomNo\n, ro.ConferenceRoomNoFmt     -- optional, for display\n, ro.room_sort_rank          -- **carry this into Grafana**\n, dev.equipmentno\nFROM leafs l\nJOIN room_order     ro  ON ro.ConferenceRoomNo = l.ConferenceRoomNo\nJOIN eam_devices    dev ON dev.position        = l.leaf_position\nJOIN eam_positions  pos ON pos.equipmentno     = l.leaf_position\n-- no device/position status filter anymore\nORDER BY ro.room_sort_rank, ro.ConferenceRoomNo, dev.equipmentno;\n",
+          "refId": "B",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Devices (#)",
+      "transformations": [
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "inner"
+          },
+          "topic": "series"
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:joinByField-A-B)$/"
+          },
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Time ping_check": {
+                "aggregations": []
+              },
+              "Time snmp_probe": {
+                "aggregations": []
+              },
+              "conferenceroomno": {
+                "aggregations": [
+                  "count"
+                ]
+              },
+              "conferenceroomnofmt": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "equipmentno": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "ping_status": {
+                "aggregations": [
+                  "sum",
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "room_sort_rank": {
+                "aggregations": []
+              },
+              "snmp_status": {
+                "aggregations": [
+                  "sum",
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "status": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          },
+          "topic": "series"
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "conferenceroomnofmt"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "equipmentno (count)"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "equipmentno (count)"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": true,
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "fillOpacity": 100,
+            "gradientMode": "opacity",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "roomcommissiondate"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time: YYYY-MM"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "id": 18,
+      "options": {
+        "barRadius": 0.25,
+        "barWidth": 0.7,
+        "colorByField": "conferenceroomnofmt (count)",
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "vertical",
+        "showValue": "always",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "roomcommissiondate",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.category            AS RoomCategory,\n    room.commissiondate      AS RoomCommissionDate,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'                                   -- All\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL) -- None\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')      -- selected values (comma-safe)\n    )\n),\nagg AS (\n  SELECT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    ConferenceRoom,\n    RoomCategory,\n    RoomCommissionDate,\n    RoomStatus,\n    -- raw parts (X.Y.Z) for natural sorting\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms_with_devices\n  GROUP BY ConferenceRoomNo, ConferenceRoom, RoomCategory, RoomCommissionDate, RoomStatus\n),\nranked AS (\n  SELECT\n    *,\n    -- numeric prefixes and alpha suffixes for natural sort\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM agg\n)\nSELECT\n  ConferenceRoomNoFmt,\n  RoomCommissionDate\nFROM ranked;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Commission Dates (#)",
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "roomcommissiondate"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "conferenceroomnofmt": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "roomcommissiondate": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "roomcommissiondate"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "conferenceroomnofmt (count)"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "conferenceroomnofmt (count)"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [
+            {
+              "options": {
+                "AV-MRO": {
+                  "index": 0,
+                  "text": "Meeting"
+                },
+                "AV-VCR": {
+                  "index": 1,
+                  "text": "Videoconference"
+                },
+                "AV-VIS": {
+                  "index": 2,
+                  "text": "Visit"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 50
+      },
+      "id": 13,
+      "options": {
+        "displayLabels": [
+          "percent",
+          "name"
+        ],
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true,
+          "values": []
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.category            AS RoomCategory,\n    room.commissiondate      AS RoomCommissionDate,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'                                   -- All\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL) -- None\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')      -- selected values (comma-safe)\n    )\n),\nagg AS (\n  SELECT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    ConferenceRoom,\n    RoomCategory,\n    RoomCommissionDate,\n    RoomStatus,\n    -- raw parts (X.Y.Z) for natural sorting\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms_with_devices\n  GROUP BY ConferenceRoomNo, ConferenceRoom, RoomCategory, RoomCommissionDate, RoomStatus\n),\nranked AS (\n  SELECT\n    *,\n    -- numeric prefixes and alpha suffixes for natural sort\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM agg\n)\nSELECT\n  ConferenceRoomNo,\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomCategory,\n  RoomCommissionDate,\n  RoomStatus,\n  CASE WHEN ConferenceRoomNo IS NOT NULL THEN 1 END AS GIS\nFROM ranked\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Category (%)",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "conferenceroomnofmt": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "roomcategory": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "roomcategory"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "conferenceroomnofmt (count)"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "roomcategory"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "AV-MRO": {
+                        "index": 2,
+                        "text": "Meeting"
+                      },
+                      "AV-VCR": {
+                        "index": 0,
+                        "text": "Videoconference"
+                      },
+                      "AV-VIS": {
+                        "index": 1,
+                        "text": "Visit"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 50
+      },
+      "id": 14,
+      "options": {
+        "displayMode": "basic",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": false,
+        "sizing": "auto",
+        "valueMode": "text"
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.category            AS RoomCategory,\n    room.commissiondate      AS RoomCommissionDate,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'                                   -- All\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL) -- None\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')      -- selected values (comma-safe)\n    )\n),\nagg AS (\n  SELECT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    ConferenceRoom,\n    RoomCategory,\n    RoomCommissionDate,\n    RoomStatus,\n    -- raw parts (X.Y.Z) for natural sorting\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms_with_devices\n  GROUP BY ConferenceRoomNo, ConferenceRoom, RoomCategory, RoomCommissionDate, RoomStatus\n),\nranked AS (\n  SELECT\n    *,\n    -- numeric prefixes and alpha suffixes for natural sort\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM agg\n)\nSELECT\n  ConferenceRoomNo,\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomCategory,\n  RoomCommissionDate,\n  RoomStatus,\n  CASE WHEN ConferenceRoomNo IS NOT NULL THEN 1 END AS GIS\nFROM ranked\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Category (#)",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "conferenceroomnofmt": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "roomcategory": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "roomcategory"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "conferenceroomnofmt (count)"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "conferenceroomnofmt (count)"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [
+            {
+              "options": {
+                "AV-MRO": {
+                  "index": 0,
+                  "text": "Meeting"
+                },
+                "AV-VCR": {
+                  "index": 1,
+                  "text": "Videoconference"
+                },
+                "AV-VIS": {
+                  "index": 2,
+                  "text": "Visit"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 50
+      },
+      "id": 15,
+      "options": {
+        "displayLabels": [
+          "percent",
+          "name"
+        ],
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true,
+          "values": []
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.category            AS RoomCategory,\n    room.commissiondate      AS RoomCommissionDate,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'                                   -- All\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL) -- None\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')      -- selected values (comma-safe)\n    )\n),\nagg AS (\n  SELECT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    ConferenceRoom,\n    RoomCategory,\n    RoomCommissionDate,\n    RoomStatus,\n    -- raw parts (X.Y.Z) for natural sorting\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms_with_devices\n  GROUP BY ConferenceRoomNo, ConferenceRoom, RoomCategory, RoomCommissionDate, RoomStatus\n),\nranked AS (\n  SELECT\n    *,\n    -- numeric prefixes and alpha suffixes for natural sort\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM agg\n)\nSELECT\n  ConferenceRoomNo,\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomCategory,\n  RoomCommissionDate,\n  RoomStatus,\n  CASE WHEN ConferenceRoomNo IS NOT NULL THEN 1 END AS GIS\nFROM ranked\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Status (%)",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "conferenceroomnofmt": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "roomcategory": {
+                "aggregations": []
+              },
+              "roomstatus": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "roomstatus"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "conferenceroomnofmt (count)"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlPu"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "roomcategory"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "AV-MRO": {
+                        "index": 2,
+                        "text": "Meeting"
+                      },
+                      "AV-VCR": {
+                        "index": 0,
+                        "text": "Videoconference"
+                      },
+                      "AV-VIS": {
+                        "index": 1,
+                        "text": "Visit"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 50
+      },
+      "id": 17,
+      "options": {
+        "displayMode": "basic",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "vertical",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": false,
+        "sizing": "auto",
+        "valueMode": "text"
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.category            AS RoomCategory,\n    room.commissiondate      AS RoomCommissionDate,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'                                   -- All\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL) -- None\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')      -- selected values (comma-safe)\n    )\n),\nagg AS (\n  SELECT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n    ConferenceRoom,\n    RoomCategory,\n    RoomCommissionDate,\n    RoomStatus,\n    -- raw parts (X.Y.Z) for natural sorting\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',1) AS part1_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',2) AS part2_txt,\n    split_part(split_part(ConferenceRoomNo,'-',2),'.',3) AS part3_txt\n  FROM rooms_with_devices\n  GROUP BY ConferenceRoomNo, ConferenceRoom, RoomCategory, RoomCommissionDate, RoomStatus\n),\nranked AS (\n  SELECT\n    *,\n    -- numeric prefixes and alpha suffixes for natural sort\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM agg\n)\nSELECT\n  ConferenceRoomNo,\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomCategory,\n  RoomCommissionDate,\n  RoomStatus,\n  CASE WHEN ConferenceRoomNo IS NOT NULL THEN 1 END AS GIS\nFROM ranked\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Status (#)",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "conferenceroomnofmt": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "roomcategory": {
+                "aggregations": []
+              },
+              "roomstatus": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "roomstatus"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "conferenceroomnofmt (count)"
+              }
+            ],
+            "fields": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "roomstatus"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "bargauge"
     }
   ],
   "refresh": "5m",
@@ -1038,6 +2091,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms Table",
   "uid": "few9yty0nez28f",
-  "version": 169,
+  "version": 253,
   "weekStart": "sunday"
 }
