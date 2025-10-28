@@ -1003,6 +1003,985 @@
       "fieldConfig": {
         "defaults": {
           "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": true,
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "id": 19,
+      "options": {
+        "barRadius": 0.25,
+        "barWidth": 0.7,
+        "fullHighlight": false,
+        "groupWidth": 0.85,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "vertical",
+        "showValue": "always",
+        "stacking": "normal",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'                                   -- All\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL) -- None\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')      -- selected values (comma-safe)\n    )\n),\nprep AS (\n  SELECT DISTINCT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n\n    -- sort keys for natural order\n    split_part(ConferenceRoomNo,'-',1) AS site_prefix,\n    NULLIF(regexp_replace(split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '\\D','','g'),'')::int AS x_num,\n    NULLIF(regexp_replace(split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '\\D','','g'),'')::int AS y_num,\n    NULLIF(regexp_replace(split_part(split_part(ConferenceRoomNo,'-',2),'.',3), '\\D','','g'),'')::int AS z_num\n  FROM rooms_with_devices\n)\nSELECT\n  ConferenceRoomNo,\n  ConferenceRoomNoFmt,\n  row_number() OVER (\n    ORDER BY\n      site_prefix,\n      x_num NULLS LAST,\n      y_num NULLS LAST,\n      z_num NULLS LAST,\n      ConferenceRoomNo\n  ) AS RoomRank\nFROM prep\nORDER BY RoomRank;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb_up AS (\n  SELECT\n    dp.position          AS start_pos,\n    p.equipmentno        AS cur_pos,\n    p.parentasset        AS parent_pos,\n    0                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb_up c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND p.equipmentno <> ALL (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb_up c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS ConferenceRoomNo\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL)\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')\n    )\n),\ndown AS (\n  SELECT\n    r.ConferenceRoomNo,\n    p.equipmentno,\n    1                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM rooms r\n  JOIN eam_positions p ON p.parentasset = r.ConferenceRoomNo\n  UNION ALL\n  SELECT\n    d.ConferenceRoomNo,\n    p.equipmentno,\n    d.depth + 1,\n    d.visited || p.equipmentno\n  FROM down d\n  JOIN eam_positions p ON p.parentasset = d.equipmentno\n  WHERE d.depth < 100\n    AND p.equipmentno <> ALL (d.visited)\n),\nleafs AS (\n  SELECT d.ConferenceRoomNo, d.equipmentno AS leaf_position\n  FROM down d\n  LEFT JOIN eam_positions ch ON ch.parentasset = d.equipmentno\n  WHERE ch.equipmentno IS NULL\n)\nSELECT DISTINCT\n  l.ConferenceRoomNo,\n  dev.equipmentno\nFROM leafs l\nJOIN eam_devices   dev ON dev.position    = l.leaf_position\nJOIN eam_positions pos ON pos.equipmentno = l.leaf_position;\n",
+          "refId": "B",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "alias": "Ping Check",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "hide": false,
+          "query": "SELECT LAST(\"status\") AS ping_status\nFROM \"ping_check\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "table"
+        },
+        {
+          "alias": "SNMP Monitoring",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "hide": false,
+          "query": "SELECT LAST(\"status\") AS snmp_status\nFROM \"snmp_probe\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "table"
+        }
+      ],
+      "title": "Devices by Room \u2014 Inventory & Network State",
+      "transformations": [
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:C|D)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "outer"
+          }
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:B|joinByField-C-D)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "outerTabular"
+          },
+          "topic": "series"
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:joinByField-joinByField-C-D-B)$/"
+          },
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Time ping_check": {
+                "aggregations": []
+              },
+              "Time snmp_probe": {
+                "aggregations": []
+              },
+              "conferenceroomno": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              },
+              "equipmentno": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "ping_status": {
+                "aggregations": [
+                  "sum",
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "room_sort_rank": {
+                "aggregations": [
+                  "max"
+                ],
+                "operation": "aggregate"
+              },
+              "snmp_status": {
+                "aggregations": [
+                  "sum",
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "status": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          },
+          "topic": "series"
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:|A)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "conferenceroomno",
+            "mode": "inner"
+          },
+          "topic": "series"
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Offline",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              },
+              "operator": "-",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "include": [
+                "ping_status (count)",
+                "snmp_status (count)"
+              ],
+              "reducer": "max"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Coverage Gap",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "equipmentno (count)"
+                }
+              },
+              "operator": "-",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "roomrank"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Coverage %": true,
+              "Coverage % * 100": true,
+              "Coverage Gap": false,
+              "Network Avail %": false,
+              "Offline": false,
+              "Snmp %": true,
+              "Snmp % * 100": true,
+              "conferenceroom": true,
+              "conferenceroomno": true,
+              "conferenceroomnofmt": false,
+              "equipmentno (count)": false,
+              "gis": true,
+              "ping_status (count)": false,
+              "ping_status (sum)": false,
+              "room_sort_rank (max)": true,
+              "roomcategory": true,
+              "roomcommissiondate": true,
+              "roomrank": true,
+              "roomstatus": true,
+              "snmp_status (count)": false,
+              "snmp_status (sum)": false
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Coverage Gap": 3,
+              "Offline": 6,
+              "conferenceroomno": 1,
+              "conferenceroomnofmt": 0,
+              "equipmentno (count)": 2,
+              "ping_status (count)": 4,
+              "ping_status (sum)": 5,
+              "snmp_status (count)": 7,
+              "snmp_status (sum)": 8
+            },
+            "renameByName": {
+              "Coverage %": "",
+              "Coverage % * 100": "",
+              "Coverage Gap": "Coverage Gap",
+              "Median": "Median",
+              "Network Avail %": "",
+              "Network Avail % * 100": "Health",
+              "Offline": "Offline",
+              "Snmp %": "",
+              "Snmp % * 100": "",
+              "conferenceroom": "Name",
+              "conferenceroomno": "",
+              "conferenceroomnofmt": "Room",
+              "equipmentno (count)": "Total Devices",
+              "gis": "GIS",
+              "ping_status (count)": "Devices Networked",
+              "ping_status (sum)": "Online",
+              "room_sort_rank (max)": "",
+              "roomcategory": "Category",
+              "roomcommissiondate": "Commission",
+              "roomstatus": "Status",
+              "snmp_status (count)": "Snmp",
+              "snmp_status (sum)": "Monitoring"
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Room"
+              }
+            ],
+            "match": "any",
+            "type": "include"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "Room"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic-by-name"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "left",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 3,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Coverage %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Network Avail %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Snmp %"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "id": 24,
+      "options": {
+        "barRadius": 0.25,
+        "barWidth": 0.7,
+        "fullHighlight": false,
+        "groupWidth": 0.75,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "orientation": "vertical",
+        "showValue": "always",
+        "stacking": "percent",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 100
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  -- seed: all starting positions\n  SELECT\n    dp.position           AS start_pos,\n    p.equipmentno         AS cur_pos,\n    p.parentasset         AS parent_pos,\n    0                     AS depth,\n    ARRAY[p.equipmentno]  AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n\n  UNION ALL\n\n  -- walk up the parent chain\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno = ANY (c.visited)   -- cycle guard\n),\npos_to_room AS (\n  -- pick the DEEPEST (farthest) matching ancestor\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms_with_devices AS (\n  SELECT DISTINCT\n    room.equipmentno         AS ConferenceRoomNo,\n    room.assetstatus_display AS RoomStatus\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'                                   -- All\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL) -- None\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')      -- selected values (comma-safe)\n    )\n),\nprep AS (\n  SELECT DISTINCT\n    ConferenceRoomNo,\n    CONCAT(\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '/',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '-',\n      split_part(split_part(ConferenceRoomNo,'-',2),'.',3)\n    ) AS ConferenceRoomNoFmt,\n\n    -- sort keys for natural order\n    split_part(ConferenceRoomNo,'-',1) AS site_prefix,\n    NULLIF(regexp_replace(split_part(split_part(ConferenceRoomNo,'-',2),'.',1), '\\D','','g'),'')::int AS x_num,\n    NULLIF(regexp_replace(split_part(split_part(ConferenceRoomNo,'-',2),'.',2), '\\D','','g'),'')::int AS y_num,\n    NULLIF(regexp_replace(split_part(split_part(ConferenceRoomNo,'-',2),'.',3), '\\D','','g'),'')::int AS z_num\n  FROM rooms_with_devices\n)\nSELECT\n  ConferenceRoomNo,\n  ConferenceRoomNoFmt,\n  row_number() OVER (\n    ORDER BY\n      site_prefix,\n      x_num NULLS LAST,\n      y_num NULLS LAST,\n      z_num NULLS LAST,\n      ConferenceRoomNo\n  ) AS RoomRank\nFROM prep\nORDER BY RoomRank;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "hide": false,
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb_up AS (\n  SELECT\n    dp.position          AS start_pos,\n    p.equipmentno        AS cur_pos,\n    p.parentasset        AS parent_pos,\n    0                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM device_positions dp\n  JOIN eam_positions p ON p.equipmentno = dp.position\n  UNION ALL\n  SELECT\n    c.start_pos,\n    p.equipmentno,\n    p.parentasset,\n    c.depth + 1,\n    c.visited || p.equipmentno\n  FROM climb_up c\n  JOIN eam_positions p ON p.equipmentno = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND p.equipmentno <> ALL (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb_up c\n  JOIN eam_positions rp ON rp.equipmentno = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nrooms AS (\n  SELECT DISTINCT room.equipmentno AS ConferenceRoomNo\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno = pr.room_no\n  WHERE\n    (\n      '${status:raw}' = '__all'\n      OR ('${status:raw}' = '__none__' AND room.assetstatus_display IS NULL)\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')\n    )\n),\ndown AS (\n  SELECT\n    r.ConferenceRoomNo,\n    p.equipmentno,\n    1                    AS depth,\n    ARRAY[p.equipmentno] AS visited\n  FROM rooms r\n  JOIN eam_positions p ON p.parentasset = r.ConferenceRoomNo\n  UNION ALL\n  SELECT\n    d.ConferenceRoomNo,\n    p.equipmentno,\n    d.depth + 1,\n    d.visited || p.equipmentno\n  FROM down d\n  JOIN eam_positions p ON p.parentasset = d.equipmentno\n  WHERE d.depth < 100\n    AND p.equipmentno <> ALL (d.visited)\n),\nleafs AS (\n  SELECT d.ConferenceRoomNo, d.equipmentno AS leaf_position\n  FROM down d\n  LEFT JOIN eam_positions ch ON ch.parentasset = d.equipmentno\n  WHERE ch.equipmentno IS NULL\n)\nSELECT DISTINCT\n  l.ConferenceRoomNo,\n  dev.equipmentno\nFROM leafs l\nJOIN eam_devices   dev ON dev.position    = l.leaf_position\nJOIN eam_positions pos ON pos.equipmentno = l.leaf_position;\n",
+          "refId": "B",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        },
+        {
+          "alias": "Ping Check",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "hide": false,
+          "query": "SELECT LAST(\"status\") AS ping_status\nFROM \"ping_check\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
+          "rawQuery": true,
+          "refId": "C",
+          "resultFormat": "table"
+        },
+        {
+          "alias": "SNMP Monitoring",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "hide": false,
+          "query": "SELECT LAST(\"status\") AS snmp_status\nFROM \"snmp_probe\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
+          "rawQuery": true,
+          "refId": "D",
+          "resultFormat": "table"
+        }
+      ],
+      "title": "Per-Room Ratio (of Networked and Snmp Devices)",
+      "transformations": [
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:C|D)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:B|joinByField-C-D)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "equipmentno",
+            "mode": "outerTabular"
+          },
+          "topic": "series"
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:joinByField-joinByField-C-D-B)$/"
+          },
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Time ping_check": {
+                "aggregations": []
+              },
+              "Time snmp_probe": {
+                "aggregations": []
+              },
+              "conferenceroomno": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              },
+              "equipmentno": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "ping_status": {
+                "aggregations": [
+                  "sum",
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "room_sort_rank": {
+                "aggregations": [
+                  "max"
+                ],
+                "operation": "aggregate"
+              },
+              "snmp_status": {
+                "aggregations": [
+                  "sum",
+                  "count"
+                ],
+                "operation": "aggregate"
+              },
+              "status": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              }
+            }
+          },
+          "topic": "series"
+        },
+        {
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:|A)$/"
+          },
+          "id": "joinByField",
+          "options": {
+            "byField": "conferenceroomno",
+            "mode": "inner"
+          },
+          "topic": "series"
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "roomrank"
+              }
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Offline",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              },
+              "operator": "-",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "include": [
+                "ping_status (count)",
+                "snmp_status (count)"
+              ],
+              "reducer": "max"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Coverage Gap",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "equipmentno (count)"
+                }
+              },
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Coverage %",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "equipmentno (count)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Network Avail %",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (count)"
+                }
+              }
+            },
+            "cumulative": {
+              "reducer": "mean"
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "median"
+            },
+            "window": {
+              "reducer": "mean",
+              "windowAlignment": "trailing",
+              "windowSize": 0.1,
+              "windowSizeMode": "percentage"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Snmp %",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "snmp_status (sum)"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ping_status (sum)"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Coverage %": false,
+              "Coverage % * 100": true,
+              "Coverage Gap": true,
+              "Network Avail %": false,
+              "Offline": true,
+              "Snmp %": false,
+              "Snmp % * 100": true,
+              "conferenceroomno": true,
+              "equipmentno (count)": true,
+              "ping_status (count)": true,
+              "ping_status (sum)": true,
+              "room_sort_rank (max)": true,
+              "roomrank": true,
+              "roomstatus": false,
+              "snmp_status (count)": true,
+              "snmp_status (sum)": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Coverage %": 16,
+              "Coverage % * 100": 14,
+              "Coverage Gap": 13,
+              "Network Avail %": 17,
+              "Network Avail % * 100": 18,
+              "Offline": 10,
+              "Snmp %": 19,
+              "Snmp % * 100": 20,
+              "conferenceroom": 3,
+              "conferenceroomno": 2,
+              "conferenceroomnofmt": 1,
+              "equipmentno (count)": 7,
+              "gis": 15,
+              "ping_status (count)": 8,
+              "ping_status (sum)": 9,
+              "room_sort_rank (max)": 0,
+              "roomcategory": 4,
+              "roomcommissiondate": 6,
+              "roomstatus": 5,
+              "snmp_status (count)": 11,
+              "snmp_status (sum)": 12
+            },
+            "renameByName": {
+              "Coverage %": "",
+              "Coverage % * 100": "",
+              "Coverage Gap": "",
+              "Median": "Median",
+              "Network Avail %": "",
+              "Network Avail % * 100": "Health",
+              "Offline": "",
+              "Snmp %": "",
+              "Snmp % * 100": "",
+              "conferenceroom": "Name",
+              "conferenceroomno": "",
+              "conferenceroomnofmt": "Room",
+              "equipmentno (count)": "",
+              "gis": "GIS",
+              "ping_status (count)": "",
+              "ping_status (sum)": "",
+              "room_sort_rank (max)": "",
+              "roomcategory": "Category",
+              "roomcommissiondate": "Commission",
+              "roomrank": "Rank",
+              "roomstatus": "Status",
+              "snmp_status (count)": "",
+              "snmp_status (sum)": ""
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                },
+                "fieldName": "Room"
+              }
+            ],
+            "match": "any",
+            "type": "include"
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "string",
+                "targetField": "Room"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "Coverage %"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "Network Avail %"
+              },
+              {
+                "destinationType": "number",
+                "targetField": "Snmp %"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
             "mode": "continuous-BlPu"
           },
           "custom": {
@@ -1032,7 +2011,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           }
@@ -1040,10 +2020,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
-        "w": 24,
+        "h": 9,
+        "w": 12,
         "x": 0,
-        "y": 29
+        "y": 38
       },
       "id": 12,
       "options": {
@@ -1271,7 +2251,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           }
@@ -1292,10 +2273,10 @@
         ]
       },
       "gridPos": {
-        "h": 11,
-        "w": 24,
-        "x": 0,
-        "y": 39
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 38
       },
       "id": 18,
       "options": {
@@ -1461,7 +2442,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 50
+        "y": 47
       },
       "id": 13,
       "options": {
@@ -1577,7 +2558,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           }
@@ -1619,7 +2601,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 50
+        "y": 47
       },
       "id": 14,
       "options": {
@@ -1771,7 +2753,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 50
+        "y": 47
       },
       "id": 15,
       "options": {
@@ -1892,7 +2874,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           }
@@ -1934,7 +2917,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 50
+        "y": 47
       },
       "id": 17,
       "options": {
@@ -2058,9 +3041,13 @@
       {
         "allValue": "__all",
         "current": {
-          "selected": false,
-          "text": "All",
-          "value": "$__all"
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -2091,6 +3078,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms Table",
   "uid": "few9yty0nez28f",
-  "version": 253,
+  "version": 351,
   "weekStart": "sunday"
 }
