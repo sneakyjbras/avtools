@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "",
+  "description": "Details of a specific AV device including connectivity and SNMP monitoring data.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -43,7 +43,7 @@
       "title": "AV Devices",
       "tooltip": "",
       "type": "link",
-      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&refresh=5m&var-status=${status:value}&var-room=${room:value}&var-eqclass=${eqclass:value}&var-category=${category:value}"
+      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&refresh=5m&var-status=${status:value}&var-room=${room:value}&var-eqclass=${eqclass:value}&var-category=${category:value}&var-device=All"
     },
     {
       "asDropdown": false,
@@ -198,7 +198,7 @@
           }
         }
       ],
-      "title": "Room",
+      "title": "Room ID",
       "type": "stat"
     },
     {
@@ -212,30 +212,59 @@
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [],
+          "mappings": [
+            {
+              "options": {
+                "AVA": {
+                  "color": "#f2495c",
+                  "index": 0,
+                  "text": "AVA: Audio"
+                },
+                "AVC": {
+                  "color": "#ff9830",
+                  "index": 1,
+                  "text": "AVC: Computing"
+                },
+                "AVD": {
+                  "color": "#56a64b",
+                  "index": 2,
+                  "text": "AVD: Display"
+                },
+                "AVO": {
+                  "color": "#07e1f3",
+                  "index": 3,
+                  "text": "AVO: Other"
+                },
+                "AVS": {
+                  "color": "#5794f2",
+                  "index": 4,
+                  "text": "AVS: Control Systems"
+                },
+                "AVV": {
+                  "color": "#e695dcc4",
+                  "index": 5,
+                  "text": "AVV: Videoconference"
+                },
+                "AVVS": {
+                  "color": "#8f3bb8",
+                  "index": 6,
+                  "text": "AVVS: Video Systems"
+                }
+              },
+              "type": "value"
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "eqclass"
-            },
-            "properties": []
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -245,7 +274,7 @@
       },
       "id": 37,
       "options": {
-        "colorMode": "background",
+        "colorMode": "background_solid",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
@@ -290,7 +319,7 @@
           }
         }
       ],
-      "title": "Class",
+      "title": "AV Class",
       "type": "stat"
     },
     {
@@ -410,7 +439,7 @@
           }
         }
       ],
-      "title": "Category",
+      "title": "Device Category",
       "type": "stat"
     },
     {
@@ -565,7 +594,7 @@
           }
         }
       ],
-      "title": "Serial Number",
+      "title": "Serial No.",
       "type": "stat"
     },
     {
@@ -643,7 +672,7 @@
           }
         }
       ],
-      "title": "Asset",
+      "title": "Asset ID",
       "type": "stat"
     },
     {
@@ -721,7 +750,7 @@
           }
         }
       ],
-      "title": "Position",
+      "title": "Position ID",
       "type": "stat"
     },
     {
@@ -880,7 +909,7 @@
           "resultFormat": "time_series"
         }
       ],
-      "title": "RTT",
+      "title": "RTT (ms)",
       "type": "gauge"
     },
     {
@@ -963,7 +992,7 @@
           "resultFormat": "time_series"
         }
       ],
-      "title": "Health",
+      "title": "Monitoring Health",
       "type": "stat"
     },
     {
@@ -1055,7 +1084,7 @@
           "resultFormat": "time_series"
         }
       ],
-      "title": "Snmp",
+      "title": "Snmp Health",
       "type": "stat"
     },
     {
@@ -1120,13 +1149,13 @@
             "type": "influxdb",
             "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
           },
-          "query": "SELECT mean(\"status\") * 100 AS \"availability_%\"\nFROM \"ping_check\"\nWHERE \"equipmentno\" = '$device' AND $timeFilter",
+          "query": "SELECT mean(\"status\") * 100 AS \"availability_%\"\nFROM \"ping_check\"\nWHERE \"equipmentno\" = '$device' AND $timeFilter\nGROUP BY time($__interval) fill(null)",
           "rawQuery": true,
           "refId": "A",
           "resultFormat": "time_series"
         }
       ],
-      "title": "Availability",
+      "title": "Availability (%)",
       "type": "stat"
     },
     {
@@ -1143,7 +1172,7 @@
           "custom": {
             "axisBorderShow": true,
             "axisCenteredZero": false,
-            "axisColorMode": "series",
+            "axisColorMode": "text",
             "axisGridShow": true,
             "axisLabel": "",
             "axisPlacement": "auto",
@@ -1227,456 +1256,22 @@
           "resultFormat": "time_series"
         }
       ],
-      "title": "Ping",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": true,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 15
-      },
-      "id": 34,
-      "panels": [
+      "title": "Ping History",
+      "transformations": [
         {
-          "datasource": {
-            "default": false,
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "short"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 3,
-            "w": 5,
-            "x": 0,
-            "y": 16
-          },
-          "id": 31,
+          "id": "organize",
           "options": {
-            "colorMode": "none",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [],
-              "fields": "/.*/",
-              "values": true
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "11.5.5",
-          "targets": [
-            {
-              "alias": "Power Status",
-              "datasource": {
-                "type": "influxdb",
-                "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-              },
-              "query": "SELECT LAST(\"Power Status\") AS \"Power Status\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" =~ /^$device$/",
-              "rawQuery": true,
-              "refId": "A",
-              "resultFormat": "time_series"
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Time": "Time",
+              "ping_check.p95 RTT (ms)": "Ping (ms)"
             }
-          ],
-          "title": "Power Status",
-          "transformations": [
-            {
-              "id": "reduce",
-              "options": {
-                "includeTimeField": false,
-                "mode": "reduceFields",
-                "reducers": [
-                  "lastNotNull"
-                ]
-              }
-            }
-          ],
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "default": false,
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "short"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 3,
-            "w": 11,
-            "x": 5,
-            "y": 16
-          },
-          "id": 32,
-          "options": {
-            "colorMode": "none",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [],
-              "fields": "/.*/",
-              "values": true
-            },
-            "showPercentChange": false,
-            "textMode": "auto",
-            "wideLayout": true
-          },
-          "pluginVersion": "11.5.5",
-          "targets": [
-            {
-              "alias": "Firmware",
-              "datasource": {
-                "type": "influxdb",
-                "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-              },
-              "query": "SELECT LAST(\"Firmware\") AS \"Firmware\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" =~ /^$device$/",
-              "rawQuery": true,
-              "refId": "A",
-              "resultFormat": "time_series"
-            }
-          ],
-          "title": "Firmware",
-          "transformations": [
-            {
-              "id": "reduce",
-              "options": {
-                "includeTimeField": false,
-                "mode": "reduceFields",
-                "reducers": [
-                  "lastNotNull"
-                ]
-              }
-            }
-          ],
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "default": false,
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  },
-                  {
-                    "color": "#EAB839",
-                    "value": 90
-                  },
-                  {
-                    "color": "#6ED0E0",
-                    "value": 100
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 3,
-            "w": 4,
-            "x": 16,
-            "y": 16
-          },
-          "id": 29,
-          "options": {
-            "colorMode": "background",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [],
-              "fields": "/.*/",
-              "values": true
-            },
-            "showPercentChange": false,
-            "textMode": "value",
-            "wideLayout": true
-          },
-          "pluginVersion": "11.5.5",
-          "targets": [
-            {
-              "alias": "Lamp Hours",
-              "datasource": {
-                "type": "influxdb",
-                "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-              },
-              "query": "SELECT LAST(\"Lamp Hours\") AS \"Lamp Hours\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" = '$device'\n",
-              "rawQuery": true,
-              "refId": "A",
-              "resultFormat": "time_series"
-            }
-          ],
-          "title": "Lamp time (hours)",
-          "transformations": [
-            {
-              "id": "reduce",
-              "options": {
-                "includeTimeField": false,
-                "mode": "reduceFields",
-                "reducers": [
-                  "lastNotNull"
-                ]
-              }
-            },
-            {
-              "id": "calculateField",
-              "options": {
-                "alias": "Lamp Days",
-                "binary": {
-                  "left": {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Lamp Hours"
-                    }
-                  },
-                  "operator": "/",
-                  "right": {
-                    "fixed": "24.0"
-                  }
-                },
-                "mode": "binary",
-                "reduce": {
-                  "reducer": "sum"
-                },
-                "replaceFields": true
-              }
-            }
-          ],
-          "type": "stat"
-        },
-        {
-          "datasource": {
-            "default": false,
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green"
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 3,
-            "w": 4,
-            "x": 20,
-            "y": 16
-          },
-          "id": 30,
-          "options": {
-            "colorMode": "background",
-            "graphMode": "area",
-            "justifyMode": "auto",
-            "orientation": "auto",
-            "percentChangeColorMode": "standard",
-            "reduceOptions": {
-              "calcs": [],
-              "fields": "/.*/",
-              "values": true
-            },
-            "showPercentChange": false,
-            "textMode": "value",
-            "wideLayout": true
-          },
-          "pluginVersion": "11.5.5",
-          "targets": [
-            {
-              "alias": "Uptime",
-              "datasource": {
-                "type": "influxdb",
-                "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-              },
-              "query": "SELECT LAST(\"Uptime\") AS \"Uptime\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" =~ /^$device$/",
-              "rawQuery": true,
-              "refId": "A",
-              "resultFormat": "time_series"
-            }
-          ],
-          "title": "Uptime (hours)",
-          "transformations": [
-            {
-              "id": "reduce",
-              "options": {
-                "includeTimeField": false,
-                "mode": "reduceFields",
-                "reducers": [
-                  "lastNotNull"
-                ]
-              }
-            },
-            {
-              "id": "calculateField",
-              "options": {
-                "alias": "",
-                "binary": {
-                  "left": {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Uptime"
-                    }
-                  },
-                  "operator": "/",
-                  "right": {
-                    "fixed": "100"
-                  }
-                },
-                "mode": "binary",
-                "reduce": {
-                  "include": [
-                    "Uptime"
-                  ],
-                  "reducer": "sum"
-                },
-                "replaceFields": true
-              }
-            },
-            {
-              "id": "calculateField",
-              "options": {
-                "binary": {
-                  "left": {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Uptime / 60"
-                    }
-                  },
-                  "operator": "/",
-                  "right": {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Uptime / 60"
-                    }
-                  }
-                },
-                "mode": "binary",
-                "reduce": {
-                  "reducer": "sum"
-                }
-              }
-            },
-            {
-              "id": "calculateField",
-              "options": {
-                "binary": {
-                  "left": {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Uptime / 100"
-                    }
-                  },
-                  "operator": "/",
-                  "right": {
-                    "fixed": "60"
-                  }
-                },
-                "mode": "binary",
-                "reduce": {
-                  "include": [
-                    "Uptime / 100"
-                  ],
-                  "reducer": "sum"
-                },
-                "replaceFields": true
-              }
-            },
-            {
-              "disabled": true,
-              "id": "calculateField",
-              "options": {
-                "binary": {
-                  "left": {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "Uptime / 100 / 60"
-                    }
-                  },
-                  "operator": "/",
-                  "right": {
-                    "fixed": "24"
-                  }
-                },
-                "mode": "binary",
-                "reduce": {
-                  "include": [
-                    "Uptime / 100"
-                  ],
-                  "reducer": "sum"
-                },
-                "replaceFields": true
-              }
-            }
-          ],
-          "type": "stat"
+          }
         }
       ],
-      "title": "Projector",
-      "type": "row"
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -1684,7 +1279,458 @@
         "h": 1,
         "w": 24,
         "x": 0,
+        "y": 15
+      },
+      "id": 34,
+      "panels": [],
+      "title": "Projector",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 5,
+        "x": 0,
         "y": 16
+      },
+      "id": 31,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/.*/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "alias": "Power Status",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "query": "SELECT LAST(\"Power Status\") AS \"Power Status\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" =~ /^$device$/",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Power Status",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "mode": "reduceFields",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 11,
+        "x": 5,
+        "y": 16
+      },
+      "id": 32,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/.*/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "alias": "Firmware",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "query": "SELECT LAST(\"Firmware\") AS \"Firmware\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" =~ /^$device$/",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Firmware Version",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "mode": "reduceFields",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              },
+              {
+                "color": "#EAB839",
+                "value": 90
+              },
+              {
+                "color": "#6ED0E0",
+                "value": 100
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 16
+      },
+      "id": 29,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/.*/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "alias": "Lamp Hours",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "query": "SELECT LAST(\"Lamp Hours\") AS \"Lamp Hours\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" = '$device'\n",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Lamp Hours",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "mode": "reduceFields",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Lamp Days",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Lamp Hours"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "fixed": "24.0"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "influxdb",
+        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 16
+      },
+      "id": 30,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/.*/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "alias": "Uptime",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+          },
+          "query": "SELECT LAST(\"Uptime\") AS \"Uptime\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" =~ /^$device$/",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Uptime (h)",
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "mode": "reduceFields",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Uptime"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "fixed": "100"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "include": [
+                "Uptime"
+              ],
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Uptime / 60"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Uptime / 60"
+                }
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Uptime / 100"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "fixed": "60"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "include": [
+                "Uptime / 100"
+              ],
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        },
+        {
+          "disabled": true,
+          "id": "calculateField",
+          "options": {
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Uptime / 100 / 60"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "fixed": "24"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "include": [
+                "Uptime / 100"
+              ],
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
       },
       "id": 46,
       "panels": [],
@@ -1700,7 +1746,7 @@
         "h": 2,
         "w": 24,
         "x": 0,
-        "y": 17
+        "y": 20
       },
       "id": 42,
       "options": {
@@ -1865,6 +1911,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Device Details",
   "uid": "ef0wybelgufwgd",
-  "version": 138,
+  "version": 161,
   "weekStart": "sunday"
 }
