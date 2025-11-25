@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-import logging
 from asyncio import to_thread
 from datetime import datetime
 from platform import system as _system
 from subprocess import STDOUT, CalledProcessError, check_output
 from typing import Any, List, Tuple
 
+import structlog
 from pysnmp.hlapi import SnmpEngine
 
-from avtools.io.logger import system_logger
 from avtools.landb.client import LanDBDevice
 from avtools.snmp.factories.device_factory import DeviceHandlerFactory
+
+logger = structlog.get_logger(__name__)
 
 
 class SNMPClient:
@@ -38,7 +39,6 @@ class SNMPClient:
     ) -> None:
         self.targets = targets
         self.engine = snmp_engine or SnmpEngine()
-        self.logger = logging.getLogger(self.__class__.__name__)
 
         # Pre-create SNMP handlers
         self.handlers: dict[str, Any] = {}
@@ -50,7 +50,7 @@ class SNMPClient:
                 handler.set_engine(self.engine)
                 self.handlers[device.ip] = handler
             else:
-                self.logger.warning(f"Failed to create handler for {device.ip}")
+                logger.warning(f"Failed to create handler for {device.ip}")
 
     def _build_point(
         self, measurement: str, device: LanDBDevice, fields: dict[str, Any]
@@ -86,7 +86,7 @@ class SNMPClient:
         """
         Sequentially ping each target, offloading to threads one at a time.
         """
-        system_logger.info(f"Starting ICMP pinging for {len(self.targets)} targets")
+        logger.info(f"Starting ICMP pinging for {len(self.targets)} targets")
         points: list[dict[str, Any]] = []
 
         for dev in self.targets:
@@ -97,7 +97,7 @@ class SNMPClient:
                 fields["rtt_ms"] = round(rtt, 2)
             points.append(self._build_point("ping_check", dev, fields))
 
-        system_logger.info(f"Ping completed: {len(points)}/{len(self.targets)}")
+        logger.info(f"Ping completed: {len(points)}/{len(self.targets)}")
         return points
 
     async def collect_snmp_probe(
@@ -107,7 +107,7 @@ class SNMPClient:
         Sequentially probe sysUpTime on each handler, offloading each to a thread.
         Returns (points, alive_devices).
         """
-        system_logger.info(f"Starting SNMP probing for {len(self.handlers)} targets")
+        logger.info(f"Starting SNMP probing for {len(self.handlers)} targets")
         points: list[dict[str, Any]] = []
         alive: list[LanDBDevice] = []
 
@@ -115,7 +115,7 @@ class SNMPClient:
             try:
                 ok = await to_thread(handler.probe)
             except Exception as e:
-                self.logger.error(f"Probe error {ip}: {e}", exc_info=True)
+                logger.error(f"Probe error {ip}: {e}", exc_info=True)
                 ok = False
 
             device = self.device_map[ip]
@@ -124,9 +124,7 @@ class SNMPClient:
             if ok:
                 alive.append(device)
 
-        system_logger.info(
-            f"SNMP probing completed: {len(points)} points, {len(alive)} alive"
-        )
+        logger.info(f"SNMP probing completed: {len(points)} points, {len(alive)} alive")
         return points, alive
 
     async def collect_snmp_query(
@@ -139,7 +137,7 @@ class SNMPClient:
         if alive is None:
             _, alive = await self.collect_snmp_probe()
 
-        system_logger.info(f"Starting SNMP queries for {len(alive)} targets")
+        logger.info(f"Starting SNMP queries for {len(alive)} targets")
         points: list[dict[str, Any]] = []
 
         for dev in alive:
@@ -149,7 +147,7 @@ class SNMPClient:
             try:
                 stats = await to_thread(handler.fetch_stats)
             except Exception as e:
-                self.logger.error(f"Stats error {dev.ip}: {e}", exc_info=True)
+                logger.error(f"Stats error {dev.ip}: {e}", exc_info=True)
                 continue
 
             if not stats:
@@ -158,5 +156,5 @@ class SNMPClient:
             fields = stats.to_human()
             points.append(self._build_point("snmp_query", dev, fields))
 
-        system_logger.info(f"SNMP querying completed: {len(points)}/{len(alive)}")
+        logger.info(f"SNMP querying completed: {len(points)}/{len(alive)}")
         return points

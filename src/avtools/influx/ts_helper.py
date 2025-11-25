@@ -3,10 +3,11 @@ from __future__ import annotations
 import datetime
 from typing import Dict
 
+import structlog
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-from avtools.io.logger import system_logger
+logger = structlog.get_logger(__name__)
 
 
 class TimeSeriesHelper:
@@ -49,7 +50,7 @@ class TimeSeriesHelper:
             org=self.org,
         )
         self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
-        system_logger.info(f"TimeSeriesHelper connected to InfluxDB at {self.url}")
+        logger.info(f"TimeSeriesHelper connected to InfluxDB at {self.url}")
 
     def write_snmp_data(self, snmp_results: dict[str, str]) -> None:
         """
@@ -74,10 +75,10 @@ class TimeSeriesHelper:
                 .time(now, WritePrecision.NS)
             )
             points.append(point)
-            system_logger.info(f"Prepared SNMP point for IP {ip}")
+            logger.info(f"Prepared SNMP point for IP {ip}")
 
         try:
             self.write_api.write(bucket=self.bucket, org=self.org, record=points)
-            system_logger.info("SNMP data written successfully to InfluxDB.")
+            logger.info("SNMP data written successfully to InfluxDB.")
         except Exception as err:
-            system_logger.error(f"Error writing SNMP data to InfluxDB: {err}")
+            logger.error(f"Error writing SNMP data to InfluxDB: {err}")
