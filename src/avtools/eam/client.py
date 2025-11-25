@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any, List, Type, TypeVar
 
 from requests import Response, Session
 from requests.auth import HTTPBasicAuth
 
 from avtools.eam.config import EAMConfig
 from avtools.eam.device import EAMDevice
+from avtools.eam.position import EAMPosition
 from avtools.exception.errors import NoRecordsFound
 from avtools.io.logger import system_logger
+
+# Generic parser type for devices and positions
+T = TypeVar("T", bound=EAMDevice)
 
 
 class EAMClient:
@@ -48,10 +52,18 @@ class EAMClient:
             data = data.get(key, {})
         return data or default
 
-    def number_av_records(self, payload: dict[str, Any]) -> int:
+    def _get_total_records(self, grid_id: str, grid_name: str) -> int:
         """
-        Return the total number of AV records in EAM for the given payload.
+        Build payload and return total AV records for a given grid.
         """
+        payload = dict(self.config.default_query)
+        payload.update(
+            {
+                "gridID": grid_id,
+                "userFunctionName": grid_name,
+                "gridName": grid_name,
+            }
+        )
         records = self._extract(self._request(payload), "data", "records", default=0)
         return int(records)
 
@@ -59,29 +71,19 @@ class EAMClient:
         """
         Get the total number of AV assets in EAM.
         """
-        payload = dict(self.config.default_query)
-        payload.update(
-            {
-                "gridID": self.config.asset_grid_id,
-                "userFunctionName": self.config.asset_grid_name,
-                "gridName": self.config.asset_grid_name,
-            }
+        return self._get_total_records(
+            self.config.asset_grid_id,
+            self.config.asset_grid_name,
         )
-        return self.number_av_records(payload)
 
     def get_number_av_positions(self) -> int:
         """
         Get the total number of AV positions in EAM.
         """
-        payload = dict(self.config.default_query)
-        payload.update(
-            {
-                "gridID": self.config.position_grid_id,
-                "userFunctionName": self.config.position_grid_name,
-                "gridName": self.config.position_grid_name,
-            }
+        return self._get_total_records(
+            self.config.position_grid_id,
+            self.config.position_grid_name,
         )
-        return self.number_av_records(payload)
 
     def _fetch_list(
         self,
@@ -89,9 +91,10 @@ class EAMClient:
         grid_name: str,
         missing_msg: str,
         row_count: int,
-    ) -> list[EAMDevice]:
+        parser: type[T] = EAMDevice,
+    ) -> list[T]:
         """
-        Fetch rows from the EAM API and return them as EAMDevice instances.
+        Fetch rows from the EAM API and return them as instances of the given parser model.
         """
         payload = dict(self.config.default_query)
         payload.update(
@@ -106,13 +109,13 @@ class EAMClient:
         rows = self._extract(response, "data", "row", default=[])
         if not rows:
             raise NoRecordsFound(missing_msg)
-        devices: list[EAMDevice] = []
+        items: list[T] = []
         for row in rows:
-            device = EAMDevice.parse_obj(row)
-            device.log_device()
-            devices.append(device)
+            obj = parser.parse_obj(row)
+            obj.log_device()
+            items.append(obj)
         system_logger.info(f"Finished processing retrieved data for {grid_name}")
-        return devices
+        return items
 
     def get_device_list(self, records: int) -> list[EAMDevice]:
         """
@@ -123,17 +126,19 @@ class EAMClient:
             self.config.asset_grid_name,
             "No records found for any AV class type in EAM.",
             records,
+            parser=EAMDevice,
         )
 
-    def get_positions_list(self, records: int) -> list[EAMDevice]:
+    def get_positions_list(self, records: int) -> list[EAMPosition]:
         """
-        Fetch AV position data and return as a list of EAMDevice instances.
+        Fetch AV position data and return as a list of EAMPosition instances.
         """
         return self._fetch_list(
             self.config.position_grid_id,
             self.config.position_grid_name,
             "No records found for any AV position in EAM.",
             records,
+            parser=EAMPosition,
         )
 
     @staticmethod

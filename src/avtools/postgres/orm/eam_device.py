@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from datetime import date
 
-from sqlalchemy import Column, String
+from sqlalchemy import Column, Date, String
 from sqlalchemy.orm import declarative_base
 
 from avtools.eam.client import EAMDevice
@@ -11,37 +11,23 @@ Base = declarative_base()
 
 
 class EAMDeviceORM(Base):
-    """
-    ORM model for EAM devices.
-
-    Maps EAMDevice domain objects to the "eam_devices" table,
-    with columns for equipment number, serial number,
-    position, equipment description, class, and manufacturer.
-    """
+    """ORM mapping for EAM device rows."""
 
     __tablename__ = "eam_devices"
 
-    equipmentno: str = Column(String, primary_key=True, nullable=False)
-    serialnumber: str = Column(String, nullable=False)
-    position: str | None = Column(String, nullable=True)
-    equipmentdesc: str | None = Column(String, nullable=True)
-    eqclass: str | None = Column(String, nullable=True)
-    category: str | None = Column(String, nullable=True)
-    manufacturer: str | None = Column(String, nullable=True)
-    commissiondate: str | None = Column(String, nullable=True)
+    equipment_no: str = Column("equipmentno", String, primary_key=True, nullable=False)
+    serial_number: str = Column("serialnumber", String, nullable=False)
+    position: str | None = Column("position", String, nullable=True)
+    equipment_desc: str | None = Column("equipmentdesc", String, nullable=True)
+    eq_class: str | None = Column("eqclass", String, nullable=True)
+    category: str | None = Column("category", String, nullable=True)
+    manufacturer: str | None = Column("manufacturer", String, nullable=True)
+    commission_date: date | None = Column("commissiondate", Date, nullable=True)
+    parent_asset: str | None = Column("parentasset", String, nullable=True)
 
     @classmethod
     def from_device(cls, device: EAMDevice) -> EAMDeviceORM:
-        """
-        Create an ORM instance from an EAMDevice domain object.
-        """
-        return cls(
-            equipmentno=device.equipmentno,
-            serialnumber=device.serialnumber,
-            position=device.position,
-            equipmentdesc=device.equipmentdesc,
-            eqclass=device.eqclass,
-            category=device.category,
-            manufacturer=device.manufacturer,
-            commissiondate=device.commissiondate,
-        )
+        """Construct an ORM row from an `EAMDevice`."""
+        data = device.model_dump(by_alias=False)
+        orm_data = {k: v for k, v in data.items() if hasattr(cls, k)}
+        return cls(**orm_data)

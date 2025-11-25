@@ -12,7 +12,7 @@ from cern_oauthlib.cern_session import ServiceAuthSession
 from pydantic import BaseModel
 from requests.auth import HTTPBasicAuth
 
-from avtools.eam.client import EAMClient, EAMDevice
+from avtools.eam.client import EAMClient, EAMDevice, EAMPosition
 from avtools.exception.errors import NoRecordsFound
 from avtools.influx.client import InfluxClient
 from avtools.io.logger import system_logger
@@ -46,32 +46,90 @@ class AVTools:
 
     def run_eam(self, username: str, password: str) -> None:
         """
-        Synchronize EAM assets and positions with the local cache.
+        Authenticate with the EAM system and trigger synchronization of devices and positions.
 
-        Authenticates to the EAM API, retrieves all devices, and delegates
-        to the generic sync routine.
+        This method creates an HTTP basic auth object using the provided credentials,
+        then calls both `sync_eam_devices` and `sync_eam_positions` to keep the local
+        database in sync with the remote EAM service.
 
         Args:
             username (str): EAM API username.
             password (str): EAM API password.
+
+        Returns:
+            None
+
+        Raises:
+            EAMClientAuthenticationError: If the provided credentials are invalid.
+            requests.exceptions.RequestException: On network-related errors during sync.
         """
         auth = HTTPBasicAuth(username, password)
+        self.sync_eam_devices(auth)
+        self.sync_eam_positions(auth)
+
+    def sync_eam_devices(self, auth: HTTPBasicAuth) -> None:
+        """
+        Fetch all EAM devices from the remote API and reconcile them with the local cache.
+
+        Retrieves the total number of assets, pulls the full list of `EAMDevice` objects
+        from the EAM API, and compares it against what’s stored locally.  Any new, updated,
+        or removed devices are propagated into the local database via the `dbod_helper`.
+
+        Args:
+            auth (HTTPBasicAuth): Auth object initialized with valid EAM credentials.
+
+        Returns:
+            None
+
+        Raises:
+            EAMClientError: For any failures when calling the EAM API.
+            DatabaseSyncError: If the local synchronization operation fails.
+        """
         eam_helper = EAMClient(auth)
-        total: int = eam_helper.get_number_av_assets()
+        total = eam_helper.get_number_av_assets()
         eam_list: list[EAMDevice] = eam_helper.get_device_list(total)
         cache_list: list[EAMDevice] = self.dbod_helper.get_all_eam_devices()
 
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            get_id=lambda d: d.equipmentno,
+            # NOTE: use the Python attribute name (snake_case), not the alias
+            get_id=lambda d: d.equipment_no,
             sync_func=self.dbod_helper.sync_eam_devices,
-            name="EAM",
+            name="EAM Devices",
         )
 
-        # TODO function for each
-        # total: int = eam_helper.get_number_av_positions()
-        # eam_list: list[EAMDevice] = eam_helper.get_positions_list(total)
+    def sync_eam_positions(self, auth: HTTPBasicAuth) -> None:
+        """
+        Fetch all EAM positions from the remote API and reconcile them with the local cache.
+
+        Retrieves the total number of positions, pulls the full list of `EAMPosition` objects
+        from the EAM API, and compares it against what’s stored locally. Any new, updated,
+        or removed positions are propagated into the local database via the `dbod_helper`.
+
+        Args:
+            auth (HTTPBasicAuth): Auth object initialized with valid EAM credentials.
+
+        Returns:
+            None
+
+        Raises:
+            EAMClientError: For any failures when calling the EAM API.
+            DatabaseSyncError: If the local synchronization operation fails.
+        """
+        eam_helper = EAMClient(auth)
+        total: int = eam_helper.get_number_av_positions()
+        eam_list: list[EAMPosition] = eam_helper.get_positions_list(total)
+        cache_list: list[EAMPosition] = self.dbod_helper.get_all_eam_positions()
+
+        self._sync_entities(
+            api_items=eam_list,
+            cached_items=cache_list,
+            # Same here: snake_case attribute name
+            get_id=lambda d: d.equipment_no,
+            sync_func=self.dbod_helper.sync_eam_positions,
+            name="EAM Positions",
+        )
 
     def run_landb(
         self,
