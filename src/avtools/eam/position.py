@@ -13,58 +13,47 @@ from pydantic import (
     model_validator,
 )
 
-device_logger = structlog.get_logger(__name__).bind(component="eam", model="EAMDevice")
+position_logger = structlog.get_logger(__name__).bind(
+    component="eam", model="EAMPosition"
+)
 
 
-class EAMDevice(BaseModel):
-    """Device record from the EAM grid."""
+class EAMPosition(BaseModel):
+    """Position record from the EAM grid."""
 
-    serial_number: str | None = Field(
-        None,
-        alias="serialnumber",
-        description="The device's serial number as stored in EAM.",
-    )
-    position: str | None = Field(
-        None,
-        description="The device's position identifier in EAM.",
-    )
     equipment_no: str | None = Field(
         None,
         alias="equipmentno",
-        description="The equipment number of the device.",
+        description="The equipment number of the position.",
     )
     equipment_desc: str | None = Field(
         None,
         alias="equipmentdesc",
-        description="The human-readable description of the equipment.",
+        description="The human-readable description of the position.",
     )
     eq_class: str | None = Field(
         None,
         alias="class",
-        description='The classification of the equipment (EAM "class" field).',
-    )
-    category: str | None = Field(
-        None,
-        description="Sub-classification or category of the device (may be null).",
-    )
-    manufacturer: str | None = Field(
-        None,
-        description="Manufacturer of the device.",
+        description='The classification of the position (EAM "class" field).',
     )
     commission_date: date | None = Field(
         None,
         alias="commissiondate",
-        description="Commissioning date of the device.",
+        description="Commissioning date of the position.",
     )
     parent_asset: str | None = Field(
         None,
         alias="parentasset",
-        description="Parent asset or position of the current asset.",
+        description="Parent asset or higher-level position for this position.",
+    )
+    sponsor: str | None = Field(
+        None,
+        description="Sponsor or responsible entity for this position.",
     )
 
     model_config = ConfigDict(
         populate_by_name=True,
-        from_attributes=True,  # allow model_validate(ORM_instance)
+        from_attributes=True,
         extra="ignore",
     )
 
@@ -86,7 +75,7 @@ class EAMDevice(BaseModel):
     @field_validator("commission_date", mode="before")
     @classmethod
     def _normalise_commission_date(cls, v: Any) -> Any:
-        """Parse EAM commission_date strings into a `date`."""
+        """Parse commission_date into a `date` instance."""
         if v is None or v == "":
             return None
 
@@ -109,24 +98,21 @@ class EAMDevice(BaseModel):
         """Serialize commission_date as YYYY-MM-DD in JSON output."""
         if value is None:
             return None
-        return value.isoformat()  # '2024-07-01'
+        return value.isoformat()
 
     def __str__(self) -> str:
         return (
-            "EAMDevice("
+            "EAMPosition("
             f"equipment_no={self.equipment_no!r}, "
-            f"position={self.position!r}, "
             f"equipment_desc={self.equipment_desc!r}, "
-            f"serial_number={self.serial_number!r}, "
             f"eq_class={self.eq_class!r}, "
-            f"category={self.category!r}, "
-            f"manufacturer={self.manufacturer!r}, "
             f"commission_date={self.commission_date!r}, "
-            f"parent_asset={self.parent_asset!r}"
+            f"parent_asset={self.parent_asset!r}, "
+            f"sponsor={self.sponsor!r}"
             ")"
         )
 
     def log_device(self) -> None:
-        """Emit this device as a structured log event."""
+        """Emit this position as a structured log event."""
         payload = self.model_dump(mode="json", by_alias=False, exclude_none=True)
-        device_logger.info("eam_device_synced", **payload)
+        position_logger.info("eam_position_synced", **payload)
