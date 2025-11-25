@@ -24,14 +24,10 @@ class SNMPClient:
 
     PING_TIMEOUT: int = 3  # seconds per ping
     TAG_KEYS = [
-        "equipmentno",
-        "serialnumber",
-        "equipmentdesc",
-        "eqclass",
+        "equipment_no",
+        "serial_number",
+        "eq_class",
         "manufacturer",
-        "building",
-        "floor",
-        "room",
         "ip",
     ]
 

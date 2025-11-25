@@ -21,12 +21,12 @@ class DeviceHandlerFactory:
         self.target = target
 
     def create(self) -> AbstractDeviceHandler | None:
-        dtype = self.target.eqclass.upper()
+        dtype = self.target.eq_class.upper()
         FactoryCls = _FACTORY_REGISTRY.get(dtype)
         if not FactoryCls:
             system_logger.warning(
-                f"Unsupported device class '{self.target.eqclass}' "
-                f"for {self.target.equipmentdesc} (IP: {self.target.ip})"
+                f"Unsupported device class '{self.target.eq_class}' "
+                f"for {self.target.serial_number} (IP: {self.target.ip})"
             )
             return None
 
