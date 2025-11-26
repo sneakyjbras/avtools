@@ -2,7 +2,7 @@
 
 [tool.poetry]
 name        = "avtools"
-version     = "0.1.9"
+version     = "1.0.1"
 description = "Monitoring tools for the AV infrastructure of CERN."
 authors     = [
   "jsapinat <jose.bras@cern.ch>",
