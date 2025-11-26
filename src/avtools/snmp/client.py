@@ -25,13 +25,15 @@ class SNMPClient:
     """
 
     PING_TIMEOUT: int = 3  # seconds per ping
-    TAG_KEYS = [
-        "equipment_no",
-        "serial_number",
-        "eq_class",
-        "manufacturer",
-        "ip",
-    ]
+
+    # Mapping: InfluxDB tag key (lowercase, no underscores) -> LanDBDevice attribute (snake_case)
+    TAG_KEYS: dict[str, str] = {
+        "equipmentno": "equipment_no",
+        "serialnumber": "serial_number",
+        "eqclass": "eq_class",
+        "manufacturer": "manufacturer",
+        "ip": "ip",
+    }
 
     def __init__(
         self,
@@ -56,10 +58,15 @@ class SNMPClient:
     def _build_point(
         self, measurement: str, device: LanDBDevice, fields: dict[str, Any]
     ) -> dict[str, Any]:
+        tags = {
+            influx_key: getattr(device, attr_name)
+            for influx_key, attr_name in self.TAG_KEYS.items()
+        }
+
         return {
             "measurement": measurement,
             "time": datetime.utcnow().isoformat(),
-            "tags": {k: getattr(device, k) for k in self.TAG_KEYS},
+            "tags": tags,
             "fields": fields,
         }
 
