@@ -1,15 +1,19 @@
 from __future__ import annotations
 
-from typing import Optional, Type
+import structlog
 
-from avtools.io.logger import system_logger
-from avtools.landb.client import LanDBDevice
+from avtools.landb.device import LanDBDevice
 from avtools.snmp.factories.projector_factory import ProjectorHandlerFactory
 from avtools.snmp.handlers.abstract_device_handler import AbstractDeviceHandler
 
 # from avtools.snmp.factories.sensor_factory import SensorHandlerFactory
 
-# Map eqclass → factory class
+logger = structlog.get_logger(__name__).bind(
+    component="snmp",
+    factory="DeviceHandlerFactory",
+)
+
+# Map eq_class → factory class
 _FACTORY_REGISTRY: dict[str, type] = {
     "AVD": ProjectorHandlerFactory,
     # "SENSOR": SensorHandlerFactory,
@@ -17,17 +21,23 @@ _FACTORY_REGISTRY: dict[str, type] = {
 
 
 class DeviceHandlerFactory:
+    """Factory for SNMP device handlers based on LanDB eq_class."""
+
     def __init__(self, target: LanDBDevice) -> None:
         self.target = target
 
     def create(self) -> AbstractDeviceHandler | None:
-        dtype = self.target.eqclass.upper()
-        FactoryCls = _FACTORY_REGISTRY.get(dtype)
-        if not FactoryCls:
-            system_logger.warning(
-                f"Unsupported device class '{self.target.eqclass}' "
-                f"for {self.target.equipmentdesc} (IP: {self.target.ip})"
+        """Return an appropriate handler for the target device, or None."""
+        eq_class = (self.target.eq_class or "").upper()
+        factory_cls = _FACTORY_REGISTRY.get(eq_class)
+        if not factory_cls:
+            logger.warning(
+                "unsupported_device_class",
+                eq_class=self.target.eq_class,
+                equipment_no=getattr(self.target, "equipment_no", None),
+                serial_number=getattr(self.target, "serial_number", None),
+                ip=self.target.ip,
             )
             return None
 
-        return FactoryCls(self.target).create()
+        return factory_cls(self.target).create()

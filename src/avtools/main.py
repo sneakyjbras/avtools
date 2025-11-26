@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import click
+import structlog
 
 from avtools.core.av_tools import AVTools
 from avtools.exception.errors import NoRecordsFound
 from avtools.influx.ts_helper import TimeSeriesHelper
-from avtools.io.logger import system_logger
 from avtools.snmp.client import SNMPClient
+
+logger = structlog.get_logger(__name__)
 
 
 def _load_landb_token(ctx: click.Context, param: click.Parameter, value: str) -> str:
@@ -66,7 +69,14 @@ def cli(
         dbod_url (str): Database URL for DBoD operations.
     """
     ctx.obj = {"logs": logs, "dbod_url": dbod_url}
-    system_logger.configure(log_level="DEBUG" if logs else "INFO")
+
+    # Simple structlog-based logging config replacing system_logger.configure
+    log_level = logging.DEBUG if logs else logging.INFO
+    structlog.configure(
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
+    )
+    logging.basicConfig(level=log_level)
+    logger.info("Logging configured", log_level=log_level)
 
 
 # ---------------------------------------------------------------------------- #

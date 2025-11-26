@@ -2,14 +2,17 @@ from __future__ import annotations
 
 from typing import NoReturn
 
+import structlog
 from pysnmp.hlapi import SnmpEngine
 
-from avtools.io.logger import system_logger
 from avtools.landb.client import LanDBDevice
 from avtools.snmp.handlers.projector import AbstractProjector, EpsonProjector
 
 # from avtools.snmp.handlers.sony_projector import SonyProjector
 # from avtools.snmp.handlers.panasonic_projector import PanasonicProjector
+
+
+logger = structlog.get_logger(__name__)
 
 
 class ProjectorHandlerFactory:
@@ -39,10 +42,11 @@ class ProjectorHandlerFactory:
         """
         brand = self.target.manufacturer.strip().upper()
 
-        if brand == "EPSON":
+        if brand == "EPS":
             return EpsonProjector(self.target)
 
-        system_logger.warning(
-            f"No SNMP handler for projector manufacturer '{self.target.manufacturer}'"
+        logger.warning(
+            "No SNMP handler for projector manufacturer '%s'",
+            self.target.manufacturer,
         )
         return None

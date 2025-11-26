@@ -6,21 +6,29 @@ from asyncio import run as asyncio_run
 from asyncio import to_thread
 from collections.abc import Callable, Sequence
 from time import time
-from typing import Any, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, TypeVar
 
+import structlog
 from cern_oauthlib.cern_session import ServiceAuthSession
 from pydantic import BaseModel
 from requests.auth import HTTPBasicAuth
 
-from avtools.eam.client import EAMClient, EAMDevice, EAMPosition
-from avtools.exception.errors import NoRecordsFound
+from avtools.eam.client import EAMClient
+from avtools.eam.device import EAMDevice
+from avtools.eam.position import EAMPosition
+from avtools.exception.errors import (  # noqa: F401 (may be used elsewhere)
+    NoRecordsFound,
+)
 from avtools.influx.client import InfluxClient
-from avtools.io.logger import system_logger
-from avtools.landb.client import LanDBClient, LanDBConfig, LanDBDevice
+from avtools.landb.client import LanDBClient
+from avtools.landb.config import LanDBConfig
+from avtools.landb.device import LanDBDevice
 from avtools.postgres.client import PostgresClient
 from avtools.snmp.client import SNMPClient
 
 Model = TypeVar("Model", bound=BaseModel)
+
+Point = dict[str, Any]
 
 
 class AVTools:
@@ -34,34 +42,18 @@ class AVTools:
         dbod_url: str,
         logs: bool = False,
     ) -> None:
-        """
-        Initialize AVTools with DBOD endpoint and optional logging.
-
-        Args:
-            dbod_url (str): URL for the DBOD service.
-            logs (bool): Enable detailed logging if True.
-        """
+        """Initialize AVTools with DBOD endpoint and optional logging."""
         self.dbod_helper: PostgresClient = PostgresClient(dbod_url)
         self.logs: bool = logs
+        self.logger = structlog.get_logger(self.__class__.__name__)
 
     def run_eam(self, username: str, password: str) -> None:
         """
-        Authenticate with the EAM system and trigger synchronization of devices and positions.
-
-        This method creates an HTTP basic auth object using the provided credentials,
-        then calls both `sync_eam_devices` and `sync_eam_positions` to keep the local
-        database in sync with the remote EAM service.
+        Authenticate with EAM and trigger synchronization of devices and positions.
 
         Args:
             username (str): EAM API username.
             password (str): EAM API password.
-
-        Returns:
-            None
-
-        Raises:
-            EAMClientAuthenticationError: If the provided credentials are invalid.
-            requests.exceptions.RequestException: On network-related errors during sync.
         """
         auth = HTTPBasicAuth(username, password)
         self.sync_eam_devices(auth)
@@ -70,20 +62,6 @@ class AVTools:
     def sync_eam_devices(self, auth: HTTPBasicAuth) -> None:
         """
         Fetch all EAM devices from the remote API and reconcile them with the local cache.
-
-        Retrieves the total number of assets, pulls the full list of `EAMDevice` objects
-        from the EAM API, and compares it against what’s stored locally.  Any new, updated,
-        or removed devices are propagated into the local database via the `dbod_helper`.
-
-        Args:
-            auth (HTTPBasicAuth): Auth object initialized with valid EAM credentials.
-
-        Returns:
-            None
-
-        Raises:
-            EAMClientError: For any failures when calling the EAM API.
-            DatabaseSyncError: If the local synchronization operation fails.
         """
         eam_helper = EAMClient(auth)
         total = eam_helper.get_number_av_assets()
@@ -93,7 +71,7 @@ class AVTools:
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            # NOTE: use the Python attribute name (snake_case), not the alias
+            # Use the Python attribute name (snake_case), not the alias.
             get_id=lambda d: d.equipment_no,
             sync_func=self.dbod_helper.sync_eam_devices,
             name="EAM Devices",
@@ -125,7 +103,7 @@ class AVTools:
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            # Same here: snake_case attribute name
+            # Use the Python attribute name (snake_case), not the alias.
             get_id=lambda d: d.equipment_no,
             sync_func=self.dbod_helper.sync_eam_positions,
             name="EAM Positions",
@@ -140,25 +118,10 @@ class AVTools:
     ) -> None:
         """
         Synchronize LanDB devices using Auth0 client credentials.
-
-        Uses your internal Auth0 service to exchange the provided client_id,
-        client_secret, and audience for a LanDB API token, then:
-
-        1. Fetches all EAM devices from the database cache.
-        2. If none are found, logs and exits.
-        3. Retrieves LanDB devices asynchronously against the EAM list.
-        4. Loads current LanDB devices from the database cache.
-        5. Calls the generic sync routine to update the database.
-
-        Args:
-            client_id (str): Auth0 Client ID for obtaining the LanDB API token.
-            client_secret (str): Auth0 Client Secret for obtaining the LanDB API token.
-            audience (str): Auth0 audience (API identifier) for the token request.
-            max_workers (int): Max number of parallel ping tasks.
         """
         eam_list: list[EAMDevice] = self.dbod_helper.get_all_eam_devices()
         if not eam_list:
-            system_logger.info("No EAM devices—skipping LanDB sync.")
+            self.logger.info("No EAM devices—skipping LanDB sync.")
             return
 
         session = ServiceAuthSession(
@@ -175,7 +138,7 @@ class AVTools:
         self._sync_entities(
             api_items=landb_list,
             cached_items=cache_list,
-            get_id=lambda d: d.equipmentno,
+            get_id=lambda d: d.equipment_no,
             sync_func=self.dbod_helper.sync_landb_devices,
             name="LanDB",
         )
@@ -189,19 +152,19 @@ class AVTools:
         influx_db: str,
         max_workers: int = 8,
     ) -> None:
-        # 1) Load devices
+        """
+        Collect SNMP metrics for all LanDB devices and write them to InfluxDB.
+        """
         devices: list[LanDBDevice] = self.dbod_helper.get_all_landb_devices()
         total = len(devices)
         if not devices:
-            system_logger.info("No LanDB devices to monitor.")
+            self.logger.info("No LanDB devices to monitor.")
             return
 
-        system_logger.info(f"Fetching {total} LanDB devices with {max_workers} tasks.")
+        self.logger.info(f"Fetching {total} LanDB devices with {max_workers} tasks.")
 
-        # 2) Fetch all SNMP points asynchronously
         all_points = asyncio_run(self._get_snmp_points(devices, max_workers))
 
-        # 3) Publish them
         self._publish_snmp(
             all_points,
             influx_host,
@@ -219,27 +182,16 @@ class AVTools:
     ) -> list[LanDBDevice]:
         """
         Fetch LanDB devices concurrently using asyncio.TaskGroup and chunking.
-
-        Uses the provided authenticated session to query the LanDB API in parallel,
-        breaking the EAM records into manageable chunks for efficient retrieval.
-
-        Args:
-            eam_records (List[EAMDevice]): Cached EAM devices to use as lookup keys.
-            session (ServiceAuthSession): Authenticated service session for LanDB API requests.
-            max_workers (int): Max number of parallel ping tasks.
-
-        Returns:
-            List[LanDBDevice]: All LanDB devices retrieved for the given EAM records.
         """
         total = len(eam_records)
         if total == 0:
-            system_logger.info("No EAM records provided; nothing to fetch.")
+            self.logger.info("No EAM records provided; nothing to fetch.")
             return []
 
         num_tasks = min(max_workers, total)
-        system_logger.info(f"Fetching {total} LanDB devices with {num_tasks} tasks.")
+        self.logger.info(f"Fetching {total} LanDB devices with {num_tasks} tasks.")
 
-        # preallocate results
+        # Preallocate results
         result: list[LanDBDevice | None] = [None] * total
         chunk = (total + num_tasks - 1) // num_tasks
 
@@ -249,28 +201,28 @@ class AVTools:
                 rec = eam_records[idx]
                 try:
                     dev = await to_thread(
-                        helper.get_data,
-                        rec.equipmentno,
-                        rec.serialnumber,
-                        rec.eqclass,
-                        rec.commissiondate,
+                        helper.build_device_with_ip,
+                        rec.equipment_no,
+                        rec.serial_number,
+                        rec.eq_class,
+                        rec.manufacturer,
                     )
                 except Exception as e:
-                    system_logger.error(f"Error fetching {rec.equipmentno}: {e}")
+                    self.logger.error(f"Error fetching {rec.equipment_no}: {e}")
                     continue
-                if dev and dev.serialnumber and dev.ip is not None:
+                if dev and dev.serial_number and dev.ip is not None:
                     result[idx] = dev
 
-        # use TaskGroup for clean task management
+        # Use TaskGroup for clean task management
         async with TaskGroup() as tg:
             for i in range(num_tasks):
                 start = i * chunk
                 end = min(start + chunk, total)
                 tg.create_task(process_slice(start, end))
 
-        # filter out failed lookups
-        devices: list[LanDBDevice] = [d for d in result if d is not None]  # type: ignore
-        system_logger.info(f"Fetched {len(devices)} of {total} LanDB devices.")
+        # Filter out failed lookups
+        devices: list[LanDBDevice] = [d for d in result if d is not None]  # type: ignore[arg-type]
+        self.logger.info(f"Fetched {len(devices)} of {total} LanDB devices.")
         return devices
 
     def _sync_entities(
@@ -283,22 +235,12 @@ class AVTools:
     ) -> None:
         """
         Generic synchronization routine for any entity type.
-
-        Compares `api_items` against `cached_items`, computes inserts,
-        updates, and deletes, and invokes `sync_func` to persist changes.
-
-        Args:
-            api_items (Sequence[Model]): Items fetched from external API.
-            cached_items (Sequence[Model]): Items currently in local cache.
-            get_id (Callable[[Model], str]): Function to extract unique ID.
-            sync_func (Callable[..., None]): DB helper method to apply changes.
-            name (str): Human-readable label for logging (e.g., "EAM").
         """
         start_time = time()
 
         if not cached_items:
             sync_func(to_insert=api_items, to_update=[], to_delete=[])
-            system_logger.info(
+            self.logger.info(
                 f"{name} sync (first run): inserted={len(api_items)}, updated=0, deleted=0"
             )
             return
@@ -321,7 +263,7 @@ class AVTools:
 
         sync_func(to_insert=to_insert, to_update=to_update, to_delete=to_delete)
         duration = time() - start_time
-        system_logger.info(
+        self.logger.info(
             f"{name} sync completed in {duration:.2f}s: "
             f"inserted={len(to_insert)}, updated={len(to_update)}, deleted={len(to_delete)}"
         )
@@ -333,6 +275,10 @@ class AVTools:
     ) -> list[Point]:
         """Slice devices, ping/probe/query each chunk in parallel, return all points."""
         total = len(devices)
+        if total == 0:
+            return []
+
+        max_workers = max(1, max_workers)
         chunk_size = math.ceil(total / max_workers)
         device_chunks = [
             devices[i : i + chunk_size] for i in range(0, total, chunk_size)
@@ -359,12 +305,12 @@ class AVTools:
                 query_pts = await monitor.collect_snmp_query(alive_devices)
                 pts.extend(query_pts)
 
-                system_logger.info(
+                self.logger.info(
                     f"Task on {len(chunk)} devices: "
                     f"{len(ping_pts)} ping, {len(probe_pts)} probe, {len(query_pts)} query points"
                 )
             except Exception as e:
-                system_logger.exception(f"Worker task error: {e}")
+                self.logger.exception(f"Worker task error: {e}")
             return pts
 
         all_points: list[Point] = []
@@ -373,7 +319,6 @@ class AVTools:
             for chunk in device_chunks:
                 tasks.append(tg.create_task(worker_fn(chunk)))
 
-        # threads have implicit barriers at the end
         for task in tasks:
             all_points.extend(task.result())
 
@@ -390,7 +335,7 @@ class AVTools:
     ) -> None:
         """Publish a list of InfluxDB points in one batch."""
         if not points:
-            system_logger.info("No metrics collected; skipping write.")
+            self.logger.info("No metrics collected; skipping write.")
             return
 
         publisher = InfluxClient(
@@ -404,23 +349,16 @@ class AVTools:
         )
         try:
             publisher.write_points(points)
-            system_logger.info(f"Wrote {len(points)} total points")
+            self.logger.info(f"Wrote {len(points)} total points")
         except Exception as e:
-            system_logger.exception(f"Failed writing points: {e}")
+            self.logger.exception(f"Failed writing points: {e}")
 
     def _diff_models(self, old: Model, new: Model) -> dict[str, Any]:
         """
-        Compute field-by-field differences between two Pydantic-like models.
-
-        Args:
-            old (Model): The original model instance.
-            new (Model): The updated (possibly partial) model instance.
-
-        Returns:
-            Dict[str, Any]: A mapping of fields present in `new` whose values differ from `old`.
+        Compute field-by-field differences between two Pydantic models.
         """
-        old_data: dict[str, Any] = old.dict()
-        new_data: dict[str, Any] = new.dict(exclude_unset=True)
+        old_data: dict[str, Any] = old.model_dump()
+        new_data: dict[str, Any] = new.model_dump(exclude_unset=True)
         return {k: v for k, v in new_data.items() if old_data.get(k) != v}
 
     def _ensure_token(
@@ -430,37 +368,32 @@ class AVTools:
     ) -> None:
         """
         Ensure that session.auth.token is populated by the CERN OAuth wrapper.
+
         If no token exists, fire a dummy GET against the LanDB devices endpoint
         (which under the hood will trigger the token fetch).
-
-        Args:
-            session: Authenticated ServiceAuthSession to verify.
-            config:  LanDBConfig holding base_url & endpoints.
         """
         token: Any = session.auth.token
 
         if token:
             expires_at = getattr(token, "expires_at", None)
             if expires_at:
-                system_logger.info(
-                    f"Using cached access token (expires at {expires_at})"
-                )
+                self.logger.info(f"Using cached access token (expires at {expires_at})")
             else:
-                system_logger.info("Using cached access token")
+                self.logger.info("Using cached access token")
             return
 
         # No token → hit the devices endpoint to force a token fetch
         probe_url = f"{config.base_url}/{config.device_endpoint}"
-        system_logger.info(f"No access token found; probing {probe_url} to acquire one")
+        self.logger.info(f"No access token found; probing {probe_url} to acquire one")
         try:
             resp = session.get(probe_url, params={"_limit": 1}, verify=True)
             if resp.ok:
-                system_logger.info(
+                self.logger.info(
                     "Successfully obtained new access token via probe GET."
                 )
             else:
-                system_logger.error(
+                self.logger.error(
                     f"Probe GET failed [{resp.status_code}] when obtaining token."
                 )
         except Exception as e:
-            system_logger.error(f"Error during token-fetch probe: {e}")
+            self.logger.error(f"Error during token-fetch probe: {e}")

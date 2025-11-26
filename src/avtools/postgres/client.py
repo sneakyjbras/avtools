@@ -3,19 +3,21 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Dict, List, Tuple
 
+import structlog
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from avtools.eam.client import EAMDevice, EAMPosition
 from avtools.exception.errors import NoRecordsFound
-from avtools.io.logger import system_logger
 from avtools.landb.client import LanDBDevice
 from avtools.postgres.orm.eam_device import EAMDeviceORM
 from avtools.postgres.orm.eam_position import EAMPositionORM
 from avtools.postgres.orm.landb_device import LanDBDeviceORM
 
 # postgres_client.py
+
+logger = structlog.get_logger(__name__)
 
 
 class PostgresClient:
@@ -54,7 +56,7 @@ class PostgresClient:
                 orm_instances = session.execute(stmt).scalars().all()
                 return [converter(inst) for inst in orm_instances]
             except SQLAlchemyError as e:
-                system_logger.error(f"{error_msg}: {e}")
+                logger.error(f"{error_msg}: {e}")
                 raise
 
     def get_all_landb_devices(self) -> list[LanDBDevice]:

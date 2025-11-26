@@ -4,6 +4,7 @@ from abc import abstractmethod
 from collections.abc import Mapping
 from typing import ClassVar, List, Tuple
 
+import structlog
 from pysnmp.hlapi import (
     CommunityData,
     ContextData,
@@ -15,9 +16,10 @@ from pysnmp.hlapi import (
 )
 
 from avtools.influx.data.projector_stats import EpsonProjectorStats, ProjectorStats
-from avtools.io.logger import system_logger
 from avtools.landb.client import LanDBDevice
 from avtools.snmp.handlers.abstract_device_handler import AbstractDeviceHandler
+
+logger = structlog.get_logger(__name__)
 
 
 class AbstractProjector(AbstractDeviceHandler):
@@ -102,14 +104,7 @@ class EpsonProjector(AbstractProjector):
 
         # 2. Kick off the SNMP GET command — it returns an iterator yielding
         #    (errorIndication, errorStatus, errorIndex, varBinds)
-        snmp_result: Iterator[
-            tuple[
-                Optional[Any],  # errorIndication
-                Any,  # errorStatus
-                int,  # errorIndex
-                Sequence[tuple[ObjectName, ObjectSyntax]],  # varBinds
-            ]
-        ] = getCmd(
+        snmp_result = getCmd(
             self.engine,
             CommunityData(self.community, mpModel=1),
             UdpTransportTarget((self.ip, self.port)),
@@ -130,7 +125,7 @@ class EpsonProjector(AbstractProjector):
             )
 
         # 5. Extract the raw values from the var_binds
-        values: Sequence[ObjectSyntax] = [vb[1] for vb in var_binds]
+        values = [vb[1] for vb in var_binds]
 
         # 6. Convert each to the appropriate Python type
         uptime: str = values[0].prettyPrint()
@@ -138,7 +133,7 @@ class EpsonProjector(AbstractProjector):
         lamp_hours: int = int(values[2])
 
         # power_status comes back as an OCTET STRING like b'01 0000 0000 T1'
-        raw_pw: ObjectSyntax = values[3]
+        raw_pw = values[3]
         try:
             power_status: str = raw_pw.prettyPrint()
         except AttributeError:
