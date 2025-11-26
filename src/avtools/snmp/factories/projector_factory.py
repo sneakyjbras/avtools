@@ -42,7 +42,7 @@ class ProjectorHandlerFactory:
         """
         brand = self.target.manufacturer.strip().upper()
 
-        if brand == "EPSON":
+        if brand == "EPS":
             return EpsonProjector(self.target)
 
         logger.warning(

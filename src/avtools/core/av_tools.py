@@ -6,17 +6,23 @@ from asyncio import run as asyncio_run
 from asyncio import to_thread
 from collections.abc import Callable, Sequence
 from time import time
-from typing import Any, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, TypeVar
 
 import structlog
 from cern_oauthlib.cern_session import ServiceAuthSession
 from pydantic import BaseModel
 from requests.auth import HTTPBasicAuth
 
-from avtools.eam.client import EAMClient, EAMDevice, EAMPosition
-from avtools.exception.errors import NoRecordsFound
+from avtools.eam.client import EAMClient
+from avtools.eam.device import EAMDevice
+from avtools.eam.position import EAMPosition
+from avtools.exception.errors import (  # noqa: F401 (may be used elsewhere)
+    NoRecordsFound,
+)
 from avtools.influx.client import InfluxClient
-from avtools.landb.client import LanDBClient, LanDBConfig, LanDBDevice
+from avtools.landb.client import LanDBClient
+from avtools.landb.config import LanDBConfig
+from avtools.landb.device import LanDBDevice
 from avtools.postgres.client import PostgresClient
 from avtools.snmp.client import SNMPClient
 
@@ -36,35 +42,18 @@ class AVTools:
         dbod_url: str,
         logs: bool = False,
     ) -> None:
-        """
-        Initialize AVTools with DBOD endpoint and optional logging.
-
-        Args:
-            dbod_url (str): URL for the DBOD service.
-            logs (bool): Enable detailed logging if True.
-        """
+        """Initialize AVTools with DBOD endpoint and optional logging."""
         self.dbod_helper: PostgresClient = PostgresClient(dbod_url)
         self.logs: bool = logs
         self.logger = structlog.get_logger(self.__class__.__name__)
 
     def run_eam(self, username: str, password: str) -> None:
         """
-        Authenticate with the EAM system and trigger synchronization of devices and positions.
-
-        This method creates an HTTP basic auth object using the provided credentials,
-        then calls both `sync_eam_devices` and `sync_eam_positions` to keep the local
-        database in sync with the remote EAM service.
+        Authenticate with EAM and trigger synchronization of devices and positions.
 
         Args:
             username (str): EAM API username.
             password (str): EAM API password.
-
-        Returns:
-            None
-
-        Raises:
-            EAMClientAuthenticationError: If the provided credentials are invalid.
-            requests.exceptions.RequestException: On network-related errors during sync.
         """
         auth = HTTPBasicAuth(username, password)
         self.sync_eam_devices(auth)
@@ -73,20 +62,6 @@ class AVTools:
     def sync_eam_devices(self, auth: HTTPBasicAuth) -> None:
         """
         Fetch all EAM devices from the remote API and reconcile them with the local cache.
-
-        Retrieves the total number of assets, pulls the full list of `EAMDevice` objects
-        from the EAM API, and compares it against what’s stored locally.  Any new, updated,
-        or removed devices are propagated into the local database via the `dbod_helper`.
-
-        Args:
-            auth (HTTPBasicAuth): Auth object initialized with valid EAM credentials.
-
-        Returns:
-            None
-
-        Raises:
-            EAMClientError: For any failures when calling the EAM API.
-            DatabaseSyncError: If the local synchronization operation fails.
         """
         eam_helper = EAMClient(auth)
         total = eam_helper.get_number_av_assets()
@@ -96,7 +71,7 @@ class AVTools:
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            # NOTE: use the Python attribute name (snake_case), not the alias
+            # Use the Python attribute name (snake_case), not the alias.
             get_id=lambda d: d.equipment_no,
             sync_func=self.dbod_helper.sync_eam_devices,
             name="EAM Devices",
@@ -128,7 +103,7 @@ class AVTools:
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            # Same here: snake_case attribute name
+            # Use the Python attribute name (snake_case), not the alias.
             get_id=lambda d: d.equipment_no,
             sync_func=self.dbod_helper.sync_eam_positions,
             name="EAM Positions",
@@ -143,21 +118,6 @@ class AVTools:
     ) -> None:
         """
         Synchronize LanDB devices using Auth0 client credentials.
-
-        Uses your internal Auth0 service to exchange the provided client_id,
-        client_secret, and audience for a LanDB API token, then:
-
-        1. Fetches all EAM devices from the database cache.
-        2. If none are found, logs and exits.
-        3. Retrieves LanDB devices asynchronously against the EAM list.
-        4. Loads current LanDB devices from the database cache.
-        5. Calls the generic sync routine to update the database.
-
-        Args:
-            client_id (str): Auth0 Client ID for obtaining the LanDB API token.
-            client_secret (str): Auth0 Client Secret for obtaining the LanDB API token.
-            audience (str): Auth0 audience (API identifier) for the token request.
-            max_workers (int): Max number of parallel ping tasks.
         """
         eam_list: list[EAMDevice] = self.dbod_helper.get_all_eam_devices()
         if not eam_list:
@@ -178,7 +138,6 @@ class AVTools:
         self._sync_entities(
             api_items=landb_list,
             cached_items=cache_list,
-            # NOTE: use the Python attribute name (snake_case), not the alias
             get_id=lambda d: d.equipment_no,
             sync_func=self.dbod_helper.sync_landb_devices,
             name="LanDB",
@@ -195,16 +154,7 @@ class AVTools:
     ) -> None:
         """
         Collect SNMP metrics for all LanDB devices and write them to InfluxDB.
-
-        Args:
-            influx_host (str): InfluxDB host.
-            influx_port (int): InfluxDB port.
-            influx_user (str): InfluxDB username.
-            influx_password (str): InfluxDB password.
-            influx_db (str): InfluxDB database name.
-            max_workers (int): Max number of concurrent SNMP workers.
         """
-        # 1) Load devices
         devices: list[LanDBDevice] = self.dbod_helper.get_all_landb_devices()
         total = len(devices)
         if not devices:
@@ -213,10 +163,8 @@ class AVTools:
 
         self.logger.info(f"Fetching {total} LanDB devices with {max_workers} tasks.")
 
-        # 2) Fetch all SNMP points asynchronously
         all_points = asyncio_run(self._get_snmp_points(devices, max_workers))
 
-        # 3) Publish them
         self._publish_snmp(
             all_points,
             influx_host,
@@ -234,17 +182,6 @@ class AVTools:
     ) -> list[LanDBDevice]:
         """
         Fetch LanDB devices concurrently using asyncio.TaskGroup and chunking.
-
-        Uses the provided authenticated session to query the LanDB API in parallel,
-        breaking the EAM records into manageable chunks for efficient retrieval.
-
-        Args:
-            eam_records (List[EAMDevice]): Cached EAM devices to use as lookup keys.
-            session (ServiceAuthSession): Authenticated service session for LanDB API requests.
-            max_workers (int): Max number of parallel ping tasks.
-
-        Returns:
-            List[LanDBDevice]: All LanDB devices retrieved for the given EAM records.
         """
         total = len(eam_records)
         if total == 0:
@@ -254,7 +191,7 @@ class AVTools:
         num_tasks = min(max_workers, total)
         self.logger.info(f"Fetching {total} LanDB devices with {num_tasks} tasks.")
 
-        # preallocate results
+        # Preallocate results
         result: list[LanDBDevice | None] = [None] * total
         chunk = (total + num_tasks - 1) // num_tasks
 
@@ -264,11 +201,11 @@ class AVTools:
                 rec = eam_records[idx]
                 try:
                     dev = await to_thread(
-                        helper.get_data,
+                        helper.build_device_with_ip,
                         rec.equipment_no,
                         rec.serial_number,
                         rec.eq_class,
-                        rec.commission_date,
+                        rec.manufacturer,
                     )
                 except Exception as e:
                     self.logger.error(f"Error fetching {rec.equipment_no}: {e}")
@@ -276,15 +213,15 @@ class AVTools:
                 if dev and dev.serial_number and dev.ip is not None:
                     result[idx] = dev
 
-        # use TaskGroup for clean task management
+        # Use TaskGroup for clean task management
         async with TaskGroup() as tg:
             for i in range(num_tasks):
                 start = i * chunk
                 end = min(start + chunk, total)
                 tg.create_task(process_slice(start, end))
 
-        # filter out failed lookups
-        devices: list[LanDBDevice] = [d for d in result if d is not None]  # type: ignore
+        # Filter out failed lookups
+        devices: list[LanDBDevice] = [d for d in result if d is not None]  # type: ignore[arg-type]
         self.logger.info(f"Fetched {len(devices)} of {total} LanDB devices.")
         return devices
 
@@ -298,16 +235,6 @@ class AVTools:
     ) -> None:
         """
         Generic synchronization routine for any entity type.
-
-        Compares `api_items` against `cached_items`, computes inserts,
-        updates, and deletes, and invokes `sync_func` to persist changes.
-
-        Args:
-            api_items (Sequence[Model]): Items fetched from external API.
-            cached_items (Sequence[Model]): Items currently in local cache.
-            get_id (Callable[[Model], str]): Function to extract unique ID.
-            sync_func (Callable[..., None]): DB helper method to apply changes.
-            name (str): Human-readable label for logging (e.g., "EAM").
         """
         start_time = time()
 
@@ -348,6 +275,10 @@ class AVTools:
     ) -> list[Point]:
         """Slice devices, ping/probe/query each chunk in parallel, return all points."""
         total = len(devices)
+        if total == 0:
+            return []
+
+        max_workers = max(1, max_workers)
         chunk_size = math.ceil(total / max_workers)
         device_chunks = [
             devices[i : i + chunk_size] for i in range(0, total, chunk_size)
@@ -388,7 +319,6 @@ class AVTools:
             for chunk in device_chunks:
                 tasks.append(tg.create_task(worker_fn(chunk)))
 
-        # threads have implicit barriers at the end
         for task in tasks:
             all_points.extend(task.result())
 
@@ -425,17 +355,10 @@ class AVTools:
 
     def _diff_models(self, old: Model, new: Model) -> dict[str, Any]:
         """
-        Compute field-by-field differences between two Pydantic-like models.
-
-        Args:
-            old (Model): The original model instance.
-            new (Model): The updated (possibly partial) model instance.
-
-        Returns:
-            Dict[str, Any]: A mapping of fields present in `new` whose values differ from `old`.
+        Compute field-by-field differences between two Pydantic models.
         """
-        old_data: dict[str, Any] = old.dict()
-        new_data: dict[str, Any] = new.dict(exclude_unset=True)
+        old_data: dict[str, Any] = old.model_dump()
+        new_data: dict[str, Any] = new.model_dump(exclude_unset=True)
         return {k: v for k, v in new_data.items() if old_data.get(k) != v}
 
     def _ensure_token(
@@ -445,12 +368,9 @@ class AVTools:
     ) -> None:
         """
         Ensure that session.auth.token is populated by the CERN OAuth wrapper.
+
         If no token exists, fire a dummy GET against the LanDB devices endpoint
         (which under the hood will trigger the token fetch).
-
-        Args:
-            session: Authenticated ServiceAuthSession to verify.
-            config:  LanDBConfig holding base_url & endpoints.
         """
         token: Any = session.auth.token
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
 
@@ -21,56 +22,96 @@ position_logger = structlog.get_logger(__name__).bind(
 class EAMPosition(BaseModel):
     """Position record from the EAM grid."""
 
+    # Identifiers / classification
     equipment_no: str | None = Field(
         None,
         alias="equipmentno",
-        description="The equipment number of the position.",
-    )
-    equipment_desc: str | None = Field(
-        None,
-        alias="equipmentdesc",
-        description="The human-readable description of the position.",
+        description="Equipment number of the position.",
     )
     eq_class: str | None = Field(
         None,
         alias="class",
-        description='The classification of the position (EAM "class" field).',
+        description='Classification of the position (EAM "class" field).',
+    )
+    category: str | None = Field(
+        None,
+        description="Sub-classification or category of the position.",
+    )
+
+    # Description / ownership
+    equipment_desc: str | None = Field(
+        None,
+        alias="equipmentdesc",
+        description="Human-readable description of the position.",
+    )
+    sponsor: str | None = Field(
+        None,
+        validation_alias="cust_3_CHAR_OBJ_AV008",
+        description="Sponsor or responsible entity for this position.",
+    )
+
+    # Hierarchy / lifecycle / status
+    parent_asset: str | None = Field(
+        None,
+        alias="parentasset",
+        description="Parent asset or higher-level position.",
     )
     commission_date: date | None = Field(
         None,
         alias="commissiondate",
         description="Commissioning date of the position.",
     )
-    parent_asset: str | None = Field(
+    asset_status_display: str | None = Field(
         None,
-        alias="parentasset",
-        description="Parent asset or higher-level position for this position.",
-    )
-    sponsor: str | None = Field(
-        None,
-        description="Sponsor or responsible entity for this position.",
+        alias="assetstatus_display",
+        description="Human-readable asset status label.",
     )
 
     model_config = ConfigDict(
         populate_by_name=True,
-        from_attributes=True,
+        from_attributes=True,  # allow model_validate(ORM_instance)
         extra="ignore",
+        str_strip_whitespace=True,
     )
+
+    # --- Normalization -------------------------------------------------------
 
     @model_validator(mode="before")
     @classmethod
     def _flatten_cells(cls, values: Any) -> Any:
-        """Flatten EAM grid `cell` entries when parsing raw JSON rows."""
-        if not isinstance(values, dict):
+        """
+        Flatten EAM grid rows of the form {"cell": [{"t": key, "value": val}, ...], ...}
+        into a simple mapping {key: value, ...}. Non-mapping inputs pass through.
+        """
+        if not isinstance(values, Mapping):
             return values
 
         flattened: dict[str, Any] = {k: v for k, v in values.items() if k != "cell"}
         for cell in values.get("cell", []):
-            key = cell.get("t")
-            if key is not None:
-                flattened[key] = cell.get("value")
+            if isinstance(cell, Mapping):
+                key = cell.get("t")
+                if key:
+                    flattened[key] = cell.get("value")
 
         return flattened
+
+    @field_validator(
+        "equipment_no",
+        "eq_class",
+        "category",
+        "equipment_desc",
+        "sponsor",
+        "parent_asset",
+        "asset_status_display",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_str(cls, v: Any) -> str | None:
+        """Normalize incoming string-like values (strip, empty -> None)."""
+        if v is None:
+            return None
+        s = str(v).strip()
+        return s or None
 
     @field_validator("commission_date", mode="before")
     @classmethod
@@ -100,19 +141,23 @@ class EAMPosition(BaseModel):
             return None
         return value.isoformat()
 
+    # --- Convenience ---------------------------------------------------------
+
     def __str__(self) -> str:
         return (
             "EAMPosition("
             f"equipment_no={self.equipment_no!r}, "
             f"equipment_desc={self.equipment_desc!r}, "
             f"eq_class={self.eq_class!r}, "
+            f"category={self.category!r}, "
             f"commission_date={self.commission_date!r}, "
             f"parent_asset={self.parent_asset!r}, "
-            f"sponsor={self.sponsor!r}"
+            f"sponsor={self.sponsor!r}, "
+            f"asset_status_display={self.asset_status_display!r}"
             ")"
         )
 
     def log_device(self) -> None:
-        """Emit this position as a structured log event."""
+        """Emit this position as a structured log event (name kept for compatibility)."""
         payload = self.model_dump(mode="json", by_alias=False, exclude_none=True)
         position_logger.info("eam_position_synced", **payload)

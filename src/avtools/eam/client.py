@@ -1,65 +1,151 @@
 from __future__ import annotations
 
-from typing import Any, List, Type, TypeVar
+from collections.abc import Callable, Mapping
+from typing import Any, Type, TypeVar
+from urllib.parse import urljoin
 
 import structlog
 from requests import Response, Session
 from requests.auth import HTTPBasicAuth
+from requests.exceptions import RequestException
 
 from avtools.eam.config import EAMConfig
 from avtools.eam.device import EAMDevice
 from avtools.eam.position import EAMPosition
 from avtools.exception.errors import NoRecordsFound
 
-# Generic parser type for devices and positions
-T = TypeVar("T", bound=EAMDevice)
+T = TypeVar("T")  # generic model (EAMDevice, EAMPosition, ...)
+
+client_logger = structlog.get_logger(__name__).bind(
+    component="eam",
+    model="EAMClient",
+)
 
 
 class EAMClient:
-    """Client for fetching record counts and device/position lists from EAM."""
+    """
+    Client for fetching record counts and device/position lists from the EAM API.
+
+    Note: requests.Session is not thread-safe; prefer one client per thread.
+    """
+
+    # --- Lifecycle ----------------------------------------------------------
 
     def __init__(
         self,
         authorization: HTTPBasicAuth,
-        config: EAMConfig = EAMConfig(),
+        config: EAMConfig | None = None,
+        session: Session | None = None,
     ) -> None:
-        """Initialize EAM client with auth and default headers."""
-        self.config = config
-        self._session = Session()
+        self.config = config or EAMConfig()
+        self._owns_session = session is None
+        self._session = session or Session()
         self._session.auth = authorization
-        self._session.headers.update(self._default_headers())
-        self.logger = structlog.get_logger(self.__class__.__name__)
+        self._session.headers.update(self.config.headers)
 
-    def _request(self, payload: dict[str, Any]) -> Response:
-        """Perform a POST request against the EAM grid data endpoint."""
-        url = f"{self.config.base_url}/{self.config.endpoint}"
-        response = self._session.post(url, json=payload)
+    def __enter__(self) -> EAMClient:
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self._owns_session:
+            self._session.close()
+
+    # --- HTTP / JSON helpers ------------------------------------------------
+
+    def _endpoint_url(self) -> str:
+        """Build the full EAM grid data endpoint URL."""
+        return urljoin(
+            self.config.base_url.rstrip("/") + "/", self.config.endpoint.lstrip("/")
+        )
+
+    def _request(self, payload: Mapping[str, Any]) -> Response:
+        """POST to the EAM grids/data endpoint. Raises on HTTP error."""
+        url = self._endpoint_url()
         try:
-            response.raise_for_status()
-        except Exception as e:
-            self.logger.error("EAM API request failed", error=str(e), url=url)
+            resp = self._session.post(
+                url,
+                json=dict(payload),
+                timeout=self.config.timeout,
+                verify=self.config.verify,
+            )
+            resp.raise_for_status()
+            return resp
+        except RequestException as e:
+            body_preview = ""
+            try:
+                body_preview = (resp.text if "resp" in locals() else "")[:500]  # type: ignore[name-defined]
+            except Exception:
+                pass
+
+            client_logger.error(
+                "eam_api_request_failed",
+                url=url,
+                payload_keys=list(payload.keys()),
+                rowCount=payload.get("rowCount"),
+                gridID=payload.get("gridID"),
+                gridName=payload.get("gridName"),
+                error=str(e),
+                body_preview=body_preview,
+                exc_info=True,
+            )
             raise
-        return response
 
-    def _extract(self, response: Response, *keys: str, default=None):
-        """Safely extract nested JSON keys from a response."""
-        data = response.json()
-        for key in keys:
-            data = data.get(key, {})
-        return data or default
+    @staticmethod
+    def _json(resp: Response) -> Any:
+        """Parse JSON from a response with logging on failure."""
+        try:
+            return resp.json()
+        except ValueError:
+            client_logger.error(
+                "eam_invalid_json_response",
+                status_code=resp.status_code,
+                text_preview=resp.text[:500],
+            )
+            return None
 
-    def _get_total_records(self, grid_id: str, grid_name: str) -> int:
-        """Return total AV records for a given grid."""
-        payload = dict(self.config.default_query)
+    @staticmethod
+    def _extract(obj: Any, *keys: Any, default: Any = None) -> Any:
+        """Safely walk nested dicts/lists by keys or integer indices."""
+        cur = obj
+        for k in keys:
+            if isinstance(cur, dict) and isinstance(k, str):
+                cur = cur.get(k)
+            elif isinstance(cur, list) and isinstance(k, int) and 0 <= k < len(cur):
+                cur = cur[k]
+            else:
+                return default
+            if cur is None:
+                return default
+        return cur if cur is not None else default
+
+    # --- Counts -------------------------------------------------------------
+
+    def _get_total_records(self, grid_id: int | str, grid_name: str) -> int:
+        """Return total records for a given grid."""
+        # Prefer config builders to ensure deep copy & correct filter setup
+        payload = self.config.make_query()
         payload.update(
             {
                 "gridID": grid_id,
                 "userFunctionName": grid_name,
                 "gridName": grid_name,
+                # rowCount=0 means "count only" in your defaults
+                "rowCount": 0,
             }
         )
-        records = self._extract(self._request(payload), "data", "records", default=0)
-        return int(records)
+        resp = self._request(payload)
+        data = self._json(resp)
+        records = self._extract(data, "data", "records", default=0)
+        try:
+            return int(records)
+        except (TypeError, ValueError):
+            client_logger.warning(
+                "eam_non_integer_records_field",
+                grid_id=grid_id,
+                grid_name=grid_name,
+                records=records,
+            )
+            return 0
 
     def get_number_av_assets(self) -> int:
         """Get total number of AV assets in EAM."""
@@ -75,16 +161,51 @@ class EAMClient:
             self.config.position_grid_name,
         )
 
+    # --- Model coercion -----------------------------------------------------
+
+    def _coerce_model(
+        self,
+        parser: type[T] | Callable[[Mapping[str, Any]], T],
+        row: Mapping[str, Any],
+    ) -> T:
+        """
+        Convert a raw row dict into a model instance.
+
+        Supports:
+          - Pydantic v2: parser.model_validate(row)
+          - Pydantic v1: parser.parse_obj(row)
+          - Callable parser(row)
+          - Dataclass-like: parser(**row)
+        """
+        if callable(parser) and not isinstance(parser, type):
+            return parser(row)
+
+        if hasattr(parser, "model_validate"):
+            return parser.model_validate(row)  # type: ignore[attr-defined]
+
+        if hasattr(parser, "parse_obj"):
+            return parser.parse_obj(row)  # type: ignore[attr-defined]
+
+        try:
+            return parser(**row)  # type: ignore[misc]
+        except TypeError:
+            return parser(row)  # type: ignore[call-arg]
+
+    # --- List fetch ---------------------------------------------------------
+
     def _fetch_list(
         self,
-        grid_id: str,
+        grid_id: int | str,
         grid_name: str,
         missing_msg: str,
         row_count: int,
-        parser: type[T] = EAMDevice,
+        parser: type[T] | Callable[[Mapping[str, Any]], T],
+        *,
+        log_each: bool = True,
     ) -> list[T]:
         """Fetch rows from EAM and return them as parser model instances."""
-        payload = dict(self.config.default_query)
+        # Prefer config builders to ensure deep copy & correct filter setup
+        payload = self.config.make_query()
         payload.update(
             {
                 "rowCount": row_count,
@@ -93,23 +214,48 @@ class EAMClient:
                 "gridName": grid_name,
             }
         )
-        response = self._request(payload)
-        rows = self._extract(response, "data", "row", default=[])
-        if not rows:
+        resp = self._request(payload)
+        data = self._json(resp)
+        rows = self._extract(data, "data", "row", default=[]) or []
+
+        if not isinstance(rows, list) or not rows:
             raise NoRecordsFound(missing_msg)
 
         items: list[T] = []
         for row in rows:
-            obj = parser.parse_obj(row)
-            obj.log_device()
+            if not isinstance(row, Mapping):
+                client_logger.warning(
+                    "eam_skipping_non_dict_row",
+                    grid_name=grid_name,
+                    row_preview=str(row)[:200],
+                )
+                continue
+
+            obj = self._coerce_model(parser, row)
+
+            if log_each:
+                log_fn = getattr(obj, "log_device", None)
+                if callable(log_fn):
+                    try:
+                        log_fn()
+                    except Exception:
+                        client_logger.warning(
+                            "eam_log_device_failed",
+                            grid_name=grid_name,
+                            exc_info=True,
+                        )
+
             items.append(obj)
 
-        self.logger.info(
-            "Finished processing retrieved EAM data",
+        client_logger.info(
+            "eam_finished_processing_rows",
+            grid_id=grid_id,
             grid_name=grid_name,
-            items=len(items),
+            count=len(items),
         )
         return items
+
+    # --- Public API ---------------------------------------------------------
 
     def get_device_list(self, records: int) -> list[EAMDevice]:
         """Fetch AV device data as a list of EAMDevice instances."""
@@ -128,14 +274,5 @@ class EAMClient:
             self.config.position_grid_name,
             "No records found for any AV position in EAM.",
             records,
-            parser=EAMPosition,  # type: ignore[arg-type]
+            parser=EAMPosition,
         )
-
-    @staticmethod
-    def _default_headers() -> dict[str, str]:
-        """Default headers for EAM requests."""
-        return {
-            "INFOR_ORGANIZATION": "*",
-            "INFOR_LOCALIZE_RESULTS": "true",
-            "Accept": "application/json",
-        }
