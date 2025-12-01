@@ -12,6 +12,15 @@ authors = [
   "jpolok <jarek.polok@cern.ch>",
 ]
 
+license    = "Proprietary"
+homepage   = "https://gitlab.cern.ch/itdcim/av-tools"
+repository = "https://gitlab.cern.ch/itdcim/av-tools.git"
+
+[tool.poetry.urls]
+Homepage   = "https://gitlab.cern.ch/itdcim/av-tools"
+Repository = "https://gitlab.cern.ch/itdcim/av-tools.git"
+Issues     = "https://gitlab.cern.ch/itdcim/av-tools/-/issues"
+
 # Internal PyPI mirror (CERN)
 [[tool.poetry.source]]
 name     = "pypiserver"
@@ -19,11 +28,11 @@ url      = "https://pypiserver.cern.ch/simple"
 priority = "supplemental"
 
 [tool.poetry.dependencies]
-# Python runtime
-python = ">=3.11.8,<4.0"
+# Python runtime: 3.11 only, but any microversion (works with RHEL9 python3.11)
+python = ">=3.11,<3.12"
 
 # Runtime dependencies (alphabetical)
-cern-oauthlib-pydantic2 = ">=25"
+cern-oauthlib-pydantic2 = "^25.0.0"
 click                   = ">=8.1.8,<9.0.0"
 influxdb                = "^5.3.1"
 influxdb-client         = "^1.48.0"
