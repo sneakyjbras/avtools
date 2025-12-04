@@ -2,7 +2,7 @@
 
 [tool.poetry]
 name        = "avtools"
-version     = "1.0.6"
+version     = "1.0.7"
 description = "Monitoring tools for the AV infrastructure of CERN."
 readme      = "README.md"
 
@@ -32,7 +32,7 @@ priority = "supplemental"
 python = ">=3.11,<3.12"
 
 # Runtime dependencies (alphabetical)
-cern_oauthlib = {version=">=25,<26", allow-prereleases=false}
+cern-oauthlib           = ">=25,<27"
 click                   = ">=8.1.7,<9.0.0"
 influxdb                = "^5.3.1"
 influxdb-client         = "^1.48.0"
