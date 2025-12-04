@@ -32,7 +32,7 @@ priority = "supplemental"
 python = ">=3.11,<3.12"
 
 # Runtime dependencies (alphabetical)
-cern-oauthlib-pydantic2 = "^25.0.0"
+cern-oauthlib           = ">=23.2.2"
 click                   = ">=8.1.7,<9.0.0"
 influxdb                = "^5.3.1"
 influxdb-client         = "^1.48.0"
