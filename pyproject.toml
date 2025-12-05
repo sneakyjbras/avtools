@@ -1,10 +1,11 @@
-# pyproject.toml
-
 [tool.poetry]
 name        = "avtools"
 version     = "1.0.7"
 description = "Monitoring tools for the AV infrastructure of CERN."
 readme      = "README.md"
+license     = "Proprietary"
+homepage    = "https://gitlab.cern.ch/itdcim/av-tools"
+repository  = "https://gitlab.cern.ch/itdcim/av-tools.git"
 
 authors = [
   "jsapinat <jose.bras@cern.ch>",
@@ -12,19 +13,19 @@ authors = [
   "jpolok <jarek.polok@cern.ch>",
 ]
 
-license    = "Proprietary"
-homepage   = "https://gitlab.cern.ch/itdcim/av-tools"
-repository = "https://gitlab.cern.ch/itdcim/av-tools.git"
-
 [tool.poetry.urls]
 Homepage   = "https://gitlab.cern.ch/itdcim/av-tools"
 Repository = "https://gitlab.cern.ch/itdcim/av-tools.git"
 Issues     = "https://gitlab.cern.ch/itdcim/av-tools/-/issues"
 
-# Internal PyPI mirror (CERN)
+[[tool.poetry.source]]
+name     = "pypiserver_qa"
+url      = "https://qa-pypi-itdcim.cern.ch/simple"
+priority = "supplemental"
+
 [[tool.poetry.source]]
 name     = "pypiserver"
-url      = "https://pypiserver.cern.ch/simple"
+url      = "https://pypi-itdcim.cern.ch/simple"
 priority = "supplemental"
 
 [tool.poetry.dependencies]
@@ -32,25 +33,24 @@ priority = "supplemental"
 python = ">=3.11,<3.12"
 
 # Runtime dependencies (alphabetical)
-cern-oauthlib           = ">=25,<27"
-click                   = ">=8.1.7,<9.0.0"
-influxdb                = "^5.3.1"
-influxdb-client         = "^1.48.0"
-pexpect                 = ">=4.8.0,<5.0.0"
-psycopg2-binary         = "^2.9.10"
-pyasn1                  = ">=0.4.8,<0.5.0"
-pydantic                = "^2.10.6"
-pysnmp                  = "4.4.12"
-requests                = "^2.31.0"
-sqlalchemy              = "^2.0.39"
-structlog               = "^25.1.0"
+cern-oauthlib   = ">=25,<27"
+click           = ">=8.1.7,<9.0.0"
+influxdb        = "^5.3.1"
+influxdb-client = "^1.48.0"
+pexpect         = ">=4.8.0,<5.0.0"
+psycopg2-binary = "^2.9.10"
+pyasn1          = ">=0.4.8,<0.5.0"
+pydantic        = "^2.10.6"
+pysnmp          = "4.4.12"
+requests        = "^2.31.0"
+sqlalchemy      = "^2.0.39"
+structlog       = "^25.1.0"
 
 [[tool.poetry.packages]]
 include = "avtools"
 from    = "src"
 
 [tool.poetry.scripts]
-# CLI entry points
 avtools   = "avtools.main:cli"
 get-token = "avtools.main:get_token"
 
@@ -62,6 +62,9 @@ detect-secrets = "^1.5.0"
 ipdb       = "^0.13.13"
 ipython    = "^8.32.0"
 pre-commit = "^4.1.0"
+pytest = "^9.0.1"
+pytest-cov = "^7.0.0"
+pytest-mock = "^3.15.1"
 
 [build-system]
 requires      = ["poetry-core>=2.0.0,<3.0.0"]
