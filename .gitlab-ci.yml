@@ -1,34 +1,37 @@
+image: python:3.11-slim
+
 stages:
   - lint
   - test
 
-default:
-  image: python:3.11-slim
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  POETRY_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pypoetry"
+  POETRY_VIRTUALENVS_IN_PROJECT: "true"
+  POETRY_NO_INTERACTION: "1"
+  # If your runners need a custom CA bundle for CERN internal mirrors, uncomment and adapt:
+  # REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ca-certificates.crt"
 
-  variables:
-    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
-    POETRY_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pypoetry"
-    POETRY_VIRTUALENVS_IN_PROJECT: "true"
-    POETRY_NO_INTERACTION: "1"
+cache:
+  paths:
+    - .cache/pip
+    - .cache/pypoetry
+    - .venv
 
-  cache:
-    paths:
-      - .cache/pip
-      - .cache/pypoetry
-      - .venv
-
-  before_script:
-    - python -m pip install --upgrade pip
-    - pip install poetry
-    - poetry --version
-    - poetry install --with dev,lint
+before_script:
+  - python -m pip install --upgrade pip
+  - pip install poetry
+  - poetry --version
+  # Install main deps + dev + lint groups as declared in pyproject.toml
+  - poetry install --with dev,lint
 
 # ---------------- LINT JOB ----------------
 lint:
   stage: lint
   script:
     - poetry run black --check .
-
+    # Optional, if you want secrets scanning in CI:
+    # - poetry run detect-secrets scan --all-files
   only:
     - merge_requests
     - main
