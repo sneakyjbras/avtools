@@ -9,8 +9,6 @@ variables:
   POETRY_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pypoetry"
   POETRY_VIRTUALENVS_IN_PROJECT: "true"
   POETRY_NO_INTERACTION: "1"
-  # If your runners need a custom CA bundle for CERN internal mirrors, uncomment and adapt:
-  # REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ca-certificates.crt"
 
 cache:
   paths:
@@ -22,7 +20,6 @@ before_script:
   - python -m pip install --upgrade pip
   - pip install poetry
   - poetry --version
-  # Install main deps + dev + lint groups as declared in pyproject.toml
   - poetry install --with dev,lint
 
 # ---------------- LINT JOB ----------------
@@ -30,8 +27,7 @@ lint:
   stage: lint
   script:
     - poetry run black --check .
-    # Optional, if you want secrets scanning in CI:
-    # - poetry run detect-secrets scan --all-files
+
   only:
     - merge_requests
     - main
@@ -41,7 +37,8 @@ lint:
 unit_tests:
   stage: test
   script:
-    - poetry run pytest tests --maxfail=1 --disable-warnings --junitxml=pytest-unit.xml
+    - poetry run pytest tests -vv --disable-warnings --junitxml=pytest-unit.xml
+
   artifacts:
     when: always
     reports:
