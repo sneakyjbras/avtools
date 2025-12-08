@@ -34,7 +34,7 @@ class SNMPScenario:
     raise_on_ping: bool = False
     raise_on_probe: bool = False
     raise_on_query: bool = False
-    query_metric_value: int = 1
+    query_metric_value: Any = 1  # allow any type to verify pass-through
 
 
 def make_avtools_for_tests() -> AVTools:
@@ -360,3 +360,274 @@ def test_get_snmp_points_points_shape_is_consistent(monkeypatch):
         assert "tags" in p and isinstance(p["tags"], dict)
         assert "ip" in p["tags"]
         assert "fields" in p and isinstance(p["fields"], dict)
+
+
+# ---------------------------------------------------------------------------
+# Additional edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_get_snmp_points_partial_ping_liveness(monkeypatch):
+    """
+    Some devices are alive after ping, others not:
+    - all devices get ping points with status 0/1 accordingly;
+    - only alive devices get probe and query points.
+    """
+    av = make_avtools_for_tests()
+
+    devices = [
+        DummyDevice(ip="10.0.0.1"),
+        DummyDevice(ip="10.0.0.2"),
+        DummyDevice(ip="10.0.0.3"),
+    ]
+    alive_after_ping = {"10.0.0.1", "10.0.0.3"}
+
+    scenario = SNMPScenario(
+        alive_after_ping=alive_after_ping,
+        alive_after_probe=None,  # all ping-alive survive probe
+        query_metric_value=2025,
+    )
+    DummySNMPClient = make_dummy_snmp_client_factory(scenario)
+    monkeypatch.setattr(core, "SNMPClient", DummySNMPClient)
+
+    points = asyncio.run(av._get_snmp_points(devices=devices, max_workers=2))
+
+    ping_pts = [p for p in points if p["measurement"] == "ping"]
+    probe_pts = [p for p in points if p["measurement"] == "probe"]
+    query_pts = [p for p in points if p["measurement"] == "query"]
+
+    assert len(ping_pts) == len(devices)
+
+    # Ping status must match alive_after_ping set
+    status_by_ip = {p["tags"]["ip"]: p["fields"]["status"] for p in ping_pts}
+    for dev in devices:
+        expected = 1 if dev.ip in alive_after_ping else 0
+        assert status_by_ip[dev.ip] == expected
+
+    # Probe/query only for alive IPs
+    probe_ips = {p["tags"]["ip"] for p in probe_pts}
+    query_ips = {p["tags"]["ip"] for p in query_pts}
+    assert probe_ips == alive_after_ping
+    assert query_ips == alive_after_ping
+
+
+def test_get_snmp_points_partial_probe_liveness(monkeypatch):
+    """
+    All devices alive after ping, but only some pass the probe stage.
+    Query should only include the probe-alive devices.
+    """
+    av = make_avtools_for_tests()
+
+    devices = [
+        DummyDevice(ip="10.0.0.34"),
+        DummyDevice(ip="10.0.0.38"),
+        DummyDevice(ip="10.0.0.39"),
+    ]
+    alive_after_probe = {"10.0.0.34", "10.0.0.39"}
+
+    scenario = SNMPScenario(
+        alive_after_ping={d.ip for d in devices},
+        alive_after_probe=alive_after_probe,
+        query_metric_value=1337,
+    )
+    DummySNMPClient = make_dummy_snmp_client_factory(scenario)
+    monkeypatch.setattr(core, "SNMPClient", DummySNMPClient)
+
+    points = asyncio.run(av._get_snmp_points(devices=devices, max_workers=3))
+
+    ping_pts = [p for p in points if p["measurement"] == "ping"]
+    probe_pts = [p for p in points if p["measurement"] == "probe"]
+    query_pts = [p for p in points if p["measurement"] == "query"]
+
+    # All devices ping-alive
+    assert len(ping_pts) == len(devices)
+
+    # Only a subset survive probe & query
+    probe_ips = {p["tags"]["ip"] for p in probe_pts}
+    query_ips = {p["tags"]["ip"] for p in query_pts}
+    assert probe_ips == alive_after_probe
+    assert query_ips == alive_after_probe
+
+    # Query metric value is propagated unchanged
+    assert all(p["fields"]["value"] == 1337 for p in query_pts)
+
+
+def test_get_snmp_points_worker_failure_only_drops_failing_chunk(monkeypatch):
+    """
+    When one worker chunk raises, its points are dropped but other chunks
+    still contribute their points. This exercises per-chunk exception handling.
+    """
+    av = make_avtools_for_tests()
+
+    # 4 devices → with max_workers=2 we expect 2 chunks of size 2.
+    devices = [
+        DummyDevice(ip="10.0.0.1"),  # first chunk (will fail)
+        DummyDevice(ip="10.0.0.2"),
+        DummyDevice(ip="10.0.0.3"),  # second chunk (will succeed)
+        DummyDevice(ip="10.0.0.4"),
+    ]
+
+    class HalfFailSNMPClient:
+        def __init__(self, targets: Iterable[DummyDevice]) -> None:
+            self.targets = list(targets)
+            # Fail the chunk whose first IP ends with ".1"
+            first_ip = self.targets[0].ip if self.targets else ""
+            self._fail = first_ip.endswith(".1")
+
+        async def collect_ping(self):
+            if self._fail:
+                raise RuntimeError("ping failure in this chunk")
+            # treat all targets as alive
+            points = []
+            for dev in self.targets:
+                points.append(
+                    {
+                        "measurement": "ping",
+                        "tags": {"ip": dev.ip},
+                        "fields": {"status": 1},
+                    }
+                )
+            return points
+
+        async def collect_snmp_probe(self):
+            # For the successful chunk: everyone survives
+            alive_devices = list(self.targets)
+            points = []
+            for dev in alive_devices:
+                points.append(
+                    {
+                        "measurement": "probe",
+                        "tags": {"ip": dev.ip},
+                        "fields": {"uptime": 1},
+                    }
+                )
+            return points, alive_devices
+
+        async def collect_snmp_query(self, devices: list[DummyDevice]):
+            points = []
+            for dev in devices:
+                points.append(
+                    {
+                        "measurement": "query",
+                        "tags": {"ip": dev.ip},
+                        "fields": {"value": 2025},
+                    }
+                )
+            return points
+
+    monkeypatch.setattr(core, "SNMPClient", HalfFailSNMPClient)
+
+    points = asyncio.run(av._get_snmp_points(devices=devices, max_workers=2))
+
+    ping_ips = {p["tags"]["ip"] for p in points if p["measurement"] == "ping"}
+    probe_ips = {p["tags"]["ip"] for p in points if p["measurement"] == "probe"}
+    query_ips = {p["tags"]["ip"] for p in points if p["measurement"] == "query"}
+
+    # Only devices from the successful chunk (3 and 4) should appear
+    assert ping_ips == {"10.0.0.3", "10.0.0.4"}
+    assert probe_ips == {"10.0.0.3", "10.0.0.4"}
+    assert query_ips == {"10.0.0.3", "10.0.0.4"}
+
+
+def test_get_snmp_points_preserves_field_types_from_snmp_client(monkeypatch):
+    """
+    _get_snmp_points should not coerce field types; values from SNMPClient
+    are forwarded as-is.
+    """
+    av = make_avtools_for_tests()
+
+    devices = [
+        DummyDevice(ip="10.0.0.10"),
+        DummyDevice(ip="10.0.0.11"),
+    ]
+
+    scenario = SNMPScenario(
+        alive_after_ping=None,
+        alive_after_probe=None,
+        query_metric_value="42",  # string, not int
+    )
+    DummySNMPClient = make_dummy_snmp_client_factory(scenario)
+    monkeypatch.setattr(core, "SNMPClient", DummySNMPClient)
+
+    points = asyncio.run(av._get_snmp_points(devices=devices, max_workers=2))
+
+    query_pts = [p for p in points if p["measurement"] == "query"]
+    assert len(query_pts) == len(devices)
+    for p in query_pts:
+        assert p["fields"]["value"] == "42"
+        assert isinstance(p["fields"]["value"], str)
+
+
+def test_get_snmp_points_clamps_max_workers_to_at_least_one(monkeypatch):
+    """
+    max_workers <= 0 must be clamped to 1 so that chunking still works.
+    We verify that:
+    - all devices are pinged;
+    - SNMPClient is instantiated exactly once per call.
+    """
+    av = make_avtools_for_tests()
+
+    devices = [DummyDevice(ip=f"10.0.0.{i}") for i in range(1, 6)]
+
+    class CountingSNMPClient:
+        init_count = 0
+
+        def __init__(self, targets: Iterable[DummyDevice]) -> None:
+            type(self).init_count += 1
+            self.targets = list(targets)
+
+        async def collect_ping(self):
+            # Treat all as alive
+            points = []
+            for dev in self.targets:
+                points.append(
+                    {
+                        "measurement": "ping",
+                        "tags": {"ip": dev.ip},
+                        "fields": {"status": 1},
+                    }
+                )
+            return points
+
+        async def collect_snmp_probe(self):
+            alive_devices = list(self.targets)
+            points = []
+            for dev in alive_devices:
+                points.append(
+                    {
+                        "measurement": "probe",
+                        "tags": {"ip": dev.ip},
+                        "fields": {"uptime": 1},
+                    }
+                )
+            return points, alive_devices
+
+        async def collect_snmp_query(self, devices: list[DummyDevice]):
+            points = []
+            for dev in devices:
+                points.append(
+                    {
+                        "measurement": "query",
+                        "tags": {"ip": dev.ip},
+                        "fields": {"value": 34},
+                    }
+                )
+            return points
+
+    monkeypatch.setattr(core, "SNMPClient", CountingSNMPClient)
+
+    # Case 1: max_workers=0 → clamped to 1
+    CountingSNMPClient.init_count = 0
+    points_zero = asyncio.run(av._get_snmp_points(devices=devices, max_workers=0))
+
+    ping_zero = [p for p in points_zero if p["measurement"] == "ping"]
+    assert len(ping_zero) == len(devices)
+    assert CountingSNMPClient.init_count == 1
+
+    # Case 2: max_workers negative → also clamped to 1
+    CountingSNMPClient.init_count = 0
+    points_negative = asyncio.run(av._get_snmp_points(devices=devices, max_workers=-3))
+
+    ping_negative = [p for p in points_negative if p["measurement"] == "ping"]
+    assert len(ping_negative) == len(devices)
+    assert CountingSNMPClient.init_count == 1
