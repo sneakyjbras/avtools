@@ -38,7 +38,10 @@ class DummySession:
         self.calls: list[tuple[str, dict[str, Any] | None, bool | None]] = []
 
     def get(
-        self, url: str, params: dict[str, Any] | None = None, verify: bool | None = None
+        self,
+        url: str,
+        params: dict[str, Any] | None = None,
+        verify: bool | None = None,
     ):
         self.calls.append((url, params, verify))
         if self._raise_exc:
@@ -68,6 +71,11 @@ def make_avtools_for_tests() -> AVTools:
     av = object.__new__(AVTools)
     av.logger = structlog.get_logger("AVToolsTest")
     return av
+
+
+# ---------------------------------------------------------------------------
+# Basic behaviour: cached token vs no token
+# ---------------------------------------------------------------------------
 
 
 def test_ensure_token_uses_existing_token_without_expires_at():
@@ -217,7 +225,7 @@ def test_ensure_token_with_cached_token_does_not_mutate_auth_or_headers():
 
 
 # ---------------------------------------------------------------------------
-# Additional logging and idempotence tests
+# Logging and idempotence
 # ---------------------------------------------------------------------------
 
 
@@ -393,3 +401,57 @@ def test_ensure_token_probe_does_not_mutate_auth_object_or_headers():
 
     # Headers unchanged
     assert session.headers == headers_before
+
+
+# ---------------------------------------------------------------------------
+# “Retry-ish” behaviour across multiple calls
+# ---------------------------------------------------------------------------
+
+
+def test_ensure_token_allows_second_probe_after_non_ok_first_probe():
+    """
+    If the first probe returns non-ok and token remains None, a second call
+    should issue another GET and can succeed later.
+    """
+    av = make_avtools_for_tests()
+    session = DummySession(token=None, ok=False, status_code=503)
+    config = DummyConfig()
+
+    # First attempt: fails, token still None
+    av._ensure_token(session, config)
+    assert len(session.calls) == 1
+    assert session.auth.token is None
+
+    # Flip the dummy session to simulate the backend coming back
+    session._ok = True
+    session._status_code = 200
+
+    # Second attempt: should call GET again and now populate token
+    av._ensure_token(session, config)
+    assert len(session.calls) == 2
+    assert session.auth.token == "dummy-token"
+
+
+def test_ensure_token_allows_second_probe_after_exception_on_first_probe():
+    """
+    If the first probe raises an exception, a later call should be able
+    to try again successfully.
+    """
+    av = make_avtools_for_tests()
+    session = DummySession(token=None, raise_exc=True)
+    config = DummyConfig()
+
+    # First attempt: raises inside DummySession.get, but _ensure_token swallows
+    av._ensure_token(session, config)
+    assert len(session.calls) == 1
+    assert session.auth.token is None
+
+    # Clear the error and make the probe succeed
+    session._raise_exc = False
+    session._ok = True
+    session._status_code = 200
+
+    av._ensure_token(session, config)
+    # Now we should have a second call and a populated token
+    assert len(session.calls) == 2
+    assert session.auth.token == "dummy-token"
