@@ -116,7 +116,7 @@ def test_root_help_and_subcommand_help(
     assert "run-landb" in result.output
     assert "run-influx-snmp" in result.output
 
-    # Subcommand --help (requires dbod-url if the group option is required)
+    # Subcommand --help
     for cmd in ("run-eam", "run-landb", "run-influx-snmp"):
         result = runner.invoke(
             main.cli,
@@ -278,8 +278,51 @@ def test_run_eam_missing_password_causes_click_error(
     )
 
     assert result.exit_code != 0
+    # Slightly stricter than "not empty": ensure Click reports a missing option
     assert "Missing option" in result.output
+    assert "--password" in result.output
     # AVTools must not be called at all when args are invalid
+    assert patched_avtools.calls == []
+    assert patched_avtools.instances == []
+
+
+def test_run_influx_snmp_invalid_port_type_causes_click_error(
+    runner: CliRunner,
+    patched_avtools: type[DummyAVTools],
+) -> None:
+    """
+    Invalid type rejection:
+    --influx-port must be an integer; passing a non-integer should be rejected by Click
+    before AVTools is ever instantiated or called.
+    """
+    result = runner.invoke(
+        main.cli,
+        [
+            "--dbod-url",
+            "postgres://dummy-snmp",
+            "run-influx-snmp",
+            "--influx-host",
+            "influx.local",
+            "--influx-port",
+            "not-an-int",
+            "--influx-user",
+            "user",
+            "--influx-password",
+            "pass",
+            "--influx-db",
+            "av_metrics",
+        ],
+    )
+
+    # Click should fail argument parsing
+    assert result.exit_code != 0
+    assert result.exception is not None
+    # Strict-ish error message content check
+    assert "Invalid value" in result.output
+    assert "--influx-port" in result.output
+
+    # AVTools must not be instantiated or called on invalid CLI args
+    assert patched_avtools.instances == []
     assert patched_avtools.calls == []
 
 
@@ -316,8 +359,8 @@ def test_run_eam_exception_is_handled_by_cli(
     assert result.exception is None
     assert "Traceback" not in result.output
 
-    # We can be lenient on the exact message, just ensure something is printed
-    assert result.output.strip() != ""
+    # Strict error-message content: CLI should surface the underlying error
+    assert "run_eam boom" in result.output
 
 
 def test_run_landb_exception_is_handled_by_cli(
@@ -344,7 +387,9 @@ def test_run_landb_exception_is_handled_by_cli(
     assert result.exit_code != 0
     assert result.exception is None
     assert "Traceback" not in result.output
-    assert result.output.strip() != ""
+
+    # Strict error-message content: CLI should surface the underlying error
+    assert "run_landb boom" in result.output
 
 
 # ---------------------------------------------------------------------------
