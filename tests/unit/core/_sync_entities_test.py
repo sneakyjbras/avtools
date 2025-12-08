@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 import structlog
 from pydantic import BaseModel
 
@@ -453,3 +454,73 @@ def test_sync_entities_logs_summary_with_counts():
     assert "inserted=2" in msg
     assert "updated=0" in msg
     assert "deleted=2" in msg
+
+
+# ---------------------------------------------------------------------------
+# Sync failure behaviour (new)
+# ---------------------------------------------------------------------------
+
+
+class LoggerRecorder:
+    """
+    Simple logger stub to capture info/error messages emitted by _sync_entities.
+    """
+
+    def __init__(self) -> None:
+        self.infos: list[str] = []
+        self.exceptions: list[str] = []
+
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self.infos.append(str(msg))
+
+    def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self.exceptions.append(str(msg))
+
+
+def test_sync_entities_sync_func_exception_propagates_and_skips_summary_log():
+    """
+    If sync_func raises, _sync_entities should:
+    - propagate the exception (no swallowing);
+    - not emit the final 'completed in ...' summary log.
+    """
+    av = make_avtools_for_tests()
+
+    cached_items = [
+        DummyModel(equipment_no="DEV-34", value=34, year=1911),
+        DummyModel(equipment_no="DEV-38", value=38, year=1978),
+    ]
+    api_items = [
+        DummyModel(equipment_no="DEV-38", value=404, year=1978),  # will be updated
+        DummyModel(equipment_no="DEV-404", value=404, year=2025),  # will be inserted
+    ]
+
+    logger = LoggerRecorder()
+    av.logger = logger
+
+    sync_calls: list[dict[str, Any]] = []
+
+    def failing_sync(*, to_insert, to_update, to_delete) -> None:
+        sync_calls.append(
+            {
+                "insert": list(to_insert),
+                "update": list(to_update),
+                "delete": list(to_delete),
+            }
+        )
+        raise RuntimeError("dummy sync failure")
+
+    with pytest.raises(RuntimeError, match="dummy sync failure"):
+        av._sync_entities(
+            api_items=api_items,
+            cached_items=cached_items,
+            get_id=lambda m: m.equipment_no,
+            sync_func=failing_sync,
+            name="Dummy",
+        )
+
+    # sync_func must have been called exactly once
+    assert len(sync_calls) == 1
+
+    # Because the exception aborts the function before the summary log,
+    # there should be no info logs from _sync_entities.
+    assert logger.infos == []
