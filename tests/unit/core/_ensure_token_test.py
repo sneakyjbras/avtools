@@ -214,3 +214,182 @@ def test_ensure_token_with_cached_token_does_not_mutate_auth_or_headers():
     assert session.calls == []
     assert session.auth is auth_before
     assert session.headers == headers_before
+
+
+# ---------------------------------------------------------------------------
+# Additional logging and idempotence tests
+# ---------------------------------------------------------------------------
+
+
+class LoggerRecorder:
+    """
+    Simple logger stub to capture info/error messages emitted by _ensure_token.
+    """
+
+    def __init__(self) -> None:
+        self.infos: list[str] = []
+        self.errors: list[str] = []
+
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        # Message is already formatted via f-string in AVTools._ensure_token
+        self.infos.append(str(msg))
+
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self.errors.append(str(msg))
+
+
+def test_ensure_token_logs_cached_token_message_without_expires_at():
+    """
+    With an existing token (no expires_at), we should log that we are using
+    a cached access token and not hit the network.
+    """
+    av = make_avtools_for_tests()
+    logger = LoggerRecorder()
+    av.logger = logger
+
+    token = object()
+    session = DummySession(token=token)
+    config = DummyConfig()
+
+    av._ensure_token(session, config)
+
+    assert session.calls == []
+    assert any("Using cached access token" in msg for msg in logger.infos)
+    assert logger.errors == []
+
+
+def test_ensure_token_logs_cached_token_message_with_expires_at():
+    """
+    With an existing token that has expires_at, the log should include that
+    expiry value.
+    """
+
+    class TokenWithExpiry:
+        def __init__(self) -> None:
+            self.expires_at = 2025
+
+    av = make_avtools_for_tests()
+    logger = LoggerRecorder()
+    av.logger = logger
+
+    session = DummySession(token=TokenWithExpiry())
+    config = DummyConfig()
+
+    av._ensure_token(session, config)
+
+    assert session.calls == []
+    assert any(
+        "Using cached access token (expires at 2025)" in msg for msg in logger.infos
+    )
+    assert logger.errors == []
+
+
+def test_ensure_token_logs_probe_flow_and_success_when_fetching_token():
+    """
+    When no token exists and the probe succeeds:
+    - we log that we are probing for a token;
+    - we log that the token was obtained successfully.
+    """
+    av = make_avtools_for_tests()
+    logger = LoggerRecorder()
+    av.logger = logger
+
+    session = DummySession(token=None, ok=True, status_code=200)
+    config = DummyConfig()
+
+    av._ensure_token(session, config)
+
+    # One HTTP call
+    assert len(session.calls) == 1
+    # Logger should record both probe and success messages
+    assert any("No access token found; probing" in msg for msg in logger.infos)
+    assert any(
+        "Successfully obtained new access token via probe GET." in msg
+        for msg in logger.infos
+    )
+    assert logger.errors == []
+
+
+def test_ensure_token_logs_error_when_probe_not_ok():
+    """
+    Non-OK response should result in an error log mentioning the status code.
+    """
+    av = make_avtools_for_tests()
+    logger = LoggerRecorder()
+    av.logger = logger
+
+    session = DummySession(token=None, ok=False, status_code=404)
+    config = DummyConfig()
+
+    av._ensure_token(session, config)
+
+    # One HTTP call
+    assert len(session.calls) == 1
+
+    # Info about probing + error about failure
+    assert any("No access token found; probing" in msg for msg in logger.infos)
+    assert any(
+        "Probe GET failed [404] when obtaining token." in msg for msg in logger.errors
+    )
+
+
+def test_ensure_token_logs_error_when_get_raises():
+    """
+    Exceptions from the probe must be caught and logged as an error.
+    """
+    av = make_avtools_for_tests()
+    logger = LoggerRecorder()
+    av.logger = logger
+
+    session = DummySession(token=None, raise_exc=True)
+    config = DummyConfig()
+
+    # Should not raise
+    av._ensure_token(session, config)
+
+    assert len(session.calls) == 1
+    assert any(
+        "Error during token-fetch probe: dummy error from GET" in msg
+        for msg in logger.errors
+    )
+
+
+def test_ensure_token_second_call_does_not_probe_when_token_already_set():
+    """
+    After a successful probe that populates session.auth.token, a second call
+    to _ensure_token must not issue another HTTP request.
+    """
+    av = make_avtools_for_tests()
+    session = DummySession(token=None, ok=True, status_code=200)
+    config = DummyConfig()
+
+    # First call: should probe and populate token
+    av._ensure_token(session, config)
+    assert session.auth.token == "dummy-token"
+    assert len(session.calls) == 1
+
+    # Second call: token exists → no additional GET
+    av._ensure_token(session, config)
+    assert len(session.calls) == 1  # still exactly one call
+
+
+def test_ensure_token_probe_does_not_mutate_auth_object_or_headers():
+    """
+    Even when probing (no token case), _ensure_token should not replace
+    session.auth or modify headers; only token value may change.
+    """
+    av = make_avtools_for_tests()
+    session = DummySession(token=None, ok=True, status_code=200)
+    config = DummyConfig()
+
+    auth_before = session.auth
+    headers_before = session.headers.copy()
+
+    av._ensure_token(session, config)
+
+    # Same auth object, but token may be updated
+    assert session.auth is auth_before
+    assert session.auth.token == "dummy-token"
+
+    # Headers unchanged
+    assert session.headers == headers_before
