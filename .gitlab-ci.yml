@@ -3,6 +3,9 @@ image: python:3.11-slim
 stages:
   - lint
   - test
+  - integration
+  - e2e
+  - release
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
@@ -19,31 +22,76 @@ cache:
 before_script:
   - python -m pip install --upgrade pip
   - pip install poetry
-  - poetry --version
   - poetry install --with dev,lint
 
-# ---------------- LINT JOB ----------------
+# ----- Lint stage -----
 lint:
   stage: lint
   script:
     - poetry run black --check .
-
   only:
     - merge_requests
     - main
     - develop
 
-# ---------------- UNIT TEST JOB ----------------
+# ----- Unit test stage -----
 unit_tests:
   stage: test
   script:
-    - poetry run pytest tests -vv --disable-warnings --junitxml=pytest-unit.xml
-
+    - poetry run pytest tests \
+        --disable-warnings \
+        --junitxml=pytest-unit.xml \
+        --cov=avtools --cov-report=xml:coverage.xml
   artifacts:
     when: always
     reports:
       junit: pytest-unit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
   only:
     - merge_requests
     - main
     - develop
+
+# ----- Integration test stage (future) -----
+integration_tests:
+  stage: integration
+  script:
+    - poetry run pytest tests/integration \
+        --disable-warnings \
+        --junitxml=pytest-integration.xml
+  artifacts:
+    when: always
+    reports:
+      junit: pytest-integration.xml
+  only:
+    - merge_requests
+    - main
+    - develop
+  when: manual
+  allow_failure: true
+
+# ----- End-to-end test stage (future) -----
+e2e_tests:
+  stage: e2e
+  script:
+    - poetry run pytest tests/e2e \
+        --disable-warnings \
+        --junitxml=pytest-e2e.xml
+  artifacts:
+    when: always
+    reports:
+      junit: pytest-e2e.xml
+  only:
+    - main
+  when: manual
+  allow_failure: true
+
+# ----- Release stage (publish to pypiserver) -----
+publish_package:
+  stage: release
+  script:
+    - poetry publish --build -r pypiserver --username "$PYPISERVER_USER" --password "$PYPISERVER_PASS" -v
+  only:
+    - tags
