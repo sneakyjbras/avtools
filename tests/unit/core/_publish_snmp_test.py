@@ -526,3 +526,132 @@ def test_publish_snmp_does_not_mutate_points_list(monkeypatch):
 
     # Points content remains unchanged
     assert points == before
+
+
+# ---------------------------------------------------------------------------
+# Additional error-path tests for malformed / partial writes
+# ---------------------------------------------------------------------------
+
+
+def test_publish_snmp_invalid_field_type_logs_error_not_raise(monkeypatch):
+    """
+    Points with incorrect field types should cause Influx write to fail,
+    but _publish_snmp must only log and return, without raising.
+    """
+
+    class DummyInfluxClient:
+        instances: list[DummyInfluxClient] = []
+
+        def __init__(
+            self,
+            host: str,
+            port: int,
+            username: str,
+            password: str,
+            database: str,
+            ssl: bool,
+            verify_ssl: bool,
+        ) -> None:
+            DummyInfluxClient.instances.append(self)
+
+        def write_points(self, points: list[dict[str, Any]]) -> None:
+            # Simulate a type error from Influx due to bad field type
+            for p in points:
+                fields = p.get("fields", {})
+                if any(isinstance(v, str) for v in fields.values()):
+                    raise ValueError("invalid field type for Influx")
+            # otherwise succeed silently
+
+    monkeypatch.setattr(core, "InfluxClient", DummyInfluxClient)
+
+    av, logger = make_avtools_for_tests()
+
+    points = [
+        {
+            "measurement": "query",
+            "tags": {"ip": "10.0.0.1"},
+            "fields": {"value": 1},
+        },
+        {
+            "measurement": "query",
+            "tags": {"ip": "10.0.0.2"},
+            "fields": {"value": "not-a-number"},  # invalid type
+        },
+    ]
+
+    # Should not raise, even though one field type is invalid
+    av._publish_snmp(
+        points=points,
+        influx_host="influx.local",
+        influx_port=8086,
+        influx_user="user",
+        influx_password="pass",
+        influx_db="avtools",
+    )
+
+    # Error should be logged
+    assert any(
+        "failed writing points" in msg.lower() for msg in logger.exception_messages
+    )
+    # Influx client instantiated exactly once
+    assert len(DummyInfluxClient.instances) == 1
+
+
+def test_publish_snmp_partial_write_error_does_not_retry(monkeypatch):
+    """
+    A 'partial write' style error from Influx must:
+    - result in a single write_points attempt;
+    - be logged;
+    - not be retried or propagated.
+    """
+
+    class DummyInfluxClient:
+        instances: list[DummyInfluxClient] = []
+
+        def __init__(
+            self,
+            host: str,
+            port: int,
+            username: str,
+            password: str,
+            database: str,
+            ssl: bool,
+            verify_ssl: bool,
+        ) -> None:
+            self.write_calls = 0
+            DummyInfluxClient.instances.append(self)
+
+        def write_points(self, points: list[dict[str, Any]]) -> None:
+            self.write_calls += 1
+            # Simulate a typical Influx "partial write" error
+            raise RuntimeError("partial write: field type conflict")
+
+    monkeypatch.setattr(core, "InfluxClient", DummyInfluxClient)
+
+    av, logger = make_avtools_for_tests()
+
+    points = [
+        {
+            "measurement": "query",
+            "tags": {"ip": "10.0.0.34"},
+            "fields": {"value": 2025},
+        }
+    ]
+
+    # Must not raise, even though Influx reports a partial write failure
+    av._publish_snmp(
+        points=points,
+        influx_host="influx.local",
+        influx_port=8086,
+        influx_user="user",
+        influx_password="pass",
+        influx_db="avtools",
+    )
+
+    assert len(DummyInfluxClient.instances) == 1
+    client = DummyInfluxClient.instances[0]
+    # Only a single write attempt → no retry
+    assert client.write_calls == 1
+
+    # Error message logged and includes 'partial write'
+    assert any("partial write" in msg.lower() for msg in logger.exception_messages)
