@@ -21,11 +21,11 @@ cache:
 stages:
   - prebuild
   - lint
+  - rpm
   - test
   - integration
   - e2e
   - build
-  - rpm
   - koji_build
   - koji_install
   - deploy_qa
