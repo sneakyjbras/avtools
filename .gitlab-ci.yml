@@ -33,6 +33,7 @@ python-tests:
 .python-test-base:
   extends: .python-base
   before_script:
+    - pip install "poetry==$POETRY_VERSION"
     - poetry install --with dev,lint
 
 lint:
