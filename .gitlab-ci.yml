@@ -1,8 +1,7 @@
 include:
   - project: "itdcim/itdcim-ci-templates"
     ref: master
-    file: "templates/python/poetry-test-and-publish-with-koji.yaml"
-  - remote: "https://gitlab.cern.ch/linuxsupport/rpmci/raw/master/rpm-ci.yml"
+    file: "templates/python/poetry-test-and-publish.yaml"
 
 variables:
   PYPI_BUILD_IMAGE: "python:3.11-slim"
@@ -21,13 +20,9 @@ cache:
 stages:
   - prebuild
   - lint
-  - rpm
   - test
   - integration
   - e2e
-  - build
-  - koji_build
-  - koji_install
   - deploy_qa
   - deploy_stable
 
