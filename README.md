@@ -7,7 +7,7 @@
 > **Infra:** AlmaLinux 9 (AL9) OpenStack VMs
 > **Dashboards:** Grafana (central CERN)
 >
-> **This project REPLACES the legacy AV dashboard:** https://av-dashboard.web.cern.ch/
+> **This project REPLACES the legacy AV dashboard:** https://cern.ch/avtools
 
 AV Tools is CERN’s monitoring and data‑collection stack for **Audio/Video (AV) devices** deployed across meeting rooms and lecture halls. It aggregates authoritative inventory data (EAM & LanDB), augments it with **real‑time probe signals** (ping/SNMP, etc.), and serves consolidated views in **Grafana** so operations can reason about device health, availability, and trends at scale.
 
