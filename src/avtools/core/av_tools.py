@@ -49,15 +49,16 @@ class AVTools:
         self,
         username: str,
         password: str,
-        base_url: str = "https://cmmsx.cern.ch/WSHub/REST/apis/",
+        base_url: str = "https://cmmsx.cern.ch/",
         *,
         asset_grid: str = "OSOBJA",
         position_grid: str = "OSOBJP",
-        asset_class_prefix: str = "AVV",
+        asset_class_prefix: str = "AV%",
+        limit: int | None = None,
     ) -> None:
         """
-        Register EAM credentials (HTTP Basic Auth behind the scenes) and trigger
-        synchronization of assets and positions using `eam-rest-client`.
+        Register EAM credentials (HTTP Basic Auth behind the scenes) and trigger synchronization
+        of devices and positions using `eam-rest-client`.
 
         Notes:
             - Service-account access requires the *service account* username/password.
@@ -72,43 +73,55 @@ class AVTools:
         self.sync_eam_devices(
             asset_grid=asset_grid,
             asset_class_prefix=asset_class_prefix,
+            limit=limit,
         )
-        self.sync_eam_positions(position_grid=position_grid)
+        self.sync_eam_positions(
+            position_grid=position_grid,
+            limit=limit,
+        )
 
     def sync_eam_devices(
         self,
         *,
         asset_grid: str = "OSOBJA",
-        asset_class_prefix: str = "AVV",
+        asset_class_prefix: str = "AV%",
+        limit: int | None = None,
     ) -> None:
         """
-        Fetch all EAM assets (devices) from the remote API and reconcile them with the local cache.
+        Fetch EAM devices (assets) from the remote API and reconcile them with the local cache.
 
-        The `asset_class_prefix` filter mimics the previous behavior (e.g. AVV%).
-        If the underlying query operator is unsupported by the installed `eam-rest-client`,
-        the sync falls back to an unfiltered grid query and logs a warning.
+        Query shape:
+            Equipment.objects
+            .use_grid(name=<GRID>)
+            .filter(eq_class__startswith="AV")  # optional
+            .limit(<N>)
+            .all()
         """
 
         query = Equipment.objects.use_grid(name=asset_grid)
 
-        # We cannot pass `class=...` as a keyword argument in Python, so use **{...}.
-        # Try a few common operator spellings and fall back gracefully.
+        # Optional class prefix (preserve legacy intent)
         if asset_class_prefix:
-            try:
-                query = query.filter(**{"class__startswith": asset_class_prefix})
-            except Exception:
+            pfx = asset_class_prefix.rstrip("%")
+            for attempt in (
+                {"eq_class__startswith": pfx},
+                {"eq_class__like": f"{pfx}%"},
+                {"eq_class": f"{pfx}%"},
+                {"class__startswith": pfx},
+                {"class__like": f"{pfx}%"},
+                {"class": f"{pfx}%"},
+            ):
                 try:
-                    query = query.filter(**{"class__like": f"{asset_class_prefix}%"})
+                    query = query.filter(**attempt)
+                    break
                 except Exception:
-                    try:
-                        query = query.filter(**{"class": f"{asset_class_prefix}%"})
-                    except Exception:
-                        self.logger.warning(
-                            "eam_asset_class_filter_failed; proceeding without class filter",
-                            asset_grid=asset_grid,
-                            asset_class_prefix=asset_class_prefix,
-                            exc_info=True,
-                        )
+                    continue
+
+        if limit is not None:
+            try:
+                query = query.limit(limit)
+            except Exception:
+                self.logger.warning("eam_limit_failed", limit=limit, exc_info=True)
 
         eam_list: list[Equipment] = query.all()
         cache_list: list[Equipment] = self.dbod_helper.get_all_eam_devices()
@@ -116,7 +129,6 @@ class AVTools:
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            # Use the Python attribute name (snake_case), not the alias.
             get_id=lambda d: d.equipment_no,
             sync_func=self.dbod_helper.sync_eam_devices,
             name="EAM Devices",
@@ -126,21 +138,32 @@ class AVTools:
         self,
         *,
         position_grid: str = "OSOBJP",
+        limit: int | None = None,
     ) -> None:
         """
-        Fetch all EAM positions from the remote API and reconcile them with the local cache.
+        Fetch EAM positions from the remote API and reconcile them with the local cache.
 
-        Uses the EAM `position_grid` via `eam-rest-client` and compares the result against the
-        locally cached version. Any new, updated, or removed positions are propagated into the
-        local database via the `dbod_helper`.
+        Query shape:
+            Equipment.objects
+            .use_grid(name=<GRID>)
+            .limit(<N>)
+            .all()
         """
-        eam_list: list[Equipment] = Equipment.objects.use_grid(name=position_grid).all()
+
+        query = Equipment.objects.use_grid(name=position_grid)
+
+        if limit is not None:
+            try:
+                query = query.limit(limit)
+            except Exception:
+                self.logger.warning("eam_limit_failed", limit=limit, exc_info=True)
+
+        eam_list: list[Equipment] = query.all()
         cache_list: list[Equipment] = self.dbod_helper.get_all_eam_positions()
 
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            # Use the Python attribute name (snake_case), not the alias.
             get_id=lambda d: d.equipment_no,
             sync_func=self.dbod_helper.sync_eam_positions,
             name="EAM Positions",
