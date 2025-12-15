@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from eam_rest_client import Equipment
@@ -11,8 +11,6 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
-    """Base for EAM ORM models."""
-
     pass
 
 
@@ -20,9 +18,10 @@ class Base(DeclarativeBase):
 
 
 class EAMPositionORM(Base):
-    """EAM position node (positions form a parent/child tree in EAM).
+    """ORM mapping for EAM position rows.
 
-    Note: this now maps the EAM REST client's `Equipment` model.
+    Stores a small subset of EAM REST `Equipment` fields into the legacy
+    `eam_positions` schema.
     """
 
     __tablename__ = "eam_positions"
@@ -32,7 +31,7 @@ class EAMPositionORM(Base):
         Index("ix_eam_positions_eqclass_category", "eqclass", "category"),
     )
 
-    # Sizes are conservative; tune to upstream constraints if you know them.
+    # DB columns kept as-is (legacy schema)
     equipment_no: Mapped[str] = mapped_column(
         "equipmentno", String(64), primary_key=True
     )
@@ -42,11 +41,9 @@ class EAMPositionORM(Base):
         "equipmentdesc", Text, nullable=True
     )
     sponsor: Mapped[str | None] = mapped_column("sponsor", String(64), nullable=True)
-
     parent_asset: Mapped[str | None] = mapped_column(
         "parentasset", String(64), nullable=True
     )
-
     commission_date: Mapped[date | None] = mapped_column(
         "commissiondate", Date, nullable=True
     )
@@ -54,7 +51,7 @@ class EAMPositionORM(Base):
         "assetstatus_display", String(64), nullable=True
     )
 
-    # --- Converters ----------------------------------------------------------
+    # --- Helpers -------------------------------------------------------------
 
     @staticmethod
     def _get(obj: Any, *names: str) -> Any:
@@ -74,7 +71,7 @@ class EAMPositionORM(Base):
         if hasattr(obj, "model_dump"):
             return obj.model_dump(by_alias=False)  # type: ignore[attr-defined]
         if hasattr(obj, "dict"):
-            return obj.dict()  # type: ignore[attr-defined]
+            return obj.dict(by_alias=False)  # type: ignore[attr-defined]
         if isinstance(obj, dict):
             return obj
         if hasattr(obj, "__dict__"):
@@ -83,69 +80,89 @@ class EAMPositionORM(Base):
 
     @staticmethod
     def _parse_date(v: Any) -> date | None:
-        if isinstance(v, date):
+        if v is None or v == "":
+            return None
+        if isinstance(v, date) and not isinstance(v, datetime):
             return v
-        if isinstance(v, str) and v:
+        if isinstance(v, datetime):
+            return v.date()
+        if isinstance(v, str):
             try:
-                return date.fromisoformat(v)
+                return date.fromisoformat(v[:10])
             except ValueError:
                 return None
         return None
 
+    # --- Converters ----------------------------------------------------------
+
     @classmethod
     def from_position(cls, position: Equipment) -> EAMPositionORM:
-        """Create an ORM row from an `Equipment` domain model."""
-        equipment_no = cls._get(position, "equipment_no", "equipmentno")
+        """Create an ORM row from an `Equipment` domain model.
+
+        Mapping (Equipment -> legacy DB columns):
+          equipment_no          <- code
+          eq_class              <- class_code (fallback class_desc)
+          category              <- category_code (fallback category_desc)
+          equipment_desc        <- description
+          sponsor               <- organization (fallback assigned_to / assigned_to_desc)
+          parent_asset          <- hierarchy_position_code (fallback hierarchy_asset_code)
+          commission_date       <- comission_date (note spelling)
+          asset_status_display  <- status_desc (fallback state_desc)
+        """
+        equipment_no = cls._get(position, "code")
         if not equipment_no:
             data = cls._as_dict(position)
-            equipment_no = data.get("equipment_no") or data.get("equipmentno")
+            equipment_no = data.get("code")
         if not equipment_no:
-            raise ValueError("Equipment missing equipment_no/equipmentno")
+            raise ValueError("Equipment missing code")
 
-        cd_raw = cls._get(position, "commission_date", "commissiondate")
+        cd_raw = cls._get(
+            position, "comission_date", "commission_date", "original_install_date"
+        )
         cd_parsed = cls._parse_date(cd_raw)
+
+        eq_class = cls._get(position, "class_code", "class_desc")
+        category = cls._get(position, "category_code", "category_desc")
+        sponsor = cls._get(position, "organization", "assigned_to_desc", "assigned_to")
+
+        parent = cls._get(position, "hierarchy_position_code", "hierarchy_asset_code")
 
         return cls(
             equipment_no=str(equipment_no),
-            eq_class=cls._get(position, "eq_class", "eqclass", "class"),
-            category=cls._get(position, "category"),
-            equipment_desc=cls._get(
-                position, "equipment_desc", "equipmentdesc", "equipment_description"
-            ),
-            sponsor=cls._get(position, "sponsor"),
-            parent_asset=cls._get(position, "parent_asset", "parentasset"),
+            eq_class=eq_class,
+            category=category,
+            equipment_desc=cls._get(position, "description"),
+            sponsor=sponsor,
+            parent_asset=parent,
             commission_date=cd_parsed,
-            asset_status_display=cls._get(
-                position,
-                "asset_status_display",
-                "assetstatus_display",
-                "status_desc",
-                "status_description",
-            ),
+            asset_status_display=cls._get(position, "status_desc", "state_desc"),
         )
 
-    # Back-compat name (callers may still use `to_position()`).
+    # Back-compat name: callers may still call `to_position()`.
     def to_position(self) -> Equipment:
         return self.to_equipment()
 
     def to_equipment(self) -> Equipment:
-        """Convert this row back to an `Equipment` domain model."""
-        payload = {
-            "equipment_no": self.equipment_no,
-            "eq_class": self.eq_class,
-            "category": self.category,
-            "equipment_desc": self.equipment_desc,
-            "sponsor": self.sponsor,
-            "parent_asset": self.parent_asset,
-            "commission_date": self.commission_date,
-            "asset_status_display": self.asset_status_display,
+        """Convert this row back to an `Equipment` domain model (subset only)."""
+        payload: dict[str, Any] = {
+            "code": self.equipment_no,
+            "class_code": self.eq_class,
+            "category_code": self.category,
+            "description": self.equipment_desc,
+            "organization": self.sponsor,
+            "hierarchy_position_code": self.parent_asset,
+            "status_desc": self.asset_status_display,
         }
+        if self.commission_date is not None:
+            payload["comission_date"] = datetime(
+                self.commission_date.year,
+                self.commission_date.month,
+                self.commission_date.day,
+            )
 
         if hasattr(Equipment, "model_validate"):
             return Equipment.model_validate(payload)  # type: ignore[attr-defined]
         return Equipment(**payload)  # type: ignore[call-arg]
-
-    # --- Debug ---------------------------------------------------------------
 
     def __repr__(self) -> str:
         return (

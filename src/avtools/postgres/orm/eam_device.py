@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from eam_rest_client import Equipment
@@ -20,7 +20,9 @@ class Base(DeclarativeBase):
 class EAMDeviceORM(Base):
     """ORM mapping for EAM device rows.
 
-    Note: despite the name, this now maps the EAM REST client's `Equipment` model.
+    This stores a small AV-Tools-relevant subset of fields from the EAM REST client's
+    `Equipment` model. `Equipment` field names differ from the legacy EAMDevice model,
+    so conversions are explicitly mapped.
     """
 
     __tablename__ = "eam_devices"
@@ -31,7 +33,7 @@ class EAMDeviceORM(Base):
         Index("ix_eam_devices_position", "position"),
     )
 
-    # Sizes are conservative; adjust to upstream constraints if you know them.
+    # DB columns kept as-is (legacy schema)
     equipment_no: Mapped[str] = mapped_column(
         "equipmentno", String(64), primary_key=True
     )
@@ -58,16 +60,14 @@ class EAMDeviceORM(Base):
         "assetstatus_display", String(64), nullable=True
     )
 
-    # --- Converters ----------------------------------------------------------
+    # --- Helpers -------------------------------------------------------------
 
     @staticmethod
     def _get(obj: Any, *names: str) -> Any:
         """Return the first non-empty attribute/key found among `names`."""
         for n in names:
-            # dict-like
             if isinstance(obj, dict) and n in obj and obj[n] not in ("", None):
                 return obj[n]
-            # attribute-like
             if hasattr(obj, n):
                 v = getattr(obj, n)
                 if v not in ("", None):
@@ -82,77 +82,106 @@ class EAMDeviceORM(Base):
             return obj.model_dump(by_alias=False)  # type: ignore[attr-defined]
         # pydantic v1
         if hasattr(obj, "dict"):
-            return obj.dict()  # type: ignore[attr-defined]
-        # already a mapping
+            return obj.dict(by_alias=False)  # type: ignore[attr-defined]
         if isinstance(obj, dict):
             return obj
-        # normal object
         if hasattr(obj, "__dict__"):
             return dict(obj.__dict__)
         return {}
 
+    @staticmethod
+    def _parse_date(v: Any) -> date | None:
+        if v is None or v == "":
+            return None
+        if isinstance(v, date) and not isinstance(v, datetime):
+            return v
+        if isinstance(v, datetime):
+            return v.date()
+        if isinstance(v, str):
+            try:
+                return date.fromisoformat(v[:10])
+            except ValueError:
+                return None
+        return None
+
+    # --- Converters ----------------------------------------------------------
+
     @classmethod
     def from_device(cls, device: Equipment) -> EAMDeviceORM:
-        """Create an ORM row from an `Equipment` domain model."""
-        # Prefer direct attribute access (more stable than dump key names)
-        equipment_no = cls._get(device, "equipment_no", "equipmentno")
+        """Create an ORM row from an `Equipment` domain model.
+
+        Mapping (Equipment -> legacy DB columns):
+          equipment_no          <- code
+          serial_number         <- serial_number
+          eq_class              <- class_code (fallback class_desc)
+          category              <- category_code (fallback category_desc)
+          equipment_desc        <- description
+          manufacturer          <- manufacturer_desc (fallback manufacturer_code)
+          position              <- hierarchy_position_code (fallback cern_pos)
+          parent_asset          <- hierarchy_asset_code (fallback hierarchy_position_code)
+          commission_date       <- comission_date (note spelling)
+          asset_status_display  <- status_desc (fallback state_desc)
+        """
+        equipment_no = cls._get(device, "code")
         if not equipment_no:
-            # last resort: try dict dump
             data = cls._as_dict(device)
-            equipment_no = data.get("equipment_no") or data.get("equipmentno")
+            equipment_no = data.get("code")
         if not equipment_no:
-            raise ValueError("Equipment missing equipment_no/equipmentno")
+            raise ValueError("Equipment missing code")
+
+        cd_raw = cls._get(
+            device, "comission_date", "commission_date", "original_install_date"
+        )
+        cd_parsed = cls._parse_date(cd_raw)
+
+        eq_class = cls._get(device, "class_code", "class_desc")
+        category = cls._get(device, "category_code", "category_desc")
+        manufacturer = cls._get(device, "manufacturer_desc", "manufacturer_code")
 
         return cls(
             equipment_no=str(equipment_no),
-            serial_number=cls._get(device, "serial_number", "serialnumber"),
-            eq_class=cls._get(device, "eq_class", "eqclass", "class"),
-            category=cls._get(device, "category"),
-            equipment_desc=cls._get(
-                device, "equipment_desc", "equipmentdesc", "equipment_description"
-            ),
+            serial_number=cls._get(device, "serial_number"),
+            eq_class=eq_class,
+            category=category,
+            equipment_desc=cls._get(device, "description"),
             model=cls._get(device, "model"),
-            manufacturer=cls._get(device, "manufacturer"),
-            position=cls._get(device, "position"),
-            parent_asset=cls._get(device, "parent_asset", "parentasset"),
-            commission_date=cls._get(device, "commission_date", "commissiondate"),
-            asset_status_display=cls._get(
-                device,
-                "asset_status_display",
-                "assetstatus_display",
-                "status_desc",
-                "status_description",
+            manufacturer=manufacturer,
+            position=cls._get(device, "hierarchy_position_code", "cern_pos"),
+            parent_asset=cls._get(
+                device, "hierarchy_asset_code", "hierarchy_position_code"
             ),
+            commission_date=cd_parsed,
+            asset_status_display=cls._get(device, "status_desc", "state_desc"),
         )
 
-    # Back-compat name: some callers may still call `to_device()`.
+    # Back-compat name: callers may still call `to_device()`.
     def to_device(self) -> Equipment:
         return self.to_equipment()
 
     def to_equipment(self) -> Equipment:
-        """Convert this row back to an `Equipment` domain model."""
-        payload = {
-            "equipment_no": self.equipment_no,
+        """Convert this row back to an `Equipment` domain model (subset only)."""
+        payload: dict[str, Any] = {
+            "code": self.equipment_no,
             "serial_number": self.serial_number,
-            "eq_class": self.eq_class,
-            "category": self.category,
-            "equipment_desc": self.equipment_desc,
+            "class_code": self.eq_class,
+            "category_code": self.category,
+            "description": self.equipment_desc,
             "model": self.model,
-            "manufacturer": self.manufacturer,
-            "position": self.position,
-            "parent_asset": self.parent_asset,
-            "commission_date": self.commission_date,
-            "asset_status_display": self.asset_status_display,
+            "manufacturer_desc": self.manufacturer,
+            "hierarchy_position_code": self.position,
+            "hierarchy_asset_code": self.parent_asset,
+            "status_desc": self.asset_status_display,
         }
+        if self.commission_date is not None:
+            payload["comission_date"] = datetime(
+                self.commission_date.year,
+                self.commission_date.month,
+                self.commission_date.day,
+            )
 
-        # If Equipment is pydantic v2, this will exist:
         if hasattr(Equipment, "model_validate"):
             return Equipment.model_validate(payload)  # type: ignore[attr-defined]
-
-        # Otherwise, try normal construction (works for dataclass/attrs/plain classes).
         return Equipment(**payload)  # type: ignore[call-arg]
-
-    # --- Debug ---------------------------------------------------------------
 
     def __repr__(self) -> str:
         return (
