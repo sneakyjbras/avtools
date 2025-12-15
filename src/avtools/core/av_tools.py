@@ -129,7 +129,7 @@ class AVTools:
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            get_id=lambda d: d.equipment_no,
+            get_id=lambda d: d.code,
             sync_func=self.dbod_helper.sync_eam_devices,
             name="EAM Devices",
         )
@@ -164,7 +164,7 @@ class AVTools:
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            get_id=lambda d: d.equipment_no,
+            get_id=lambda d: d.code,
             sync_func=self.dbod_helper.sync_eam_positions,
             name="EAM Positions",
         )
@@ -198,7 +198,7 @@ class AVTools:
         self._sync_entities(
             api_items=landb_list,
             cached_items=cache_list,
-            get_id=lambda d: d.equipment_no,
+            get_id=lambda d: d.code,
             sync_func=self.dbod_helper.sync_landb_devices,
             name="LanDB",
         )
