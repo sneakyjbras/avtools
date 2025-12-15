@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
+from eam_rest_client import Equipment
 from sqlalchemy import Date, Index, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
-from avtools.eam.position import EAMPosition
 
 # --- Base --------------------------------------------------------------------
 
@@ -20,7 +20,10 @@ class Base(DeclarativeBase):
 
 
 class EAMPositionORM(Base):
-    """EAM position node (positions form a parent/child tree in EAM)."""
+    """EAM position node (positions form a parent/child tree in EAM).
+
+    Note: this now maps the EAM REST client's `Equipment` model.
+    """
 
     __tablename__ = "eam_positions"
     __table_args__ = (
@@ -41,9 +44,7 @@ class EAMPositionORM(Base):
     sponsor: Mapped[str | None] = mapped_column("sponsor", String(64), nullable=True)
 
     parent_asset: Mapped[str | None] = mapped_column(
-        "parentasset",
-        String(64),
-        nullable=True,
+        "parentasset", String(64), nullable=True
     )
 
     commission_date: Mapped[date | None] = mapped_column(
@@ -55,50 +56,94 @@ class EAMPositionORM(Base):
 
     # --- Converters ----------------------------------------------------------
 
-    @classmethod
-    def from_position(cls, position: EAMPosition) -> EAMPositionORM:
-        """Create an ORM row from a domain model."""
-        # EAMPosition.commission_date is already a date | None in your Pydantic model.
-        cd = position.commission_date
-        cd_parsed: date | None
-        if isinstance(cd, date):
-            cd_parsed = cd
-        elif isinstance(cd, str) and cd:
+    @staticmethod
+    def _get(obj: Any, *names: str) -> Any:
+        """Return the first non-empty attribute/key found among `names`."""
+        for n in names:
+            if isinstance(obj, dict) and n in obj and obj[n] not in ("", None):
+                return obj[n]
+            if hasattr(obj, n):
+                v = getattr(obj, n)
+                if v not in ("", None):
+                    return v
+        return None
+
+    @staticmethod
+    def _as_dict(obj: Any) -> dict[str, Any]:
+        """Best-effort conversion to a plain dict."""
+        if hasattr(obj, "model_dump"):
+            return obj.model_dump(by_alias=False)  # type: ignore[attr-defined]
+        if hasattr(obj, "dict"):
+            return obj.dict()  # type: ignore[attr-defined]
+        if isinstance(obj, dict):
+            return obj
+        if hasattr(obj, "__dict__"):
+            return dict(obj.__dict__)
+        return {}
+
+    @staticmethod
+    def _parse_date(v: Any) -> date | None:
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str) and v:
             try:
-                cd_parsed = date.fromisoformat(cd)
+                return date.fromisoformat(v)
             except ValueError:
-                cd_parsed = None
-        else:
-            cd_parsed = None
+                return None
+        return None
+
+    @classmethod
+    def from_position(cls, position: Equipment) -> EAMPositionORM:
+        """Create an ORM row from an `Equipment` domain model."""
+        equipment_no = cls._get(position, "equipment_no", "equipmentno")
+        if not equipment_no:
+            data = cls._as_dict(position)
+            equipment_no = data.get("equipment_no") or data.get("equipmentno")
+        if not equipment_no:
+            raise ValueError("Equipment missing equipment_no/equipmentno")
+
+        cd_raw = cls._get(position, "commission_date", "commissiondate")
+        cd_parsed = cls._parse_date(cd_raw)
 
         return cls(
-            equipment_no=position.equipment_no,
-            eq_class=position.eq_class,
-            category=position.category,
-            equipment_desc=position.equipment_desc,
-            sponsor=position.sponsor,
-            parent_asset=position.parent_asset,
+            equipment_no=str(equipment_no),
+            eq_class=cls._get(position, "eq_class", "eqclass", "class"),
+            category=cls._get(position, "category"),
+            equipment_desc=cls._get(
+                position, "equipment_desc", "equipmentdesc", "equipment_description"
+            ),
+            sponsor=cls._get(position, "sponsor"),
+            parent_asset=cls._get(position, "parent_asset", "parentasset"),
             commission_date=cd_parsed,
-            asset_status_display=position.asset_status_display,
+            asset_status_display=cls._get(
+                position,
+                "asset_status_display",
+                "assetstatus_display",
+                "status_desc",
+                "status_description",
+            ),
         )
 
-    def to_position(self) -> EAMPosition:
-        """Convert this row back to the domain model."""
-        try:
-            return EAMPosition.model_validate(self, from_attributes=True)  # type: ignore[attr-defined]
-        except AttributeError:
-            return EAMPosition(
-                equipment_no=self.equipment_no,
-                eq_class=self.eq_class,
-                category=self.category,
-                equipment_desc=self.equipment_desc,
-                sponsor=self.sponsor,
-                parent_asset=self.parent_asset,
-                commission_date=(
-                    self.commission_date.isoformat() if self.commission_date else None
-                ),
-                asset_status_display=self.asset_status_display,
-            )
+    # Back-compat name (callers may still use `to_position()`).
+    def to_position(self) -> Equipment:
+        return self.to_equipment()
+
+    def to_equipment(self) -> Equipment:
+        """Convert this row back to an `Equipment` domain model."""
+        payload = {
+            "equipment_no": self.equipment_no,
+            "eq_class": self.eq_class,
+            "category": self.category,
+            "equipment_desc": self.equipment_desc,
+            "sponsor": self.sponsor,
+            "parent_asset": self.parent_asset,
+            "commission_date": self.commission_date,
+            "asset_status_display": self.asset_status_display,
+        }
+
+        if hasattr(Equipment, "model_validate"):
+            return Equipment.model_validate(payload)  # type: ignore[attr-defined]
+        return Equipment(**payload)  # type: ignore[call-arg]
 
     # --- Debug ---------------------------------------------------------------
 
