@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 import structlog
-from eam_rest_client import Equipment
+from eam_rest_client import Equipment, Position
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
@@ -145,16 +145,14 @@ class PostgresClient:
             "Error querying EAM devices",
         )
 
-    def get_all_eam_positions(self) -> list[Equipment]:
+    def get_all_eam_positions(self) -> list[Position]:
         """
-        Retrieve all EAM positions (Equipment) from the database.
+        Retrieve all EAM positions (Position) from the database.
         """
         return self._get_all(
             EAMPositionORM,
             lambda row: (
-                row.to_equipment()
-                if hasattr(row, "to_equipment")
-                else row.to_position()
+                row.to_equipment() if hasattr(row, "to_position") else row.to_position()
             ),  # back-compat
             "Error querying EAM positions",
         )
@@ -181,12 +179,12 @@ class PostgresClient:
 
     def sync_eam_positions(
         self,
-        to_insert: list[Equipment],
-        to_update: list[tuple[Equipment, dict[str, Any]]],
+        to_insert: list[Position],
+        to_update: list[tuple[Position, dict[str, Any]]],
         to_delete: list[str],
     ) -> None:
         """
-        Sync EAM positions (Equipment) by delegating to the generic sync implementation.
+        Sync EAM positions (Position) by delegating to the generic sync implementation.
         """
         self._sync_devices(
             EAMPositionORM,

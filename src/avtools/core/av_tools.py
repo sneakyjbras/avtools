@@ -10,7 +10,7 @@ from typing import Any, TypeVar
 
 import structlog
 from cern_oauthlib.cern_session import ServiceAuthSession
-from eam_rest_client import Equipment
+from eam_rest_client import Equipment, Position
 from eam_rest_client.credentials import register_credentials
 from pydantic.v1 import BaseModel
 
