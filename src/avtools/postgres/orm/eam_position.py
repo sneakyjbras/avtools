@@ -132,125 +132,33 @@ class EAMPositionORM(Base):
     # --- Converters ----------------------------------------------------------
 
     @classmethod
-    def from_position(
-        cls, position: Equipment | Position | dict[str, Any]
-    ) -> EAMPositionORM:
-        """Create an ORM row from a `Position` (preferred) or `Equipment` (legacy) domain model.
+    def from_position(cls, position: Position) -> EAMPositionORM:
+        """Create an ORM row from a `Position` domain model."""
 
-        Mapping into legacy DB columns:
-          equipment_no          <- code / positioncode / equipmentno
-          eq_class              <- class_code (fallback class_desc / class / eqclass)
-          category              <- department_code (Position) OR category_code (Equipment) (fallbacks apply)
-          equipment_desc        <- description / positiondesc / equipmentdesc
-          sponsor               <- organization / sponsor / assigned_to(_desc) (fallback department)
-          parent_asset          <- hierarchy_position_code / parentposition / hierarchy_asset_code / parentasset
-          commission_date       <- comission_date / commission_date / commissiondate / original_install_date
-          asset_status_display  <- status_desc / positionstatus_display / assetstatus_display / state_desc
-        """
-        equipment_no = cls._get(
-            position,
-            # normalized
-            "code",
-            # position-ish
-            "position_code",
-            "positioncode",
-            "positionno",
-            "position_no",
-            # legacy equipment-ish
-            "equipment_no",
-            "equipmentno",
-            "id",
-        )
+        from pprint import pprint
 
+        # pprint(position)
+        # print("")
+
+        equipment_no = cls._get(position, "equipmentno")
         if not equipment_no:
-            data = cls._as_dict(position)
-            equipment_no = (
-                data.get("code")
-                or data.get("position_code")
-                or data.get("positioncode")
-                or data.get("equipment_no")
-                or data.get("equipmentno")
-                or data.get("id")
-            )
+            raise ValueError(f"Position missing code")
 
-        if not equipment_no:
-            # Fix the misleading old message
-            raise ValueError(
-                f"Position missing code (keys={sorted(cls._as_dict(position).keys())})"
-            )
-
-        # Dates (often missing for positions; safe to store None)
-        cd_raw = cls._get(
-            position,
-            "comission_date",  # legacy typo
-            "commission_date",
-            "commissiondate",
-            "original_install_date",
-        )
-        cd_parsed = cls._parse_date(cd_raw)
-
-        # Class
-        eq_class = cls._get(position, "class_code", "class_desc", "class", "eqclass")
-
-        # Category column is legacy; for positions we typically store department
-        category = cls._get(
-            position,
-            # Equipment
-            "category_code",
-            "category_desc",
-            # Position
-            "department_code",
-            "department",
-        )
-
-        # Description
-        equipment_desc = cls._get(
-            position, "description", "positiondesc", "equipmentdesc", "desc"
-        )
-
-        # Sponsor / owner-ish
-        sponsor = cls._get(
-            position,
-            "organization",
-            "sponsor",
-            "assigned_to_desc",
-            "assigned_to",
-            # if nothing else, at least keep dept visible somewhere
-            "department_code",
-            "department",
-        )
-
-        # Parent relationship
-        parent = cls._get(
-            position,
-            # Position
-            "hierarchy_position_code",
-            "parent_position_code",
-            "parentposition",
-            # Equipment/legacy
-            "hierarchy_asset_code",
-            "parentasset",
-        )
-
-        # Status display
-        status = cls._get(
-            position,
-            "status_desc",
-            "positionstatus_display",
-            "assetstatus_display",
-            "state_desc",
-            "status",
+        comission_date = (
+            datetime.strptime(v, "%d-%b-%Y").date().isoformat()
+            if (v := cls._get(position, "commissiondate"))
+            else None
         )
 
         return cls(
             equipment_no=str(equipment_no),
-            eq_class=eq_class,
-            category=category,
-            equipment_desc=equipment_desc,
-            sponsor=sponsor,
-            parent_asset=parent,
-            commission_date=cd_parsed,
-            asset_status_display=status,
+            eq_class=cls._get(position, "class_code"),
+            category=None,
+            equipment_desc=cls._get(position, "equipmentdesc"),
+            sponsor=None,
+            parent_asset=cls._get(position, "parentasset"),
+            commission_date=comission_date,
+            asset_status_display=cls._get(position, "assetstatus_display"),
         )
 
     # --- Back conversions ----------------------------------------------------
@@ -258,39 +166,21 @@ class EAMPositionORM(Base):
     def to_position(self) -> Position:
         """Convert this row back to a `Position` domain model (subset only)."""
         payload: dict[str, Any] = {
-            "code": self.equipment_no,
+            "equipmentno": self.equipment_no,
             "class_code": self.eq_class,
-            "department_code": self.category,  # legacy column reused for department
-            "description": self.equipment_desc,
-            "hierarchy_position_code": self.parent_asset,
-            "status_desc": self.asset_status_display,
+            "category": self.category,  # legacy column reused for department
+            "equipmentdesc": self.equipment_desc,
+            "sponsor": self.sponsor,
+            "parentasset": self.parent_asset,
+            "commissiondate": self.commission_date,
+            "assetstatus_display": self.asset_status_display,
         }
+        if self.commission_date is not None:
+            payload["commissiondate"] = self.commission_date.isoformat()
 
         if hasattr(Position, "model_validate"):
             return Position.model_validate(payload)  # type: ignore[attr-defined]
         return Position(**payload)  # type: ignore[call-arg]
-
-    def to_equipment(self) -> Equipment:
-        """Convert this row back to an `Equipment` domain model (subset only; legacy)."""
-        payload: dict[str, Any] = {
-            "code": self.equipment_no,
-            "class_code": self.eq_class,
-            "category_code": self.category,
-            "description": self.equipment_desc,
-            "organization": self.sponsor,
-            "hierarchy_position_code": self.parent_asset,
-            "status_desc": self.asset_status_display,
-        }
-        if self.commission_date is not None:
-            payload["comission_date"] = datetime(
-                self.commission_date.year,
-                self.commission_date.month,
-                self.commission_date.day,
-            )
-
-        if hasattr(Equipment, "model_validate"):
-            return Equipment.model_validate(payload)  # type: ignore[attr-defined]
-        return Equipment(**payload)  # type: ignore[call-arg]
 
     def __repr__(self) -> str:
         return (

@@ -60,6 +60,14 @@ class EAMDeviceORM(Base):
         "assetstatus_display", String(64), nullable=True
     )
 
+    hierarchy_location_code: Mapped[str | None] = mapped_column(
+        "hierarchy_location_code", String(64), nullable=True
+    )
+
+    department_code: Mapped[str | None] = mapped_column(
+        "department_code", String(64), nullable=True
+    )
+
     # --- Helpers -------------------------------------------------------------
 
     @staticmethod
@@ -108,55 +116,38 @@ class EAMDeviceORM(Base):
 
     @classmethod
     def from_device(cls, device: Equipment) -> EAMDeviceORM:
-        """Create an ORM row from an `Equipment` domain model.
+        """Create an ORM row from an `Equipment` domain model."""
 
-        Mapping (Equipment -> legacy DB columns):
-          equipment_no          <- code
-          serial_number         <- serial_number
-          eq_class              <- class_code (fallback class_desc)
-          category              <- category_code (fallback category_desc)
-          equipment_desc        <- description
-          manufacturer          <- manufacturer_desc (fallback manufacturer_code)
-          position              <- hierarchy_position_code (fallback cern_pos)
-          parent_asset          <- hierarchy_asset_code (fallback hierarchy_position_code)
-          commission_date       <- comission_date (note spelling)
-          asset_status_display  <- status_desc (fallback state_desc)
-        """
+        from pprint import pprint
+
+        pprint(device)
+        print("")
+
         equipment_no = cls._get(device, "code")
-        if not equipment_no:
-            data = cls._as_dict(device)
-            equipment_no = data.get("code")
         if not equipment_no:
             raise ValueError("Equipment missing code")
 
-        cd_raw = cls._get(
-            device, "comission_date", "commission_date", "original_install_date"
+        comission_date = (
+            datetime.strptime(v, "%d-%b-%Y").date().isoformat()
+            if (v := cls._get(device, "comission_date"))
+            else None
         )
-        cd_parsed = cls._parse_date(cd_raw)
-
-        eq_class = cls._get(device, "class_code", "class_desc")
-        category = cls._get(device, "category_code", "category_desc")
-        manufacturer = cls._get(device, "manufacturer_desc", "manufacturer_code")
 
         return cls(
             equipment_no=str(equipment_no),
             serial_number=cls._get(device, "serial_number"),
-            eq_class=eq_class,
-            category=category,
+            eq_class=cls._get(device, "class_code"),
+            category=cls._get(device, "category_code"),
             equipment_desc=cls._get(device, "description"),
             model=cls._get(device, "model"),
-            manufacturer=manufacturer,
-            position=cls._get(device, "hierarchy_position_code", "cern_pos"),
-            parent_asset=cls._get(
-                device, "hierarchy_asset_code", "hierarchy_position_code"
-            ),
-            commission_date=cd_parsed,
-            asset_status_display=cls._get(device, "status_desc", "state_desc"),
+            manufacturer=cls._get(device, "manufacturer_code"),
+            position=cls._get(device, "hierarchy_position_code"),
+            parent_asset=cls._get(device, "hierarchy_asset_code"),
+            commission_date=comission_date,
+            asset_status_display=cls._get(device, "status_desc"),
+            hierarchy_location_code=cls._get(device, "hierarchy_location_code"),
+            department_code=cls._get(device, "department_code"),
         )
-
-    # Back-compat name: callers may still call `to_device()`.
-    def to_device(self) -> Equipment:
-        return self.to_equipment()
 
     def to_equipment(self) -> Equipment:
         """Convert this row back to an `Equipment` domain model (subset only)."""
@@ -167,17 +158,16 @@ class EAMDeviceORM(Base):
             "category_code": self.category,
             "description": self.equipment_desc,
             "model": self.model,
-            "manufacturer_desc": self.manufacturer,
+            "manufacturer_code": self.manufacturer,
             "hierarchy_position_code": self.position,
             "hierarchy_asset_code": self.parent_asset,
             "status_desc": self.asset_status_display,
+            "hierarchy_location_code": self.hierarchy_location_code,
+            "department_code": self.department_code,
         }
+
         if self.commission_date is not None:
-            payload["comission_date"] = datetime(
-                self.commission_date.year,
-                self.commission_date.month,
-                self.commission_date.day,
-            )
+            payload["comission_date"] = self.commission_date.isoformat()
 
         if hasattr(Equipment, "model_validate"):
             return Equipment.model_validate(payload)  # type: ignore[attr-defined]

@@ -139,9 +139,7 @@ class PostgresClient:
         """
         return self._get_all(
             EAMDeviceORM,
-            lambda row: (
-                row.to_equipment() if hasattr(row, "to_equipment") else row.to_device()
-            ),  # back-compat
+            lambda row: (row.to_equipment()),
             "Error querying EAM devices",
         )
 
@@ -151,9 +149,7 @@ class PostgresClient:
         """
         return self._get_all(
             EAMPositionORM,
-            lambda row: (
-                row.to_equipment() if hasattr(row, "to_position") else row.to_position()
-            ),  # back-compat
+            lambda row: (row.to_position()),
             "Error querying EAM positions",
         )
 

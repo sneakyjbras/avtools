@@ -274,13 +274,13 @@ class AVTools:
                 try:
                     dev = await to_thread(
                         helper.build_device_with_ip,
-                        rec.equipment_no,
+                        rec.code,
                         rec.serial_number,
-                        rec.eq_class,
-                        rec.manufacturer,
+                        rec.class_code,
+                        rec.manufacturer_code,
                     )
                 except Exception as e:
-                    self.logger.error(f"Error fetching {rec.equipment_no}: {e}")
+                    self.logger.error(f"Error fetching {rec.code}: {e}")
                     continue
                 if dev and dev.serial_number and dev.ip is not None:
                     result[idx] = dev
