@@ -143,54 +143,40 @@ class AVTools:
     ) -> None:
         """
         Fetch EAM positions from the remote API and reconcile them with the local cache.
-
-        Query shape:
-            Equipment.objects
-            .use_grid(name=<GRID>)
-            .filter(class_code__startswith="AV")  # optional
-            .limit(<N>)
-            .all()
         """
 
-        query = Equipment.objects.use_grid(name=position_grid)
+        query = Position.objects.use_grid(name=position_grid)
 
-        # Optional class prefix (preserve legacy intent)
+        # Optional class prefix (now explicit and correct)
         if position_class_prefix:
             pfx = position_class_prefix.rstrip("%")
-            for attempt in (
-                {"class_code__startswith": pfx},
-                {"class_code__like": f"{pfx}%"},
-                {"class_code": f"{pfx}%"},
-                {"class_desc__startswith": pfx},
-                {"class_desc__like": f"{pfx}%"},
-                {"class_desc": f"{pfx}%"},
-                # fallbacks if the client uses older/alternate names
-                {"eq_class__startswith": pfx},
-                {"eq_class__like": f"{pfx}%"},
-                {"eq_class": f"{pfx}%"},
-                {"class__startswith": pfx},
-                {"class__like": f"{pfx}%"},
-                {"class": f"{pfx}%"},
-            ):
-                try:
-                    query = query.filter(**attempt)
-                    break
-                except Exception:
-                    continue
+
+            try:
+                query = query.filter(class_code__startswith=pfx)
+            except Exception:
+                self.logger.warning(
+                    "eam_position_class_filter_failed",
+                    prefix=pfx,
+                    exc_info=True,
+                )
 
         if limit is not None:
             try:
                 query = query.limit(limit)
             except Exception:
-                self.logger.warning("eam_limit_failed", limit=limit, exc_info=True)
+                self.logger.warning(
+                    "eam_position_limit_failed",
+                    limit=limit,
+                    exc_info=True,
+                )
 
-        eam_list: list[Equipment] = query.all()
-        cache_list: list[Equipment] = self.dbod_helper.get_all_eam_positions()
+        eam_list: list[Position] = query.all()
+        cache_list = self.dbod_helper.get_all_eam_positions()
 
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            get_id=lambda d: d.code,
+            get_id=lambda p: p.code,
             sync_func=self.dbod_helper.sync_eam_positions,
             name="EAM Positions",
         )
