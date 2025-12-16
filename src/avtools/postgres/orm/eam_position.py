@@ -135,7 +135,7 @@ class EAMPositionORM(Base):
     def from_position(cls, position: Position) -> EAMPositionORM:
         """Create an ORM row from a `Position` domain model."""
 
-        from pprint import pprint
+        # from pprint import pprint
 
         # pprint(position)
         # print("")

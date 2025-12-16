@@ -118,10 +118,10 @@ class EAMDeviceORM(Base):
     def from_device(cls, device: Equipment) -> EAMDeviceORM:
         """Create an ORM row from an `Equipment` domain model."""
 
-        from pprint import pprint
-
-        pprint(device)
-        print("")
+        # from pprint import pprint
+        #
+        #        pprint(device)
+        #        print("")
 
         equipment_no = cls._get(device, "code")
         if not equipment_no:
