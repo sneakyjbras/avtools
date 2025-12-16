@@ -210,7 +210,7 @@ class AVTools:
         self._sync_entities(
             api_items=landb_list,
             cached_items=cache_list,
-            get_id=lambda d: d.code,
+            get_id=lambda d: d.equipment_no,
             sync_func=self.dbod_helper.sync_landb_devices,
             name="LanDB",
         )

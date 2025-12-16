@@ -47,14 +47,23 @@ class LanDBDeviceORM(Base):
     @classmethod
     def from_device(cls, device: LanDBDevice) -> LanDBDeviceORM:
         """Create an ORM row from a domain model."""
-        data = device.model_dump(by_alias=False)
+        # Pydantic v2: model_dump ; Pydantic v1: dict
+        if hasattr(device, "model_dump"):
+            data = device.model_dump(by_alias=False)
+        else:
+            data = device.dict(by_alias=False)
+
         orm_data = {k: v for k, v in data.items() if hasattr(cls, k)}
         return cls(**orm_data)
 
     def to_device(self) -> LanDBDevice:
         """Convert this row back to the Pydantic domain model."""
-        # Pydantic v2: model_config(from_attributes=True) lets this work.
-        return LanDBDevice.model_validate(self, from_attributes=True)
+        # Pydantic v2: model_validate(from_attributes=True)
+        if hasattr(LanDBDevice, "model_validate"):
+            return LanDBDevice.model_validate(self, from_attributes=True)
+
+        # Pydantic v1: from_orm (requires Config.orm_mode = True on LanDBDevice)
+        return LanDBDevice.from_orm(self)
 
     # --- Debug ---------------------------------------------------------------
 
