@@ -138,6 +138,7 @@ class AVTools:
         self,
         *,
         position_grid: str = "OSOBJP",
+        position_class_prefix: str = "AV%",
         limit: int | None = None,
     ) -> None:
         """
@@ -146,11 +147,36 @@ class AVTools:
         Query shape:
             Equipment.objects
             .use_grid(name=<GRID>)
+            .filter(class_code__startswith="AV")  # optional
             .limit(<N>)
             .all()
         """
 
         query = Equipment.objects.use_grid(name=position_grid)
+
+        # Optional class prefix (preserve legacy intent)
+        if position_class_prefix:
+            pfx = position_class_prefix.rstrip("%")
+            for attempt in (
+                {"class_code__startswith": pfx},
+                {"class_code__like": f"{pfx}%"},
+                {"class_code": f"{pfx}%"},
+                {"class_desc__startswith": pfx},
+                {"class_desc__like": f"{pfx}%"},
+                {"class_desc": f"{pfx}%"},
+                # fallbacks if the client uses older/alternate names
+                {"eq_class__startswith": pfx},
+                {"eq_class__like": f"{pfx}%"},
+                {"eq_class": f"{pfx}%"},
+                {"class__startswith": pfx},
+                {"class__like": f"{pfx}%"},
+                {"class": f"{pfx}%"},
+            ):
+                try:
+                    query = query.filter(**attempt)
+                    break
+                except Exception:
+                    continue
 
         if limit is not None:
             try:
@@ -413,12 +439,29 @@ class AVTools:
         except Exception as e:
             self.logger.exception(f"Failed writing points: {e}")
 
-    def _diff_models(self, old: Model, new: Model) -> dict[str, Any]:
+    def _diff_models(self, old: Any, new: Any) -> dict[str, Any]:
         """
-        Compute field-by-field differences between two Pydantic models.
+        Compute field-by-field differences between two models/objects.
+
+        Supports:
+        - Pydantic v2 (model_dump)
+        - Pydantic v1 (dict)
+        - Non-pydantic objects (e.g. eam_rest_client.Equipment)
         """
-        old_data: dict[str, Any] = old.model_dump()
-        new_data: dict[str, Any] = new.model_dump(exclude_unset=True)
+
+        to_dict = lambda obj, *, exclude_unset=False: (
+            obj.model_dump(exclude_unset=exclude_unset)  # pydantic v2
+            if hasattr(obj, "model_dump")
+            else (
+                obj.dict(exclude_unset=exclude_unset)  # pydantic v1
+                if hasattr(obj, "dict")
+                else vars(obj)
+            )  # plain object fallback
+        )
+
+        old_data: dict[str, Any] = to_dict(old, exclude_unset=False)
+        new_data: dict[str, Any] = to_dict(new, exclude_unset=True)
+
         return {k: v for k, v in new_data.items() if old_data.get(k) != v}
 
     def _ensure_token(
