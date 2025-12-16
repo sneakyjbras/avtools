@@ -12,7 +12,7 @@ import structlog
 from cern_oauthlib.cern_session import ServiceAuthSession
 from eam_rest_client import Equipment
 from eam_rest_client.credentials import register_credentials
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 
 from avtools.exception.errors import (  # noqa: F401 (may be used elsewhere)
     NoRecordsFound,
