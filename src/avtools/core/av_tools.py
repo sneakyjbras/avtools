@@ -89,13 +89,6 @@ class AVTools:
     ) -> None:
         """
         Fetch EAM devices (assets) from the remote API and reconcile them with the local cache.
-
-        Query shape:
-            Equipment.objects
-            .use_grid(name=<GRID>)
-            .filter(eq_class__startswith="AV")  # optional
-            .limit(<N>)
-            .all()
         """
 
         query = Equipment.objects.use_grid(name=asset_grid)
