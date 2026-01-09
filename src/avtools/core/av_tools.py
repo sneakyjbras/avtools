@@ -53,7 +53,7 @@ class AVTools:
         *,
         asset_grid: str = "OSOBJA",
         position_grid: str = "OSOBJP",
-        asset_class_prefix: str = "AV%",
+        department_code: str = "AV",
         limit: int | None = None,
     ) -> None:
         """
@@ -72,7 +72,7 @@ class AVTools:
 
         self.sync_eam_devices(
             asset_grid=asset_grid,
-            asset_class_prefix=asset_class_prefix,
+            department_code=department_code,
             limit=limit,
         )
         self.sync_eam_positions(
@@ -84,7 +84,7 @@ class AVTools:
         self,
         *,
         asset_grid: str = "OSOBJA",
-        asset_class_prefix: str = "AV%",
+        department_code: str = "AV",
         limit: int | None = None,
     ) -> None:
         """
@@ -100,22 +100,15 @@ class AVTools:
 
         query = Equipment.objects.use_grid(name=asset_grid)
 
-        # Optional class prefix (preserve legacy intent)
-        if asset_class_prefix:
-            pfx = asset_class_prefix.rstrip("%")
-            for attempt in (
-                {"eq_class__startswith": pfx},
-                {"eq_class__like": f"{pfx}%"},
-                {"eq_class": f"{pfx}%"},
-                {"class__startswith": pfx},
-                {"class__like": f"{pfx}%"},
-                {"class": f"{pfx}%"},
-            ):
-                try:
-                    query = query.filter(**attempt)
-                    break
-                except Exception:
-                    continue
+        if department_code:
+            try:
+                query = query.filter(department_code__startswith=department_code)
+            except Exception:
+                self.logger.warning(
+                    "eam_asset_deparment_code_filter_failed",
+                    prefix=department_code,
+                    exc_info=True,
+                )
 
         if limit is not None:
             try:
@@ -138,7 +131,7 @@ class AVTools:
         self,
         *,
         position_grid: str = "OSOBJP",
-        position_class_prefix: str = "AV%",
+        department_code: str = "AV",
         limit: int | None = None,
     ) -> None:
         """
@@ -147,16 +140,13 @@ class AVTools:
 
         query = Position.objects.use_grid(name=position_grid)
 
-        # Optional class prefix (now explicit and correct)
-        if position_class_prefix:
-            pfx = position_class_prefix.rstrip("%")
-
+        if department_code:
             try:
-                query = query.filter(class_code__startswith=pfx)
+                query = query.filter(department_code__startswith=department_code)
             except Exception:
                 self.logger.warning(
-                    "eam_position_class_filter_failed",
-                    prefix=pfx,
+                    "eam_position_department_code_filter_failed",
+                    prefix=department_code,
                     exc_info=True,
                 )
 
