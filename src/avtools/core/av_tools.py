@@ -12,6 +12,7 @@ import structlog
 from cern_oauthlib.cern_session import ServiceAuthSession
 from eam_rest_client import Equipment, Position
 from eam_rest_client.credentials import register_credentials
+from eam_rest_client.grid_query import GridQuery
 from pydantic.v1 import BaseModel
 
 from avtools.exception.errors import (  # noqa: F401 (may be used elsewhere)
@@ -162,6 +163,8 @@ class AVTools:
 
         eam_list: list[Position] = query.all()
         cache_list = self.dbod_helper.get_all_eam_positions()
+
+        print(eam_list)
 
         self._sync_entities(
             api_items=eam_list,
