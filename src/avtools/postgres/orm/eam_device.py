@@ -20,9 +20,8 @@ class Base(DeclarativeBase):
 class EAMDeviceORM(Base):
     """ORM mapping for EAM device rows.
 
-    This stores a small AV-Tools-relevant subset of fields from the EAM REST client's
-    `Equipment` model. `Equipment` field names differ from the legacy EAMDevice model,
-    so conversions are explicitly mapped.
+    Stores a small AV-Tools-relevant subset of fields from the EAM REST client's
+    `Equipment` model, into the legacy `eam_devices` schema.
     """
 
     __tablename__ = "eam_devices"
@@ -53,17 +52,18 @@ class EAMDeviceORM(Base):
     parent_asset: Mapped[str | None] = mapped_column(
         "parentasset", String(64), nullable=True
     )
+
+    # IMPORTANT: keep this as a real date in DB/ORM
     commission_date: Mapped[date | None] = mapped_column(
         "commissiondate", Date, nullable=True
     )
+
     asset_status_display: Mapped[str | None] = mapped_column(
         "assetstatus_display", String(64), nullable=True
     )
-
     hierarchy_location_code: Mapped[str | None] = mapped_column(
         "hierarchy_location_code", String(64), nullable=True
     )
-
     department_code: Mapped[str | None] = mapped_column(
         "department_code", String(64), nullable=True
     )
@@ -83,55 +83,79 @@ class EAMDeviceORM(Base):
         return None
 
     @staticmethod
-    def _as_dict(obj: Any) -> dict[str, Any]:
-        """Best-effort conversion to a plain dict."""
-        # pydantic v2
-        if hasattr(obj, "model_dump"):
-            return obj.model_dump(by_alias=False)  # type: ignore[attr-defined]
-        # pydantic v1
-        if hasattr(obj, "dict"):
-            return obj.dict(by_alias=False)  # type: ignore[attr-defined]
-        if isinstance(obj, dict):
-            return obj
-        if hasattr(obj, "__dict__"):
-            return dict(obj.__dict__)
-        return {}
+    def _parse_any_date(v: Any) -> date | None:
+        """Parse date-ish values into a `date`.
 
-    @staticmethod
-    def _parse_date(v: Any) -> date | None:
+        Accepts:
+          - date (already)
+          - datetime -> date()
+          - str in:
+              * EAM format: 'DD-Mon-YYYY' (e.g. '07-Jan-2024')
+              * ISO date:   'YYYY-MM-DD'
+              * ISO datetime (incl. trailing 'Z')
+        """
         if v is None or v == "":
             return None
-        if isinstance(v, date) and not isinstance(v, datetime):
-            return v
+
         if isinstance(v, datetime):
             return v.date()
+
+        # date is a superclass of datetime, so check datetime first
+        if isinstance(v, date):
+            return v
+
         if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return None
+
+            # 1) EAM: '07-Jan-2024'
             try:
-                return date.fromisoformat(v[:10])
+                return datetime.strptime(s, "%d-%b-%Y").date()
+            except ValueError:
+                pass
+
+            # 2) ISO date: '2024-01-07'
+            try:
+                return date.fromisoformat(s[:10])
+            except ValueError:
+                pass
+
+            # 3) ISO datetime: '2024-01-07T...' (handle 'Z')
+            try:
+                if s.endswith("Z"):
+                    s = s[:-1] + "+00:00"
+                return datetime.fromisoformat(s).date()
             except ValueError:
                 return None
+
         return None
+
+    @staticmethod
+    def _format_eam_date(d: date | None) -> str | None:
+        """Format a `date` as EAM expects ('DD-Mon-YYYY')."""
+        if not d:
+            return None
+        return d.strftime("%d-%b-%Y")
 
     # --- Converters ----------------------------------------------------------
 
     @classmethod
     def from_device(cls, device: Equipment) -> EAMDeviceORM:
         """Create an ORM row from an `Equipment` domain model."""
-
-        # from pprint import pprint
-        #
-        #        pprint(device)
-        #        print("")
-
         equipment_no = cls._get(device, "code")
         if not equipment_no:
             raise ValueError("Equipment missing code")
 
-        comission_date = (
-            datetime.strptime(v, "%d-%b-%Y").date().isoformat()
-            if (v := cls._get(device, "comission_date"))
-            else None
+        # EAM uses the misspelled field in some payloads/models; be tolerant.
+        raw_commission = cls._get(
+            device,
+            "comission_date",  # common typo in EAM payloads/models
+            "commission_date",  # just in case a corrected field exists
+            "comissionDate",
+            "commissionDate",
         )
+        commission_date = cls._parse_any_date(raw_commission)
 
         return cls(
             equipment_no=str(equipment_no),
@@ -143,7 +167,7 @@ class EAMDeviceORM(Base):
             manufacturer=cls._get(device, "manufacturer_code"),
             position=cls._get(device, "hierarchy_position_code"),
             parent_asset=cls._get(device, "hierarchy_asset_code"),
-            commission_date=comission_date,
+            commission_date=commission_date,
             asset_status_display=cls._get(device, "status_desc"),
             hierarchy_location_code=cls._get(device, "hierarchy_location_code"),
             department_code=cls._get(device, "department_code"),
@@ -166,12 +190,12 @@ class EAMDeviceORM(Base):
             "department_code": self.department_code,
         }
 
-        if self.commission_date is not None:
-            payload["comission_date"] = self.commission_date.isoformat()
+        # Keep EAM spelling at the boundary
+        eam_commission = self._format_eam_date(self.commission_date)
+        if eam_commission:
+            payload["comission_date"] = eam_commission
 
-        if hasattr(Equipment, "model_validate"):
-            return Equipment.model_validate(payload)  # type: ignore[attr-defined]
-        return Equipment(**payload)  # type: ignore[call-arg]
+        return Equipment(**payload)
 
     def __repr__(self) -> str:
         return (

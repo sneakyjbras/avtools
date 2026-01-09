@@ -10,7 +10,7 @@ from typing import Any, TypeVar
 
 import structlog
 from cern_oauthlib.cern_session import ServiceAuthSession
-from eam_rest_client import Equipment, Position
+from eam_rest_client import Equipment
 from eam_rest_client.credentials import register_credentials
 from pydantic.v1 import BaseModel
 
@@ -131,7 +131,7 @@ class AVTools:
         Fetch EAM positions from the remote API and reconcile them with the local cache.
         """
 
-        query = Position.objects.use_grid(name=position_grid)
+        query = Equipment.objects.use_grid(name=position_grid)
 
         if department_code:
             try:

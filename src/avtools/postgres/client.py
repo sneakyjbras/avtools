@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 import structlog
-from eam_rest_client import Equipment, Position
+from eam_rest_client import Equipment
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
