@@ -35,8 +35,8 @@ python = ">=3.11,<3.12"
 # Runtime dependencies (alphabetical)
 cern-oauthlib = ">=25,<26.5.3"
 click           = ">=8,<8.1"
-# eam-rest-client = ">=25"
-eam-rest-client = { path = "../eam_rest_client", develop = true }
+eam-rest-client = ">=25"
+# eam-rest-client = { path = "../eam_rest_client", develop = true }
 influxdb        = "^5.3.1"
 influxdb-client = "^1.48.0"
 pexpect         = ">=4.8.0,<5.0.0"

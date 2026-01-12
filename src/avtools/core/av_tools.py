@@ -12,6 +12,7 @@ import structlog
 from cern_oauthlib.cern_session import ServiceAuthSession
 from eam_rest_client import Equipment
 from eam_rest_client.credentials import register_credentials
+from eam_rest_client.grid_query import GridQuery
 from pydantic.v1 import BaseModel
 
 from avtools.exception.errors import (  # noqa: F401 (may be used elsewhere)
@@ -131,7 +132,29 @@ class AVTools:
         Fetch EAM positions from the remote API and reconcile them with the local cache.
         """
 
-        query = Equipment.objects.use_grid(name=position_grid)
+        # TODO: Waiting for https://gitlab.cern.ch/itdcim/av-tools/-/merge_requests/11#note_10728458 to be merged
+        query = GridQuery(
+            name=position_grid,
+            field_map={
+                "assigned_to": "assignedto",
+                "alias": "alias",
+                "category_code": "category",
+                "class_code": "class",
+                "code": "equipmentno",
+                "comission_date": "commissiondate",
+                "department_code": "department",
+                "description": "equipmentdesc",
+                "hierarchy_asset_code": "parentasset",
+                "hierarchy_location_code": "location",
+                "out_of_service": "outofservice",
+                "primary_system": "primarysystem",
+                "production": "production",
+                "status_desc": "assetstatus_display",
+                "variable2": "variable2",
+            },
+        )
+        # TODO: uncomment once it's merged
+        # query = Equipment.objects.use_grid(name=position_grid)
 
         if department_code:
             try:
