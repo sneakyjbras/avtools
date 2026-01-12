@@ -420,13 +420,15 @@ files = [
 
 [[package]]
 name = "eam-rest-client"
-version = "25.12.2-3"
+version = "25.12.2.post3"
 description = "EAM REST Client"
 optional = false
 python-versions = ">=3.9.2,<4.0"
 groups = ["main"]
-files = []
-develop = true
+files = [
+    {file = "eam_rest_client-25.12.2.post3-py3-none-any.whl", hash = "sha256:c489cc530b870250ada9243ad519cf565972786f36e8bf0cb375c3704358cb93"},
+    {file = "eam_rest_client-25.12.2.post3.tar.gz", hash = "sha256:fcf65b0c9467a46f4dfc4550704b1004caf18ca9aafdb30c8d50f529cc1f38a1"},
+]
 
 [package.dependencies]
 cern_oauthlib = "<26"
@@ -438,8 +440,9 @@ pytyped = ["pytyped (>=2.0.0,<3.0.0)"]
 structlog = ["structlog (>=25.5.0,<26.0.0)"]
 
 [package.source]
-type = "directory"
-url = "../eam_rest_client"
+type = "legacy"
+url = "https://qa-pypi-itdcim.cern.ch/simple"
+reference = "pypiserver_qa"
 
 [[package]]
 name = "executing"
@@ -1831,4 +1834,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "c66a696d80c3a7824deca0c602d657c48e45c60bf62f271fced0d60094d44595"
+content-hash = "a44835b3f473c8eb64c504f9e2330a97c5eb99424e1e9129f3045b52d29c4a77"
