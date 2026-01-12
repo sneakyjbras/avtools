@@ -225,6 +225,7 @@ class LanDBClient:
         manufacturer: str,
     ) -> LanDBDevice:
         """Create a device and enrich it with IP metadata."""
+        print(equipment_no, serial_number, eq_class, manufacturer)
         device = LanDBDevice.create_device(
             equipment_no=equipment_no,
             serial_number=serial_number,

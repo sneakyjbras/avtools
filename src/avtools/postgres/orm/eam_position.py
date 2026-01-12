@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from typing import Any
 
+from eam_rest_client import Equipment
 from sqlalchemy import Date, Index, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
-from avtools.eam.position import EAMPosition
 
 # --- Base --------------------------------------------------------------------
 
 
 class Base(DeclarativeBase):
-    """Base for EAM ORM models."""
-
     pass
 
 
@@ -20,7 +18,12 @@ class Base(DeclarativeBase):
 
 
 class EAMPositionORM(Base):
-    """EAM position node (positions form a parent/child tree in EAM)."""
+    """ORM mapping for EAM position rows.
+
+    Stores a small subset of EAM fields into the legacy `eam_positions` schema.
+
+    Note: the DB schema is legacy and keeps equipment-ish column names.
+    """
 
     __tablename__ = "eam_positions"
     __table_args__ = (
@@ -29,7 +32,7 @@ class EAMPositionORM(Base):
         Index("ix_eam_positions_eqclass_category", "eqclass", "category"),
     )
 
-    # Sizes are conservative; tune to upstream constraints if you know them.
+    # DB columns kept as-is (legacy schema)
     equipment_no: Mapped[str] = mapped_column(
         "equipmentno", String(64), primary_key=True
     )
@@ -39,74 +42,190 @@ class EAMPositionORM(Base):
         "equipmentdesc", Text, nullable=True
     )
     sponsor: Mapped[str | None] = mapped_column("sponsor", String(64), nullable=True)
-
     parent_asset: Mapped[str | None] = mapped_column(
-        "parentasset",
-        String(64),
-        nullable=True,
+        "parentasset", String(64), nullable=True
     )
 
+    # IMPORTANT: keep this as a real date in DB/ORM
     commission_date: Mapped[date | None] = mapped_column(
         "commissiondate", Date, nullable=True
     )
+
     asset_status_display: Mapped[str | None] = mapped_column(
         "assetstatus_display", String(64), nullable=True
     )
 
+    # --- Helpers -------------------------------------------------------------
+
+    @staticmethod
+    def _get(obj: Any, *names: str) -> Any:
+        """Return the first non-empty attribute/key found among `names`.
+
+        Also checks `_original_response` (EamModel sometimes stores raw payload there).
+        """
+        for n in names:
+            # dict-like payload
+            if isinstance(obj, dict) and n in obj and obj[n] not in ("", None):
+                return obj[n]
+
+            # attribute on model
+            if hasattr(obj, n):
+                v = getattr(obj, n)
+                if v not in ("", None):
+                    return v
+
+            # raw/original payload
+            original = getattr(obj, "_original_response", None)
+            if (
+                isinstance(original, dict)
+                and n in original
+                and original[n] not in ("", None)
+            ):
+                return original[n]
+
+        return None
+
+    @staticmethod
+    def _parse_any_date(v: Any) -> date | None:
+        """Parse date-ish values into a `date` (same rules as devices)."""
+        if v is None or v == "":
+            return None
+
+        if isinstance(v, datetime):
+            return v.date()
+
+        if isinstance(v, date):
+            return v
+
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return None
+
+            # 1) EAM: '07-Jan-2024'
+            try:
+                return datetime.strptime(s, "%d-%b-%Y").date()
+            except ValueError:
+                pass
+
+            # 2) ISO date
+            try:
+                return date.fromisoformat(s[:10])
+            except ValueError:
+                pass
+
+            # 3) ISO datetime (handle 'Z')
+            try:
+                if s.endswith("Z"):
+                    s = s[:-1] + "+00:00"
+                return datetime.fromisoformat(s).date()
+            except ValueError:
+                return None
+
+        return None
+
+    @staticmethod
+    def _format_eam_date(d: date | None) -> str | None:
+        """Format a `date` as EAM expects ('DD-Mon-YYYY')."""
+        if not d:
+            return None
+        return d.strftime("%d-%b-%Y")
+
     # --- Converters ----------------------------------------------------------
 
     @classmethod
-    def from_position(cls, position: EAMPosition) -> EAMPositionORM:
-        """Create an ORM row from a domain model."""
-        # EAMPosition.commission_date is already a date | None in your Pydantic model.
-        cd = position.commission_date
-        cd_parsed: date | None
-        if isinstance(cd, date):
-            cd_parsed = cd
-        elif isinstance(cd, str) and cd:
-            try:
-                cd_parsed = date.fromisoformat(cd)
-            except ValueError:
-                cd_parsed = None
-        else:
-            cd_parsed = None
+    def from_position(cls, position: Any) -> EAMPositionORM:
+        """Create an ORM row from a Position-like model.
+
+        `position` may be:
+          - a Position model (OSOBJP)
+          - an Equipment-ish object/dict (legacy behaviour)
+        """
+        equipment_no = cls._get(position, "equipmentno", "code")
+        if not equipment_no:
+            raise ValueError("Position missing code")
+
+        raw_commission = cls._get(
+            position,
+            "commissiondate",  # OSOBJP-style
+            "comission_date",  # equipment-style typo
+            "commission_date",
+            "commissionDate",
+            "comissionDate",
+        )
+        commission_date = cls._parse_any_date(raw_commission)
 
         return cls(
-            equipment_no=position.equipment_no,
-            eq_class=position.eq_class,
-            category=position.category,
-            equipment_desc=position.equipment_desc,
-            sponsor=position.sponsor,
-            parent_asset=position.parent_asset,
-            commission_date=cd_parsed,
-            asset_status_display=position.asset_status_display,
+            equipment_no=str(equipment_no),
+            eq_class=cls._get(position, "class_code", "eqclass"),
+            category=cls._get(position, "category", "category_code"),
+            equipment_desc=cls._get(position, "equipmentdesc", "description"),
+            sponsor=cls._get(position, "sponsor"),
+            parent_asset=cls._get(position, "parentasset", "hierarchy_asset_code"),
+            commission_date=commission_date,
+            asset_status_display=cls._get(
+                position, "assetstatus_display", "status_desc"
+            ),
         )
 
-    def to_position(self) -> EAMPosition:
-        """Convert this row back to the domain model."""
-        try:
-            return EAMPosition.model_validate(self, from_attributes=True)  # type: ignore[attr-defined]
-        except AttributeError:
-            return EAMPosition(
-                equipment_no=self.equipment_no,
-                eq_class=self.eq_class,
-                category=self.category,
-                equipment_desc=self.equipment_desc,
-                sponsor=self.sponsor,
-                parent_asset=self.parent_asset,
-                commission_date=(
-                    self.commission_date.isoformat() if self.commission_date else None
-                ),
-                asset_status_display=self.asset_status_display,
-            )
+    # --- Back conversions ----------------------------------------------------
 
-    # --- Debug ---------------------------------------------------------------
+    def to_equipment(self) -> Equipment:
+        """Convert this row to an `Equipment` domain model (subset only).
+
+        Positions and devices are treated uniformly as Equipment downstream.
+        """
+        payload: dict[str, Any] = {
+            "code": self.equipment_no,
+            "class_code": self.eq_class,
+            "category_code": self.category,
+            "description": self.equipment_desc,
+            "hierarchy_asset_code": self.parent_asset,
+            "status_desc": self.asset_status_display,
+        }
+
+        eam_commission = self._format_eam_date(self.commission_date)
+        if eam_commission:
+            payload["comission_date"] = eam_commission
+
+        eq = Equipment(**payload)
+
+        # NOTE (DB subset marker):
+        # This Equipment instance is reconstructed from a lightweight ORM projection
+        # (EAMPositionORM), not from the full EAM API payload. The Equipment class exposes
+        # many more fields than we persist in the database; missing ORM columns would
+        # otherwise appear as default attributes (None / "" / False) on the instance.
+        #
+        # We therefore attach an explicit whitelist of DB-backed fields. Downstream diff
+        # logic uses this marker to ensure that only fields actually stored in the ORM
+        # are compared against the API model, preventing permanent churn on API-only
+        # fields that can never converge with the DB.
+        setattr(eq, "_avtools_compare_fields", set(payload.keys()))
+
+        return eq
+
+    # Optional: keep this if you still use Position elsewhere.
+    # If not needed anymore, delete it to avoid confusion.
+    def to_position_payload(self) -> dict[str, Any]:
+        """Convert this row back to a Position-shaped payload (subset only)."""
+        payload: dict[str, Any] = {
+            "equipmentno": self.equipment_no,
+            "class_code": self.eq_class,
+            "category_code": self.category,  # legacy column reused for department in some flows
+            "equipmentdesc": self.equipment_desc,
+            "sponsor": self.sponsor,
+            "parentasset": self.parent_asset,
+            "assetstatus_display": self.asset_status_display,
+        }
+        if self.commission_date is not None:
+            payload["commissiondate"] = self.commission_date.isoformat()
+        return payload
 
     def __repr__(self) -> str:
         return (
             "EAMPositionORM("
             f"equipment_no={self.equipment_no!r}, "
-            f"parent_asset={self.parent_asset!r}, "
+            f"parent={self.parent_asset!r}, "
             f"eq_class={self.eq_class!r}, "
             f"category={self.category!r}, "
             f"status={self.asset_status_display!r}"

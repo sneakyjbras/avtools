@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import structlog
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field, validator
 
 device_logger = structlog.get_logger(__name__).bind(
     component="landb",
@@ -16,24 +16,24 @@ class LanDBDevice(BaseModel):
     """LanDB network device."""
 
     # Snake_case fields; aliases match LanDB/legacy names.
-    equipment_no: str = Field(alias="equipmentno")
-    serial_number: str = Field(alias="serialnumber")
+    equipment_no: str = Field(..., alias="equipmentno")
+    serial_number: str = Field(..., alias="serialnumber")
     eq_class: str | None = Field(default=None, alias="eqclass")
     manufacturer: str | None = None
     ip: str | None = None
 
-    # Allow reading attributes from ORM objects and using field names or aliases.
-    # Ignore legacy/extra fields gracefully.
-    model_config = ConfigDict(
-        from_attributes=True,
-        populate_by_name=True,
-        extra="ignore",
-    )
+    # Pydantic v1 equivalent of:
+    #   from_attributes=True, populate_by_name=True, extra="ignore"
+    class Config:
+        orm_mode = True  # v1 equivalent of "from_attributes=True"
+        allow_population_by_field_name = (
+            True  # v1 equivalent of "populate_by_name=True"
+        )
+        extra = "ignore"
 
     # --- Validators ---------------------------------------------------------
 
-    @field_validator("equipment_no", "serial_number", mode="before")
-    @classmethod
+    @validator("equipment_no", "serial_number", pre=True)
     def _strip_required(cls, v: Any) -> str:
         """Normalize required identifiers: coerce to non-empty, stripped string."""
         if v is None:
@@ -45,8 +45,7 @@ class LanDBDevice(BaseModel):
             raise ValueError("value cannot be empty")
         return v
 
-    @field_validator("eq_class", "manufacturer", mode="before")
-    @classmethod
+    @validator("eq_class", "manufacturer", pre=True)
     def _strip_optional(cls, v: Any) -> str | None:
         """Normalize optional strings: strip and convert empty to None."""
         if v is None:
@@ -99,6 +98,6 @@ class LanDBDevice(BaseModel):
     def from_device(self, device_data: Mapping[str, Any]) -> None:
         """Merge metadata fields from a LanDB device record."""
         if manufacturer := device_data.get("manufacturer"):
-            # Rely on validator to normalize on next model update, but keep simple here.
+            # Rely on validator semantics for normalization intent; keep simple here.
             self.manufacturer = str(manufacturer).strip() or self.manufacturer
         # Add more fields here later if you decide to keep them in the model.
