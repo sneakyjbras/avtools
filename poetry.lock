@@ -420,15 +420,13 @@ files = [
 
 [[package]]
 name = "eam-rest-client"
-version = "25.12.2.post3"
+version = "25.12.2-3"
 description = "EAM REST Client"
 optional = false
 python-versions = ">=3.9.2,<4.0"
 groups = ["main"]
-files = [
-    {file = "eam_rest_client-25.12.2.post3-py3-none-any.whl", hash = "sha256:c489cc530b870250ada9243ad519cf565972786f36e8bf0cb375c3704358cb93"},
-    {file = "eam_rest_client-25.12.2.post3.tar.gz", hash = "sha256:fcf65b0c9467a46f4dfc4550704b1004caf18ca9aafdb30c8d50f529cc1f38a1"},
-]
+files = []
+develop = true
 
 [package.dependencies]
 cern_oauthlib = "<26"
@@ -440,9 +438,8 @@ pytyped = ["pytyped (>=2.0.0,<3.0.0)"]
 structlog = ["structlog (>=25.5.0,<26.0.0)"]
 
 [package.source]
-type = "legacy"
-url = "https://qa-pypi-itdcim.cern.ch/simple"
-reference = "pypiserver_qa"
+type = "directory"
+url = "../eam_rest_client"
 
 [[package]]
 name = "executing"
@@ -958,14 +955,14 @@ testing = ["docopt", "pytest"]
 
 [[package]]
 name = "pathspec"
-version = "1.0.2"
+version = "1.0.3"
 description = "Utility library for gitignore style pattern matching of file paths."
 optional = false
 python-versions = ">=3.9"
 groups = ["lint"]
 files = [
-    {file = "pathspec-1.0.2-py3-none-any.whl", hash = "sha256:62f8558917908d237d399b9b338ef455a814801a4688bc41074b25feefd93472"},
-    {file = "pathspec-1.0.2.tar.gz", hash = "sha256:fa32b1eb775ed9ba8d599b22c5f906dc098113989da2c00bf8b210078ca7fb92"},
+    {file = "pathspec-1.0.3-py3-none-any.whl", hash = "sha256:e80767021c1cc524aa3fb14bedda9c34406591343cc42797b386ce7b9354fb6c"},
+    {file = "pathspec-1.0.3.tar.gz", hash = "sha256:bac5cf97ae2c2876e2d25ebb15078eb04d76e4b98921ee31c6f85ade8b59444d"},
 ]
 
 [package.extras]
@@ -1834,4 +1831,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "a44835b3f473c8eb64c504f9e2330a97c5eb99424e1e9129f3045b52d29c4a77"
+content-hash = "c66a696d80c3a7824deca0c602d657c48e45c60bf62f271fced0d60094d44595"

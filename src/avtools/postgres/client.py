@@ -149,7 +149,7 @@ class PostgresClient:
         """
         return self._get_all(
             EAMPositionORM,
-            lambda row: (row.to_position()),
+            lambda row: (row.to_equipment()),
             "Error querying EAM positions",
         )
 

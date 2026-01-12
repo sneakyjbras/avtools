@@ -188,7 +188,21 @@ class EAMPositionORM(Base):
         if eam_commission:
             payload["comission_date"] = eam_commission
 
-        return Equipment(**payload)
+        eq = Equipment(**payload)
+
+        # NOTE (DB subset marker):
+        # This Equipment instance is reconstructed from a lightweight ORM projection
+        # (EAMPositionORM), not from the full EAM API payload. The Equipment class exposes
+        # many more fields than we persist in the database; missing ORM columns would
+        # otherwise appear as default attributes (None / "" / False) on the instance.
+        #
+        # We therefore attach an explicit whitelist of DB-backed fields. Downstream diff
+        # logic uses this marker to ensure that only fields actually stored in the ORM
+        # are compared against the API model, preventing permanent churn on API-only
+        # fields that can never converge with the DB.
+        setattr(eq, "_avtools_compare_fields", set(payload.keys()))
+
+        return eq
 
     # Optional: keep this if you still use Position elsewhere.
     # If not needed anymore, delete it to avoid confusion.
@@ -197,7 +211,7 @@ class EAMPositionORM(Base):
         payload: dict[str, Any] = {
             "equipmentno": self.equipment_no,
             "class_code": self.eq_class,
-            "category": self.category,  # legacy column reused for department in some flows
+            "category_code": self.category,  # legacy column reused for department in some flows
             "equipmentdesc": self.equipment_desc,
             "sponsor": self.sponsor,
             "parentasset": self.parent_asset,

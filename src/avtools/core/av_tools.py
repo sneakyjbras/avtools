@@ -412,26 +412,67 @@ class AVTools:
         """
         Compute field-by-field differences between two models/objects.
 
-        Supports:
-        - Pydantic v2 (model_dump)
-        - Pydantic v1 (dict)
-        - Non-pydantic objects (e.g. eam_rest_client.Equipment)
+        Key behavior:
+        - If `old` carries `_avtools_compare_fields`, ONLY compare those fields.
+        This prevents comparing API-only fields (alias, assigned_to, bin, store_code, etc.)
+        that are not stored in the ORM.
+        - Avoids `vars(old)` for subset-mode; instead reads exactly those fields via getattr.
+        - For `new` (API), uses exclude_unset=True when supported.
+        - Canonicalizes "" -> None to match DB semantics (your ORM `_get()` already does this).
         """
 
-        to_dict = lambda obj, *, exclude_unset=False: (
-            obj.model_dump(exclude_unset=exclude_unset)  # pydantic v2
-            if hasattr(obj, "model_dump")
-            else (
-                obj.dict(exclude_unset=exclude_unset)  # pydantic v1
-                if hasattr(obj, "dict")
-                else vars(obj)
-            )  # plain object fallback
-        )
+        def canon(v: Any) -> Any:
+            return None if v == "" else v
 
-        old_data: dict[str, Any] = to_dict(old, exclude_unset=False)
-        new_data: dict[str, Any] = to_dict(new, exclude_unset=True)
+        def to_new_dict(obj: Any) -> dict[str, Any]:
+            # Pydantic v2
+            if hasattr(obj, "model_dump"):
+                return obj.model_dump(exclude_unset=True)
+            # Pydantic v1
+            if hasattr(obj, "dict"):
+                return obj.dict(exclude_unset=True)
+            # Plain object fallback
+            return vars(obj)
 
-        return {k: v for k, v in new_data.items() if old_data.get(k) != v}
+        compare_fields = getattr(old, "_avtools_compare_fields", None)
+        new_data = to_new_dict(new)
+
+        # NOTE (cache subset vs API full model):
+        # The cached object is a lightweight DB projection (EAMDeviceORM) materialized back into an
+        # `Equipment` instance for convenience. That `Equipment` class exposes many more fields than
+        # we actually persist, so "missing" ORM columns end up as class-defaults (often None/""/False)
+        # on the derived object. If we diff the full Equipment schema, we get permanent churn:
+        #   DB-derived: alias=None, assigned_to=None, ...   vs   API: alias="", assigned_to="", ...
+        # even though those fields are not stored and can never converge.
+        #
+        # To prevent this, DB-derived Equipment instances carry an explicit whitelist of DB-backed
+        # fields (e.g. `_avtools_compare_fields`). When present, diffs are restricted to that subset:
+        # only fields persisted in the ORM are compared and allowed to drive updates.
+        if compare_fields is not None:
+            diffs: dict[str, Any] = {}
+            for k in compare_fields:
+                if k not in new_data:
+                    continue  # API didn't provide it -> don't diff it
+                old_v = canon(getattr(old, k, None))
+                new_v = canon(new_data.get(k))
+                if old_v != new_v:
+                    diffs[k] = new_data.get(k)  # keep raw API value
+            return diffs
+
+        # Fallback generic mode (if you ever compare other models)
+        old_data: dict[str, Any]
+        if hasattr(old, "model_dump"):
+            old_data = old.model_dump(exclude_unset=False)
+        elif hasattr(old, "dict"):
+            old_data = old.dict(exclude_unset=False)
+        else:
+            old_data = vars(old)
+
+        return {
+            k: v
+            for k, v in new_data.items()
+            if k in old_data and canon(old_data.get(k)) != canon(v)
+        }
 
     def _ensure_token(
         self,
