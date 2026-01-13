@@ -244,7 +244,10 @@ def test_run_landb_normal_flow_calls_all_steps(monkeypatch):
     assert [d.equipment_no for d in api_items_arg] == ["EQ-34", "EQ-38"]
     assert [d.equipment_no for d in cached_items_arg] == ["EQ-34", "EQ-99"]
     assert name_arg == "LanDB"
-    assert sync_func_arg is dbod.sync_landb_devices
+    # Bound method identity is not stable across attribute access;
+    # compare underlying function + bound instance instead.
+    assert getattr(sync_func_arg, "__self__", None) is dbod
+    assert getattr(sync_func_arg, "__func__", None) is dbod.sync_landb_devices.__func__
     # get_id lambda should use equipment_no
     assert get_id_arg(api_items_arg[0]) == api_items_arg[0].equipment_no
 
@@ -603,3 +606,6 @@ def test_run_landb_handles_malformed_landb_cache_entries(monkeypatch):
     assert name_arg == "LanDB"
     # No exceptions should have been logged
     assert logger.exception_messages == []
+
+
+# (rest of file remains unchanged)

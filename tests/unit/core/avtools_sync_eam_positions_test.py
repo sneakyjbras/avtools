@@ -218,7 +218,11 @@ def test_sync_eam_positions_happy_path(monkeypatch):
     assert [captured["get_id"](p) for p in eam_positions] == [
         p.code for p in eam_positions
     ]
-    assert captured["sync_func"] is dbod.sync_eam_positions
+    sync_func = captured["sync_func"]
+    # Bound method identity is not stable across attribute access;
+    # compare underlying function + bound instance instead.
+    assert getattr(sync_func, "__self__", None) is dbod
+    assert getattr(sync_func, "__func__", None) is dbod.sync_eam_positions.__func__
 
     # No warnings in happy path
     assert logger.warning_messages == []

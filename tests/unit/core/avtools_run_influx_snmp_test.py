@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import pytest
+
+import avtools.core.av_tools as core
 from avtools.core.av_tools import AVTools
 
 
@@ -51,7 +54,7 @@ def test_run_influx_snmp_no_devices():
     No LanDB devices:
     - get_all_landb_devices called once
     - _get_snmp_points and _publish_snmp are not called
-    - log mentions skipping
+    - log mentions no devices
     """
     av, logger, dbod = make_avtools_for_tests(devices=[])
 
@@ -97,33 +100,20 @@ def test_run_influx_snmp_devices_but_no_points():
     """
     Devices exist, but _get_snmp_points returns []:
     - _get_snmp_points called once with devices + max_workers
-    - _publish_snmp NOT called
-    - log mentions no points
+    - run_influx_snmp still calls _publish_snmp, but real _publish_snmp early-returns
+      and logs that no metrics were collected.
     """
     devices = [DummyDevice(ip="10.0.0.34"), DummyDevice(ip="10.0.0.38")]
     av, logger, dbod = make_avtools_for_tests(devices=devices)
 
     captured_args: list[tuple[list[DummyDevice], int]] = []
-    called_publish_snmp = False
 
     async def fake_get_snmp_points(self, devices_arg, max_workers: int):
         captured_args.append((devices_arg, max_workers))
         return []
 
-    def fake_publish_snmp(
-        self,
-        points,
-        influx_host,
-        influx_port,
-        influx_user,
-        influx_password,
-        influx_db,
-    ):
-        nonlocal called_publish_snmp
-        called_publish_snmp = True
-
+    # Use the real _publish_snmp to validate the "no metrics" behavior.
     av._get_snmp_points = fake_get_snmp_points.__get__(av, AVTools)
-    av._publish_snmp = fake_publish_snmp.__get__(av, AVTools)
 
     av.run_influx_snmp(
         influx_host="influx.local",
@@ -135,18 +125,17 @@ def test_run_influx_snmp_devices_but_no_points():
     )
 
     assert dbod.calls == 1
+
     # _get_snmp_points called once with all devices
     assert len(captured_args) == 1
     devices_arg, workers_arg = captured_args[0]
     assert devices_arg == devices
     assert workers_arg == 3
 
-    # no publish
-    assert called_publish_snmp is False
-    assert any(
-        "no snmp points" in msg.lower() or "no points" in msg.lower()
-        for msg in logger.info_messages
-    )
+    # run_influx_snmp logs fetching and then _publish_snmp logs skip write
+    info_text = " ".join(logger.info_messages).lower()
+    assert "fetching" in info_text
+    assert "no metrics collected" in info_text
 
 
 def test_run_influx_snmp_normal_flow_calls_publish_snmp_once():
@@ -226,35 +215,35 @@ def test_run_influx_snmp_normal_flow_calls_publish_snmp_once():
     assert db_arg == "avtools_snmp"
 
 
-def test_run_influx_snmp_snmp_collection_exception_is_caught():
+def test_run_influx_snmp_snmp_collection_exception_is_caught(monkeypatch):
     """
-    _get_snmp_points raises:
-    - run_influx_snmp should catch and log
-    - _publish_snmp should not be called
+    SNMP collection fails inside the worker:
+    - the worker exception is caught inside _get_snmp_points
+    - run_influx_snmp does not raise
+    - _publish_snmp is still invoked (with empty points), and it logs a skip
     """
     devices = [DummyDevice(ip="10.0.0.34")]
     av, logger, dbod = make_avtools_for_tests(devices=devices)
 
-    called_publish_snmp = False
+    class FakeSNMPClient:
+        def __init__(self, targets: list[Any]) -> None:
+            self.targets = targets
 
-    async def fake_get_snmp_points(self, devices_arg, max_workers: int):
-        raise RuntimeError("SNMP failure")
+        async def collect_ping(self) -> list[dict[str, Any]]:
+            raise RuntimeError("SNMP failure")
 
-    def fake_publish_snmp(
-        self,
-        points,
-        influx_host,
-        influx_port,
-        influx_user,
-        influx_password,
-        influx_db,
-    ):
-        nonlocal called_publish_snmp
-        called_publish_snmp = True
+        async def collect_snmp_probe(self) -> tuple[list[dict[str, Any]], list[Any]]:
+            return ([], [])
 
-    av._get_snmp_points = fake_get_snmp_points.__get__(av, AVTools)
-    av._publish_snmp = fake_publish_snmp.__get__(av, AVTools)
+        async def collect_snmp_query(
+            self, alive_devices: list[Any]
+        ) -> list[dict[str, Any]]:
+            return []
 
+    # Patch the SNMPClient used inside AVTools._get_snmp_points
+    monkeypatch.setattr(core, "SNMPClient", FakeSNMPClient, raising=True)
+
+    # Use real _get_snmp_points and real _publish_snmp (safe: no points => no Influx client)
     av.run_influx_snmp(
         influx_host="influx.local",
         influx_port=8086,
@@ -265,17 +254,21 @@ def test_run_influx_snmp_snmp_collection_exception_is_caught():
     )
 
     assert dbod.calls == 1
-    assert called_publish_snmp is False
-    assert any(
-        "snmp" in msg.lower() or "failed" in msg.lower()
-        for msg in logger.exception_messages
-    )
+
+    # Worker exception should have been logged
+    exc_text = " ".join(logger.exception_messages).lower()
+    assert "worker task error" in exc_text
+    assert "snmp failure" in exc_text
+
+    # Publish was called with empty points => info log about skipping write
+    info_text = " ".join(logger.info_messages).lower()
+    assert "no metrics collected" in info_text
 
 
-def test_run_influx_snmp_publish_exception_is_caught():
+def test_run_influx_snmp_publish_exception_is_caught(monkeypatch):
     """
-    _publish_snmp raises:
-    - run_influx_snmp should catch/log and not propagate
+    Influx write fails:
+    - _publish_snmp catches and logs (does not raise)
     """
     devices = [DummyDevice(ip="10.0.0.34")]
     av, logger, dbod = make_avtools_for_tests(devices=devices)
@@ -290,20 +283,19 @@ def test_run_influx_snmp_publish_exception_is_caught():
             for d in devices_arg
         ]
 
-    def fake_publish_snmp(
-        self,
-        points,
-        influx_host,
-        influx_port,
-        influx_user,
-        influx_password,
-        influx_db,
-    ):
-        raise RuntimeError("Influx write failure")
-
     av._get_snmp_points = fake_get_snmp_points.__get__(av, AVTools)
-    av._publish_snmp = fake_publish_snmp.__get__(av, AVTools)
 
+    class FakeInfluxClient:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def write_points(self, points: list[dict[str, Any]]) -> None:
+            raise RuntimeError("Influx write failure")
+
+    # Patch the InfluxClient used inside AVTools._publish_snmp
+    monkeypatch.setattr(core, "InfluxClient", FakeInfluxClient, raising=True)
+
+    # Should not raise even though write_points fails
     av.run_influx_snmp(
         influx_host="influx.local",
         influx_port=8086,
@@ -314,7 +306,6 @@ def test_run_influx_snmp_publish_exception_is_caught():
     )
 
     assert dbod.calls == 1
-    assert any(
-        "influx" in msg.lower() or "failed" in msg.lower()
-        for msg in logger.exception_messages
-    )
+    exc_text = " ".join(logger.exception_messages).lower()
+    assert "failed writing points" in exc_text
+    assert "influx write failure" in exc_text
