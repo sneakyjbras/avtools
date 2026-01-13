@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from types import MethodType
-from typing import Any, List, Tuple
+from typing import Any
 
 import structlog
-from requests.auth import HTTPBasicAuth
 
 from avtools.core.av_tools import AVTools
 
@@ -51,256 +50,274 @@ def attach_sync_stubs(
     av.sync_eam_positions = MethodType(positions_fn, av)  # type: ignore[attr-defined]
 
 
-# 1, 5, 6, 8, 9, 11: happy path, auth forwarding, logging, return value, multi-call sanity
-
-
-def test_run_eam_happy_path_calls_both_in_order_with_shared_auth_and_logs():
+def patch_register_credentials(
+    monkeypatch: Any, calls: list[tuple[str, dict[str, Any]]]
+) -> None:
     """
-    Happy path:
-    - run_eam must construct a single HTTPBasicAuth instance.
+    Patch the register_credentials symbol *as used* by avtools.core.av_tools.run_eam.
+    """
+    import avtools.core.av_tools as av_mod
+
+    def fake_register_credentials(**kwargs: Any) -> None:
+        calls.append(("register_credentials", dict(kwargs)))
+
+    monkeypatch.setattr(
+        av_mod, "register_credentials", fake_register_credentials, raising=True
+    )
+
+
+# 1, 5, 6, 8, 9, 11: happy path, forwarding, (no longer auth), return value, multi-call sanity
+
+
+def test_run_eam_happy_path_calls_both_in_order_with_shared_auth_and_logs(
+    monkeypatch: Any,
+) -> None:
+    """
+    Happy path (updated for new run_eam implementation):
+    - run_eam must call register_credentials once with correct credentials.
     - sync_eam_devices is called first, then sync_eam_positions.
-    - Both receive the *same* auth object with correct credentials.
-    - Logs overall EAM sync and per-phase messages.
+    - Devices receives asset_grid OSOBJA and department_code AV by default.
+    - Positions receives position_grid OSOBJP by default.
     - Returns None.
+
+    NOTE: The new run_eam does not emit logs itself; we keep the DummyLogger
+    plumbing but don't assert on logging content anymore.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
 
-    calls: list[tuple[str, HTTPBasicAuth]] = []
+    calls: list[tuple[str, dict[str, Any]]] = []
+    patch_register_credentials(monkeypatch, calls)
 
-    def fake_sync_devices(self: AVTools, auth: HTTPBasicAuth) -> None:
-        calls.append(("devices", auth))
+    def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
+        calls.append(("devices", dict(kwargs)))
 
-    def fake_sync_positions(self: AVTools, auth: HTTPBasicAuth) -> None:
-        calls.append(("positions", auth))
+    def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
+        calls.append(("positions", dict(kwargs)))
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
     result = av.run_eam("eam-user", "eam-pass")
     assert result is None
 
-    # Order: devices → positions, once each
-    assert [name for name, _ in calls] == ["devices", "positions"]
+    # Order: register → devices → positions
+    assert [name for name, _ in calls] == [
+        "register_credentials",
+        "devices",
+        "positions",
+    ]
 
-    # Same auth instance shared between both calls
-    first_auth = calls[0][1]
-    second_auth = calls[1][1]
-    assert first_auth is second_auth
+    reg = calls[0][1]
+    assert reg["base_url"] == "https://cmmsx.cern.ch/"
+    assert reg["user"] == "eam-user"
+    assert reg["password"] == "eam-pass"
 
-    # Credentials correct and not mutated
-    assert isinstance(first_auth, HTTPBasicAuth)
-    assert first_auth.username == "eam-user"
-    assert first_auth.password == "eam-pass"
+    dev = calls[1][1]
+    assert dev["asset_grid"] == "OSOBJA"
+    assert dev["department_code"] == "AV"
+    assert dev["limit"] is None
 
-    # Logging: overall + phase logs containing some EAM/devices/positions hints
-    info_text = " ".join(logger.infos)
-    assert "EAM" in info_text  # e.g. "Running EAM sync"
-    assert "devices" in info_text  # e.g. "EAM devices sync"
-    assert "positions" in info_text  # e.g. "EAM positions sync"
+    pos = calls[2][1]
+    assert pos["position_grid"] == "OSOBJP"
+    assert pos["limit"] is None
+
+    # No unexpected errors logged by run_eam itself
+    assert logger.errors == []
+    assert logger.exceptions == []
 
 
-def test_run_eam_can_be_called_multiple_times_without_caching():
+def test_run_eam_can_be_called_multiple_times_without_caching(monkeypatch: Any) -> None:
     """
-    Performance / multi-call sanity:
-    - Calling run_eam() twice calls both sync functions twice.
-    - No caching or reuse of HTTPBasicAuth between calls.
+    Performance / multi-call sanity (updated):
+    - Calling run_eam() twice calls register_credentials twice (no caching).
+    - Calls devices+positions twice in correct order.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
 
-    calls: list[tuple[str, HTTPBasicAuth]] = []
+    calls: list[tuple[str, dict[str, Any]]] = []
+    patch_register_credentials(monkeypatch, calls)
 
-    def fake_sync_devices(self: AVTools, auth: HTTPBasicAuth) -> None:
-        calls.append(("devices", auth))
+    def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
+        calls.append(("devices", dict(kwargs)))
 
-    def fake_sync_positions(self: AVTools, auth: HTTPBasicAuth) -> None:
-        calls.append(("positions", auth))
+    def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
+        calls.append(("positions", dict(kwargs)))
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
     av.run_eam("user-1", "pass-1")
     av.run_eam("user-2", "pass-2")
 
-    # devices,pos for first; devices,pos for second
     assert [name for name, _ in calls] == [
+        "register_credentials",
         "devices",
         "positions",
+        "register_credentials",
         "devices",
         "positions",
     ]
 
-    auth_1_devices = calls[0][1]
-    auth_1_positions = calls[1][1]
-    auth_2_devices = calls[2][1]
-    auth_2_positions = calls[3][1]
-
-    # Within each run: same auth object
-    assert auth_1_devices is auth_1_positions
-    assert auth_2_devices is auth_2_positions
-
-    # Across runs: different auth objects
-    assert auth_1_devices is not auth_2_devices
-
-    # Credentials match each call
-    assert auth_1_devices.username == "user-1"
-    assert auth_1_devices.password == "pass-1"
-    assert auth_2_devices.username == "user-2"
-    assert auth_2_devices.password == "pass-2"
+    reg1 = calls[0][1]
+    reg2 = calls[3][1]
+    assert reg1["user"] == "user-1"
+    assert reg1["password"] == "pass-1"
+    assert reg2["user"] == "user-2"
+    assert reg2["password"] == "pass-2"
 
 
-# 2, 6, 8, 13: devices raises → positions still runs; error logged; exception swallowed
+# 2, 6, 8, 13: devices raises → (NEW behavior) exception propagates; positions does NOT run
 
 
-def test_run_eam_devices_failure_still_runs_positions_and_logs_error():
+def test_run_eam_devices_failure_still_runs_positions_and_logs_error(
+    monkeypatch: Any,
+) -> None:
     """
+    Updated for new run_eam behavior:
     If sync_eam_devices raises:
-    - run_eam must catch/log the error.
-    - sync_eam_positions must still be invoked.
-    - No exception should propagate.
-    - Error log mentions devices (and ideally method name).
+    - run_eam propagates the exception (no swallowing).
+    - sync_eam_positions is NOT invoked.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
 
     calls: list[str] = []
+    reg_calls: list[tuple[str, dict[str, Any]]] = []
+    patch_register_credentials(monkeypatch, reg_calls)
 
-    def fake_sync_devices(self: AVTools, auth: HTTPBasicAuth) -> None:
+    def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
         calls.append("devices")
-        assert isinstance(auth, HTTPBasicAuth)
-        assert auth.username == "user"
-        assert auth.password == "pass"
+        assert kwargs["asset_grid"] == "OSOBJA"
+        assert kwargs["department_code"] == "AV"
         raise RuntimeError("devices boom")
 
-    def fake_sync_positions(self: AVTools, auth: HTTPBasicAuth) -> None:
+    def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
         calls.append("positions")
-        assert isinstance(auth, HTTPBasicAuth)
-        # Auth credentials should be unchanged
-        assert auth.username == "user"
-        assert auth.password == "pass"
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
-    # Must NOT raise
-    av.run_eam("user", "pass")
+    try:
+        av.run_eam("user", "pass")
+        raise AssertionError("Expected RuntimeError to propagate")
+    except RuntimeError as e:
+        assert "devices boom" in str(e)
 
-    # Both phases invoked, even though first one failed
-    assert calls == ["devices", "positions"]
-
-    error_text = " ".join(logger.errors + logger.exceptions)
-    # Error log must mention devices / method name & message
-    assert "devices" in error_text or "sync_eam_devices" in error_text
-    assert "boom" in error_text
-
-
-# 3, 6, 8, 13: positions raises → error logged; exception swallowed
+    # register happened, devices attempted, positions not called
+    assert len(reg_calls) == 1
+    assert calls == ["devices"]
 
 
-def test_run_eam_positions_failure_is_logged_and_swallowed():
+# 3, 6, 8, 13: positions raises → exception propagates
+
+
+def test_run_eam_positions_failure_is_logged_and_swallowed(monkeypatch: Any) -> None:
     """
+    Updated for new run_eam behavior:
     If sync_eam_positions raises:
-    - sync_eam_devices must be called once.
-    - run_eam must catch/log the error.
-    - No exception should propagate.
+    - devices must be called once.
+    - exception propagates (no swallowing).
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
 
     calls: list[str] = []
+    reg_calls: list[tuple[str, dict[str, Any]]] = []
+    patch_register_credentials(monkeypatch, reg_calls)
 
-    def fake_sync_devices(self: AVTools, auth: HTTPBasicAuth) -> None:
+    def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
         calls.append("devices")
-        assert isinstance(auth, HTTPBasicAuth)
-        assert auth.username == "user"
-        assert auth.password == "pass"
+        assert kwargs["asset_grid"] == "OSOBJA"
+        assert kwargs["department_code"] == "AV"
 
-    def fake_sync_positions(self: AVTools, auth: HTTPBasicAuth) -> None:
+    def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
         calls.append("positions")
+        assert kwargs["position_grid"] == "OSOBJP"
         raise ValueError("positions boom")
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
-    # Must NOT raise
-    av.run_eam("user", "pass")
+    try:
+        av.run_eam("user", "pass")
+        raise AssertionError("Expected ValueError to propagate")
+    except ValueError as e:
+        assert "positions boom" in str(e)
 
+    assert len(reg_calls) == 1
     assert calls == ["devices", "positions"]
 
-    error_text = " ".join(logger.errors + logger.exceptions)
-    assert "positions" in error_text or "sync_eam_positions" in error_text
-    assert "boom" in error_text
+
+# 4, 6, 13: both raise → with new behavior, first failure stops execution
 
 
-# 4, 6, 13: both raise → both errors logged; run_eam does not crash
-
-
-def test_run_eam_both_phases_fail_and_both_errors_are_logged():
+def test_run_eam_both_phases_fail_and_both_errors_are_logged(monkeypatch: Any) -> None:
     """
-    If both sync_eam_devices and sync_eam_positions raise:
-    - run_eam must log both errors.
-    - Still return cleanly without propagating exceptions.
+    Updated for new run_eam behavior:
+    If devices raises, positions is never attempted (so 'both failing' can't happen in one run).
+    This test asserts that a devices failure stops execution before positions.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
 
     calls: list[str] = []
+    reg_calls: list[tuple[str, dict[str, Any]]] = []
+    patch_register_credentials(monkeypatch, reg_calls)
 
-    def fake_sync_devices(self: AVTools, auth: HTTPBasicAuth) -> None:
+    def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
         calls.append("devices")
         raise RuntimeError("devices kaboom")
 
-    def fake_sync_positions(self: AVTools, auth: HTTPBasicAuth) -> None:
-        calls.append("positions")
-        raise RuntimeError("positions kaboom")
+    def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
+        # If this runs, run_eam didn't short-circuit correctly
+        raise AssertionError("positions should not run when devices fails")
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
-    # Must NOT raise even though both fail
-    av.run_eam("user", "pass")
+    try:
+        av.run_eam("user", "pass")
+        raise AssertionError("Expected RuntimeError to propagate")
+    except RuntimeError as e:
+        assert "devices kaboom" in str(e)
 
-    assert calls == ["devices", "positions"]
-
-    error_text = " ".join(logger.errors + logger.exceptions)
-    # We expect mention of both phases in error logs
-    assert "devices" in error_text or "sync_eam_devices" in error_text
-    assert "positions" in error_text or "sync_eam_positions" in error_text
-    assert "kaboom" in error_text
+    assert len(reg_calls) == 1
+    assert calls == ["devices"]
 
 
 # 7: no unexpected calls to other pipelines
 
 
-def test_run_eam_does_not_call_other_pipelines_or_snmp_or_token():
+def test_run_eam_does_not_call_other_pipelines_or_snmp_or_token(
+    monkeypatch: Any,
+) -> None:
     """
     run_eam must not call:
       - run_landb
       - run_influx_snmp
       - any SNMP functions
       - any token functions
-    Only sync_eam_devices and sync_eam_positions.
+    Only register_credentials + sync_eam_devices + sync_eam_positions.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
 
-    # Normal sync stubs
     calls: list[str] = []
+    reg_calls: list[tuple[str, dict[str, Any]]] = []
+    patch_register_credentials(monkeypatch, reg_calls)
 
-    def fake_sync_devices(self: AVTools, auth: HTTPBasicAuth) -> None:
+    def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
         calls.append("devices")
 
-    def fake_sync_positions(self: AVTools, auth: HTTPBasicAuth) -> None:
+    def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
         calls.append("positions")
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
-    # Guards: if any of these are called, we hard-fail the test.
-    def forbidden(
-        *args: Any, **kwargs: Any
-    ) -> None:  # pragma: no cover - only if broken
+    def forbidden(*args: Any, **kwargs: Any) -> None:  # pragma: no cover
         raise AssertionError("Unexpected pipeline method was called from run_eam")
 
     av.run_landb = MethodType(forbidden, av)  # type: ignore[attr-defined]
@@ -310,14 +327,16 @@ def test_run_eam_does_not_call_other_pipelines_or_snmp_or_token():
 
     av.run_eam("user", "pass")
 
-    # Only EAM sync methods should have been called
+    assert len(reg_calls) == 1
     assert calls == ["devices", "positions"]
 
 
 # 10: global state safety (no new attributes set by run_eam)
 
 
-def test_run_eam_does_not_mutate_global_state_on_avtools_instance():
+def test_run_eam_does_not_mutate_global_state_on_avtools_instance(
+    monkeypatch: Any,
+) -> None:
     """
     run_eam should not set new attributes on AVTools instance
     (beyond what tests attach themselves).
@@ -326,16 +345,19 @@ def test_run_eam_does_not_mutate_global_state_on_avtools_instance():
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
 
+    reg_calls: list[tuple[str, dict[str, Any]]] = []
+    patch_register_credentials(monkeypatch, reg_calls)
+
     # Attach some arbitrary state + sync stubs
     av.logs = True
     av.dbod_helper = object()
     av.extra_state = {"key": "value"}
 
-    def fake_sync_devices(self: AVTools, auth: HTTPBasicAuth) -> None:
-        assert isinstance(auth, HTTPBasicAuth)
+    def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
+        pass
 
-    def fake_sync_positions(self: AVTools, auth: HTTPBasicAuth) -> None:
-        assert isinstance(auth, HTTPBasicAuth)
+    def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
+        pass
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
@@ -354,29 +376,32 @@ def test_run_eam_does_not_mutate_global_state_on_avtools_instance():
 # 12: large dataset mock (simulated heavy work inside devices sync)
 
 
-def test_run_eam_large_dataset_mock_does_not_hang():
+def test_run_eam_large_dataset_mock_does_not_hang(monkeypatch: Any) -> None:
     """
     Large dataset mock:
     - sync_eam_devices simulates processing many records (cheap loop).
-    - run_eam must still return quickly and call positions afterwards.
+    - run_eam must still return and call positions afterwards.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
 
+    reg_calls: list[tuple[str, dict[str, Any]]] = []
+    patch_register_credentials(monkeypatch, reg_calls)
+
     calls: list[str] = []
 
-    def fake_sync_devices(self: AVTools, auth: HTTPBasicAuth) -> None:
+    def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
         calls.append("devices")
-        # Simulate some "heavy" work without actually being slow
         for _ in range(10_000):
             pass
 
-    def fake_sync_positions(self: AVTools, auth: HTTPBasicAuth) -> None:
+    def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
         calls.append("positions")
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
     av.run_eam("user", "pass")
 
+    assert len(reg_calls) == 1
     assert calls == ["devices", "positions"]

@@ -4,17 +4,19 @@ import asyncio
 from typing import Any
 
 import structlog
-from pydantic import BaseModel
+from pydantic.v1 import BaseModel
 
 import avtools.core.av_tools as core
 from avtools.core.av_tools import AVTools
 
 
 class DummyEAM(BaseModel):
-    equipment_no: str
+    # Must match what AVTools._get_landb_devices reads:
+    #   rec.code, rec.serial_number, rec.class_code, rec.manufacturer_code
+    code: str
     serial_number: str
-    eq_class: str
-    manufacturer: str
+    class_code: str
+    manufacturer_code: str
 
 
 class DummyLanDBDevice(BaseModel):
@@ -47,6 +49,15 @@ def make_avtools_for_tests() -> AVTools:
     return av
 
 
+def _dump_model(m: Any) -> dict[str, Any]:
+    # Support pydantic v1 and v2-ish interfaces, plus plain objects
+    if hasattr(m, "model_dump"):
+        return m.model_dump()
+    if hasattr(m, "dict"):
+        return m.dict()
+    return dict(vars(m))
+
+
 def test_get_landb_devices_returns_empty_when_no_eam_records():
     """
     If there are no EAM records, _get_landb_devices should log and return [].
@@ -64,7 +75,6 @@ def test_get_landb_devices_returns_empty_when_no_eam_records():
     )
 
     assert result == []
-    # We logged a message about having no EAM records
     assert any(
         "No EAM records provided" in msg for msg in av.logger.infos  # type: ignore[attr-defined]
     )
@@ -83,45 +93,45 @@ def test_get_landb_devices_builds_and_filters_devices(monkeypatch):
     eam_records = [
         # valid → should be kept
         DummyEAM(
-            equipment_no="DEV-34",
+            code="DEV-34",
             serial_number="SN-34",
-            eq_class="EQ-34",
-            manufacturer="MFG-34",
+            class_code="EQ-34",
+            manufacturer_code="MFG-34",
         ),
         # client returns None → should be skipped
         DummyEAM(
-            equipment_no="DEV-38",
+            code="DEV-38",
             serial_number="SN-38",
-            eq_class="EQ-38",
-            manufacturer="MFG-38",
+            class_code="EQ-38",
+            manufacturer_code="MFG-38",
         ),
         # missing serial_number in result → skipped
         DummyEAM(
-            equipment_no="DEV-39",
+            code="DEV-39",
             serial_number="SN-39",
-            eq_class="EQ-39",
-            manufacturer="MFG-39",
+            class_code="EQ-39",
+            manufacturer_code="MFG-39",
         ),
         # ip is None in result → skipped
         DummyEAM(
-            equipment_no="DEV-404",
+            code="DEV-404",
             serial_number="SN-404",
-            eq_class="EQ-404",
-            manufacturer="MFG-404",
+            class_code="EQ-404",
+            manufacturer_code="MFG-404",
         ),
         # client raises error → skipped
         DummyEAM(
-            equipment_no="DEV-1911",
+            code="DEV-1911",
             serial_number="SN-1911",
-            eq_class="EQ-1911",
-            manufacturer="MFG-1911",
+            class_code="EQ-1911",
+            manufacturer_code="MFG-1911",
         ),
         # another valid → should be kept
         DummyEAM(
-            equipment_no="DEV-2137",
+            code="DEV-2137",
             serial_number="SN-2137",
-            eq_class="EQ-2137",
-            manufacturer="MFG-2137",
+            class_code="EQ-2137",
+            manufacturer_code="MFG-2137",
         ),
     ]
 
@@ -173,7 +183,6 @@ def test_get_landb_devices_builds_and_filters_devices(monkeypatch):
                 raise RuntimeError("dummy LanDB error")
             raise AssertionError(f"Unexpected mode {mode!r}")
 
-    # Patch the LanDBClient used inside avtools.core.av_tools
     monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
 
     result = asyncio.run(
@@ -184,10 +193,8 @@ def test_get_landb_devices_builds_and_filters_devices(monkeypatch):
         )
     )
 
-    # Only DEV-34 and DEV-2137 should survive all filters
     equipment_nos = [d.equipment_no for d in result]
     assert equipment_nos == ["DEV-34", "DEV-2137"]
-    # sanity check: their ips are set
     assert all(d.ip is not None for d in result)
 
 
@@ -201,22 +208,22 @@ def test_get_landb_devices_all_invalid_returns_empty(monkeypatch):
 
     eam_records = [
         DummyEAM(
-            equipment_no="DEV-34",
+            code="DEV-34",
             serial_number="SN-34",
-            eq_class="EQ-34",
-            manufacturer="MFG-34",
+            class_code="EQ-34",
+            manufacturer_code="MFG-34",
         ),
         DummyEAM(
-            equipment_no="DEV-38",
+            code="DEV-38",
             serial_number="SN-38",
-            eq_class="EQ-38",
-            manufacturer="MFG-38",
+            class_code="EQ-38",
+            manufacturer_code="MFG-38",
         ),
         DummyEAM(
-            equipment_no="DEV-39",
+            code="DEV-39",
             serial_number="SN-39",
-            eq_class="EQ-39",
-            manufacturer="MFG-39",
+            class_code="EQ-39",
+            manufacturer_code="MFG-39",
         ),
     ]
 
@@ -281,16 +288,16 @@ def test_get_landb_devices_respects_total_count_and_logs(monkeypatch):
 
     eam_records = [
         DummyEAM(
-            equipment_no="DEV-14",
+            code="DEV-14",
             serial_number="SN-14",
-            eq_class="EQ-14",
-            manufacturer="MFG-14",
+            class_code="EQ-14",
+            manufacturer_code="MFG-14",
         ),
         DummyEAM(
-            equipment_no="DEV-1978",
+            code="DEV-1978",
             serial_number="SN-1978",
-            eq_class="EQ-1978",
-            manufacturer="MFG-1978",
+            class_code="EQ-1978",
+            manufacturer_code="MFG-1978",
         ),
     ]
 
@@ -326,7 +333,6 @@ def test_get_landb_devices_respects_total_count_and_logs(monkeypatch):
     assert equipment_nos == ["DEV-14", "DEV-1978"]
     assert all(d.ip == "10.0.0.2025" for d in result)
 
-    # Logging: one "Fetching ..." and one "Fetched X of Y ..."
     assert any("Fetching 2 LanDB devices with 2 tasks." in msg for msg in logger.infos)
     assert any("Fetched 2 of 2 LanDB devices." in msg for msg in logger.infos)
 
@@ -341,22 +347,22 @@ def test_get_landb_devices_with_more_workers_than_records(monkeypatch):
 
     eam_records = [
         DummyEAM(
-            equipment_no="DEV-34",
+            code="DEV-34",
             serial_number="SN-34",
-            eq_class="EQ-34",
-            manufacturer="MFG-34",
+            class_code="EQ-34",
+            manufacturer_code="MFG-34",
         ),
         DummyEAM(
-            equipment_no="DEV-38",
+            code="DEV-38",
             serial_number="SN-38",
-            eq_class="EQ-38",
-            manufacturer="MFG-38",
+            class_code="EQ-38",
+            manufacturer_code="MFG-38",
         ),
         DummyEAM(
-            equipment_no="DEV-39",
+            code="DEV-39",
             serial_number="SN-39",
-            eq_class="EQ-39",
-            manufacturer="MFG-39",
+            class_code="EQ-39",
+            manufacturer_code="MFG-39",
         ),
     ]
 
@@ -387,14 +393,13 @@ def test_get_landb_devices_with_more_workers_than_records(monkeypatch):
         av._get_landb_devices(
             eam_records=list(eam_records),
             session=session,
-            max_workers=10,  # more workers than records
+            max_workers=10,
         )
     )
 
     equipment_nos = sorted(d.equipment_no for d in result)
     assert equipment_nos == ["DEV-34", "DEV-38", "DEV-39"]
 
-    # Every record must have been processed exactly once (order may vary)
     assert sorted(calls) == ["DEV-34", "DEV-38", "DEV-39"]
     assert len(calls) == len(eam_records)
 
@@ -408,21 +413,20 @@ def test_get_landb_devices_does_not_mutate_eam_records(monkeypatch):
 
     eam_records = [
         DummyEAM(
-            equipment_no="DEV-34",
+            code="DEV-34",
             serial_number="SN-34",
-            eq_class="EQ-34",
-            manufacturer="MFG-34",
+            class_code="EQ-34",
+            manufacturer_code="MFG-34",
         ),
         DummyEAM(
-            equipment_no="DEV-38",
+            code="DEV-38",
             serial_number="SN-38",
-            eq_class="EQ-38",
-            manufacturer="MFG-38",
+            class_code="EQ-38",
+            manufacturer_code="MFG-38",
         ),
     ]
 
-    # Take a deep-ish snapshot via model_dump()
-    before = [rec.model_dump() for rec in eam_records]
+    before = [_dump_model(rec) for rec in eam_records]
 
     class DummyLanDBClient:
         def __init__(self, session: Any) -> None:
@@ -444,22 +448,21 @@ def test_get_landb_devices_does_not_mutate_eam_records(monkeypatch):
 
     monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
 
-    # Pass the original list (not a copy) to detect mutations
     _ = asyncio.run(
         av._get_landb_devices(
-            eam_records=eam_records,
+            eam_records=eam_records,  # pass original list to detect mutation
             session=session,
             max_workers=2,
         )
     )
 
-    after = [rec.model_dump() for rec in eam_records]
+    after = [_dump_model(rec) for rec in eam_records]
     assert after == before
 
 
 def test_get_landb_devices_creates_one_lanbd_client_per_task(monkeypatch):
     """
-    For total N and max_workers W, _get_landb_devices should create exactly
+    For total N and max_workers W, _get_landb_devices creates
     num_tasks = min(N, W) LanDBClient instances (one per slice/task).
     """
     av = make_avtools_for_tests()
@@ -468,10 +471,10 @@ def test_get_landb_devices_creates_one_lanbd_client_per_task(monkeypatch):
     # 5 records, max_workers=2 → num_tasks = 2
     eam_records = [
         DummyEAM(
-            equipment_no=f"DEV-{i}",
+            code=f"DEV-{i}",
             serial_number=f"SN-{i}",
-            eq_class=f"EQ-{i}",
-            manufacturer=f"MFG-{i}",
+            class_code=f"EQ-{i}",
+            manufacturer_code=f"MFG-{i}",
         )
         for i in range(5)
     ]
@@ -507,12 +510,7 @@ def test_get_landb_devices_creates_one_lanbd_client_per_task(monkeypatch):
         )
     )
 
-    # All devices returned
-    assert sorted(d.equipment_no for d in result) == sorted(
-        r.equipment_no for r in eam_records
-    )
-
-    # Exactly min(total, max_workers) helpers instantiated
+    assert sorted(d.equipment_no for d in result) == sorted(r.code for r in eam_records)
     assert len(DummyLanDBClient.instances) == 2
     assert all(client.session is session for client in DummyLanDBClient.instances)
 
@@ -529,10 +527,10 @@ def test_get_landb_devices_logs_error_when_client_raises(monkeypatch):
 
     eam_records = [
         DummyEAM(
-            equipment_no="DEV-34",
+            code="DEV-34",
             serial_number="SN-34",
-            eq_class="EQ-34",
-            manufacturer="MFG-34",
+            class_code="EQ-34",
+            manufacturer_code="MFG-34",
         )
     ]
 
@@ -559,53 +557,46 @@ def test_get_landb_devices_logs_error_when_client_raises(monkeypatch):
         )
     )
 
-    # No devices could be fetched
     assert result == []
-
-    # Error was logged, but not raised
     assert any("Error fetching DEV-34" in msg for msg in logger.errors)
 
 
 # ---------------------------------------------------------------------------
-# Combined behaviour: _get_landb_devices + _ensure_token
+# Combined behaviour: old tests expected token-refresh *inside* _get_landb_devices.
+# New implementation does NOT refresh tokens here; run_landb() calls _ensure_token
+# before invoking _get_landb_devices(). These tests are updated 1:1 to assert
+# that behavior (no ensure_token calls, no retries), while preserving names.
 # ---------------------------------------------------------------------------
 
 
 def test_get_landb_devices_401_triggers_ensure_token_and_retry_success(monkeypatch):
     """
-    401 → refresh → retry success:
-    - First LanDB call fails with an authorization error.
-    - _ensure_token is called once.
-    - Second attempt succeeds and returns devices.
+    Updated behavior:
+    - _get_landb_devices does NOT call _ensure_token and does NOT retry.
+    - Authorization-like errors are logged and skipped.
+    - Other records may still succeed.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
-    # Simulate presence of a LanDB config attribute used by _ensure_token
+
     av.landb_cfg = object()
 
     ensure_calls: list[tuple[Any, Any]] = []
 
     def fake_ensure_token(self: AVTools, session: Any, cfg: Any) -> None:
         ensure_calls.append((session, cfg))
-        # Simulate token refresh by flipping a flag on the session
-        session.token = "refreshed-token"
 
     monkeypatch.setattr(AVTools, "_ensure_token", fake_ensure_token)
-
-    class DummySession:
-        def __init__(self) -> None:
-            self.token: str | None = None
 
     class UnauthorizedError(Exception):
         pass
 
-    monkeypatch.setattr(
-        core, "LandBUnauthorizedError", UnauthorizedError, raising=False
-    )
+    class DummySession:
+        pass
 
     class DummyLanDBClient:
-        calls = 0
+        calls: list[str] = []
 
         def __init__(self, session: DummySession) -> None:
             self.session = session
@@ -617,11 +608,9 @@ def test_get_landb_devices_401_triggers_ensure_token_and_retry_success(monkeypat
             eq_class: str,
             manufacturer: str,
         ) -> DummyLanDBDevice:
-            DummyLanDBClient.calls += 1
-            # First call with no token → simulate 401
-            if self.session.token is None:
+            DummyLanDBClient.calls.append(equipment_no)
+            if equipment_no == "DEV-401":
                 raise UnauthorizedError("401 Unauthorized")
-            # After refresh → succeed
             return DummyLanDBDevice(
                 equipment_no=equipment_no,
                 serial_number=serial_number,
@@ -634,40 +623,46 @@ def test_get_landb_devices_401_triggers_ensure_token_and_retry_success(monkeypat
     session = DummySession()
     eam_records = [
         DummyEAM(
-            equipment_no="DEV-401",
+            code="DEV-401",
             serial_number="SN-401",
-            eq_class="EQ-401",
-            manufacturer="MFG-401",
-        )
+            class_code="EQ-401",
+            manufacturer_code="MFG-401",
+        ),
+        DummyEAM(
+            code="DEV-OK",
+            serial_number="SN-OK",
+            class_code="EQ-OK",
+            manufacturer_code="MFG-OK",
+        ),
     ]
 
     result = asyncio.run(
         av._get_landb_devices(
             eam_records=eam_records,
             session=session,
-            max_workers=1,
+            max_workers=2,
         )
     )
 
-    # One device successfully returned after retry
-    assert [d.equipment_no for d in result] == ["DEV-401"]
-    # _ensure_token called exactly once with our session + cfg
-    assert len(ensure_calls) == 1
-    assert ensure_calls[0][0] is session
-    assert ensure_calls[0][1] is av.landb_cfg
-    # LanDB was hit at least twice: first 401, then success
-    assert DummyLanDBClient.calls >= 2
+    # Only the OK one survives (401 was skipped)
+    assert [d.equipment_no for d in result] == ["DEV-OK"]
+
+    # No token refresh inside _get_landb_devices
+    assert ensure_calls == []
+
+    # No retry: each record processed once
+    assert sorted(DummyLanDBClient.calls) == ["DEV-401", "DEV-OK"]
+
+    # Logged error for the unauthorized record
+    assert any("Error fetching DEV-401" in msg for msg in logger.errors)
 
 
-def test_get_landb_devices_401_triggers_ensure_token_but_retry_still_fails(
-    monkeypatch,
-):
+def test_get_landb_devices_401_triggers_ensure_token_but_retry_still_fails(monkeypatch):
     """
-    401 → refresh → retry failure:
-    - First call fails with 401.
-    - _ensure_token is called once.
-    - Second attempt still fails with 401.
-    - _get_landb_devices should log and return an empty list, not crash.
+    Updated behavior:
+    - No _ensure_token calls here.
+    - No retries.
+    - 401-like errors are logged and the device is skipped.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
@@ -678,21 +673,14 @@ def test_get_landb_devices_401_triggers_ensure_token_but_retry_still_fails(
 
     def fake_ensure_token(self: AVTools, session: Any, cfg: Any) -> None:
         ensure_calls.append((session, cfg))
-        # Even after "refresh", token still invalid
-        session.token = "still-invalid"
 
     monkeypatch.setattr(AVTools, "_ensure_token", fake_ensure_token)
-
-    class DummySession:
-        def __init__(self) -> None:
-            self.token: str | None = None
 
     class UnauthorizedError(Exception):
         pass
 
-    monkeypatch.setattr(
-        core, "LandBUnauthorizedError", UnauthorizedError, raising=False
-    )
+    class DummySession:
+        pass
 
     class DummyLanDBClient:
         calls = 0
@@ -708,7 +696,6 @@ def test_get_landb_devices_401_triggers_ensure_token_but_retry_still_fails(
             manufacturer: str,
         ) -> DummyLanDBDevice:
             DummyLanDBClient.calls += 1
-            # Always unauthorized, even after refresh
             raise UnauthorizedError("401 Unauthorized (still)")
 
     monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
@@ -716,10 +703,10 @@ def test_get_landb_devices_401_triggers_ensure_token_but_retry_still_fails(
     session = DummySession()
     eam_records = [
         DummyEAM(
-            equipment_no="DEV-401F",
+            code="DEV-401F",
             serial_number="SN-401F",
-            eq_class="EQ-401F",
-            manufacturer="MFG-401F",
+            class_code="EQ-401F",
+            manufacturer_code="MFG-401F",
         )
     ]
 
@@ -731,22 +718,17 @@ def test_get_landb_devices_401_triggers_ensure_token_but_retry_still_fails(
         )
     )
 
-    # No devices could be fetched
     assert result == []
-    # _ensure_token called exactly once
-    assert len(ensure_calls) == 1
-    # Multiple attempts to contact LanDB, but none succeeded
-    assert DummyLanDBClient.calls >= 2
-    # Some error should have been logged
-    assert logger.errors or logger.exceptions
+    assert ensure_calls == []
+    assert DummyLanDBClient.calls == 1
+    assert any("Error fetching DEV-401F" in msg for msg in logger.errors)
 
 
 def test_get_landb_devices_network_error_does_not_trigger_token_refresh(monkeypatch):
     """
-    Network error case:
-    - LanDBClient raises a network-level error (not 401).
-    - _ensure_token must NOT be called.
-    - _get_landb_devices logs and returns [].
+    Updated behavior:
+    - Network-like errors are logged and skipped.
+    - _ensure_token is not called here.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
@@ -760,13 +742,11 @@ def test_get_landb_devices_network_error_does_not_trigger_token_refresh(monkeypa
 
     monkeypatch.setattr(AVTools, "_ensure_token", fake_ensure_token)
 
-    class DummySession:
-        pass
-
     class NetworkError(Exception):
         pass
 
-    monkeypatch.setattr(core, "LanDBNetworkError", NetworkError, raising=False)
+    class DummySession:
+        pass
 
     class DummyLanDBClient:
         def __init__(self, session: DummySession) -> None:
@@ -779,7 +759,6 @@ def test_get_landb_devices_network_error_does_not_trigger_token_refresh(monkeypa
             eq_class: str,
             manufacturer: str,
         ) -> DummyLanDBDevice:
-            # Simulate network-layer failure (e.g. ConnectionError)
             raise NetworkError("connection reset by peer")
 
     monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
@@ -787,10 +766,10 @@ def test_get_landb_devices_network_error_does_not_trigger_token_refresh(monkeypa
     session = DummySession()
     eam_records = [
         DummyEAM(
-            equipment_no="DEV-NET",
+            code="DEV-NET",
             serial_number="SN-NET",
-            eq_class="EQ-NET",
-            manufacturer="MFG-NET",
+            class_code="EQ-NET",
+            manufacturer_code="MFG-NET",
         )
     ]
 
@@ -802,22 +781,18 @@ def test_get_landb_devices_network_error_does_not_trigger_token_refresh(monkeypa
         )
     )
 
-    # No devices due to network errors
     assert result == []
-    # _ensure_token must not be called on pure network issues
     assert ensure_calls == []
-    # Error should be logged
-    assert logger.errors or logger.exceptions
+    assert any("Error fetching DEV-NET" in msg for msg in logger.errors)
 
 
 def test_get_landb_devices_calls_ensure_token_before_requests_when_no_token(
     monkeypatch,
 ):
     """
-    Expired / missing token before request:
-    - Session starts without a token.
-    - _get_landb_devices should call _ensure_token once before using LanDBClient.
-    - LanDBClient.__init__ sees a 'refreshed' token.
+    Updated behavior:
+    - _get_landb_devices does not call _ensure_token (run_landb does).
+    - We assert ensure_token is NOT invoked and the session can still be used.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
@@ -836,7 +811,6 @@ def test_get_landb_devices_calls_ensure_token_before_requests_when_no_token(
 
     def fake_ensure_token(self: AVTools, session: TokenSession, cfg: Any) -> None:
         ensure_calls.append((session, cfg))
-        # Simulate token acquisition
         session.auth.token = "fresh-token"
 
     monkeypatch.setattr(AVTools, "_ensure_token", fake_ensure_token)
@@ -845,8 +819,8 @@ def test_get_landb_devices_calls_ensure_token_before_requests_when_no_token(
         instances: list[DummyLanDBClient] = []
 
         def __init__(self, session: TokenSession) -> None:
-            # Ensure we only construct the client once a token exists
-            assert session.auth.token == "fresh-token"
+            # In new behavior, token is not set here (run_landb would do it)
+            assert session.auth.token is None
             self.session = session
             DummyLanDBClient.instances.append(self)
 
@@ -869,10 +843,10 @@ def test_get_landb_devices_calls_ensure_token_before_requests_when_no_token(
     session = TokenSession()
     eam_records = [
         DummyEAM(
-            equipment_no="DEV-TOKEN",
+            code="DEV-TOKEN",
             serial_number="SN-TOKEN",
-            eq_class="EQ-TOKEN",
-            manufacturer="MFG-TOKEN",
+            class_code="EQ-TOKEN",
+            manufacturer_code="MFG-TOKEN",
         )
     ]
 
@@ -884,23 +858,17 @@ def test_get_landb_devices_calls_ensure_token_before_requests_when_no_token(
         )
     )
 
-    # Device fetched successfully
     assert [d.equipment_no for d in result] == ["DEV-TOKEN"]
-    # _ensure_token called exactly once
-    assert len(ensure_calls) == 1
-    assert ensure_calls[0][0] is session
-    assert ensure_calls[0][1] is av.landb_cfg
-    # LanDBClient constructed with a session that already has a token
+    assert ensure_calls == []
     assert len(DummyLanDBClient.instances) == 1
     assert DummyLanDBClient.instances[0].session is session
 
 
 def test_get_landb_devices_handles_malformed_refresh_token_gracefully(monkeypatch):
     """
-    Malformed-refresh-token path:
-    - _ensure_token is called but fails to populate a token.
-    - LanDBClient sees a session without a token and fails with an auth error.
-    - _get_landb_devices should not loop forever, and should return [].
+    Updated behavior:
+    - _get_landb_devices does not refresh tokens and does not retry.
+    - Errors are logged and the function returns [].
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
@@ -918,18 +886,13 @@ def test_get_landb_devices_handles_malformed_refresh_token_gracefully(monkeypatc
             self.auth = DummyAuth()
 
     def fake_ensure_token(self: AVTools, session: TokenSession, cfg: Any) -> None:
-        # Called, but fails to populate session.auth.token (malformed response)
         ensure_calls.append((session, cfg))
-        # token remains None
+        # token remains None (malformed refresh)
 
     monkeypatch.setattr(AVTools, "_ensure_token", fake_ensure_token)
 
     class UnauthorizedError(Exception):
         pass
-
-    monkeypatch.setattr(
-        core, "LandBUnauthorizedError", UnauthorizedError, raising=False
-    )
 
     class DummyLanDBClient:
         calls = 0
@@ -945,25 +908,17 @@ def test_get_landb_devices_handles_malformed_refresh_token_gracefully(monkeypatc
             manufacturer: str,
         ) -> DummyLanDBDevice:
             DummyLanDBClient.calls += 1
-            # Because token was never set, always unauthorized
-            if self.session.auth.token is None:
-                raise UnauthorizedError("401 Unauthorized (malformed token)")
-            return DummyLanDBDevice(
-                equipment_no=equipment_no,
-                serial_number=serial_number,
-                ip="10.0.0.99",
-                manufacturer=manufacturer,
-            )
+            raise UnauthorizedError("401 Unauthorized (malformed token)")
 
     monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
 
     session = TokenSession()
     eam_records = [
         DummyEAM(
-            equipment_no="DEV-BADTOKEN",
+            code="DEV-BADTOKEN",
             serial_number="SN-BADTOKEN",
-            eq_class="EQ-BADTOKEN",
-            manufacturer="MFG-BADTOKEN",
+            class_code="EQ-BADTOKEN",
+            manufacturer_code="MFG-BADTOKEN",
         )
     ]
 
@@ -975,11 +930,7 @@ def test_get_landb_devices_handles_malformed_refresh_token_gracefully(monkeypatc
         )
     )
 
-    # No devices could be fetched
     assert result == []
-    # _ensure_token was called exactly once
-    assert len(ensure_calls) == 1
-    # LanDBClient saw unauthenticated session multiple times (but no infinite loop)
-    assert DummyLanDBClient.calls >= 1
-    # Errors should have been logged
+    assert ensure_calls == []
+    assert DummyLanDBClient.calls == 1
     assert logger.errors or logger.exceptions

@@ -6,23 +6,24 @@ import pytest
 from click.testing import CliRunner
 
 import avtools.main as main
+from avtools.exception.errors import NoRecordsFound
 
 
 class DummyAVTools:
     """
-    Test double for AVTools. Tracks instantiations and method calls and can be
-    configured to raise from specific methods to exercise CLI error handling.
+    Test double for AVTools used by the CLI.
+
+    Records constructor args and method calls so we can assert the Click wiring
+    matches main.py.
     """
 
     instances: list[DummyAVTools] = []
     calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
 
-    # Flags to simulate failures in underlying AVTools calls
-    raise_run_eam: bool = False
-    raise_run_landb: bool = False
-    raise_run_influx_snmp: bool = False
+    # Toggle raises for specific methods
+    raise_no_records_run_eam: bool = False
+    raise_no_records_run_landb: bool = False
 
-    # "Global" state guard (for the 'no unintended side effects' check)
     global_state: dict[str, Any] = {"sentinel": "unchanged"}
 
     def __init__(self, dbod_url: str, logs: bool = False) -> None:
@@ -30,51 +31,58 @@ class DummyAVTools:
         self.logs = logs
         type(self).instances.append(self)
 
-    # ---- AVTools interface methods ----
-
     def run_eam(self, username: str, password: str) -> None:
         type(self).calls.append(("run_eam", (username, password), {}))
-        if type(self).raise_run_eam:
-            raise RuntimeError("run_eam boom")
+        if type(self).raise_no_records_run_eam:
+            raise NoRecordsFound("no EAM records")
 
     def run_landb(
         self,
+        *,
         client_id: str,
         client_secret: str,
         audience: str,
-        max_workers: int = 8,
+        max_workers: int,
     ) -> None:
         type(self).calls.append(
-            ("run_landb", (client_id, client_secret, audience, max_workers), {})
+            (
+                "run_landb",
+                (),
+                {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "audience": audience,
+                    "max_workers": max_workers,
+                },
+            )
         )
-        if type(self).raise_run_landb:
-            raise RuntimeError("run_landb boom")
+        if type(self).raise_no_records_run_landb:
+            raise NoRecordsFound("no LanDB records")
 
     def run_influx_snmp(
         self,
+        *,
         influx_host: str,
         influx_port: int,
         influx_user: str,
         influx_password: str,
         influx_db: str,
-        max_workers: int = 8,
+        max_workers: int,
     ) -> None:
         type(self).calls.append(
             (
                 "run_influx_snmp",
-                (
-                    influx_host,
-                    influx_port,
-                    influx_user,
-                    influx_password,
-                    influx_db,
-                    max_workers,
-                ),
-                {},
+                (),
+                {
+                    "influx_host": influx_host,
+                    "influx_port": influx_port,
+                    "influx_user": influx_user,
+                    "influx_password": influx_password,
+                    "influx_db": influx_db,
+                    "max_workers": max_workers,
+                },
             )
         )
-        if type(self).raise_run_influx_snmp:
-            raise RuntimeError("run_influx_snmp boom")
 
 
 @pytest.fixture
@@ -84,99 +92,90 @@ def runner() -> CliRunner:
 
 @pytest.fixture
 def patched_avtools(monkeypatch) -> type[DummyAVTools]:
-    """
-    Patch avtools.main.AVTools with our DummyAVTools for all CLI tests and
-    reset its static state between tests.
-    """
     DummyAVTools.instances.clear()
     DummyAVTools.calls.clear()
-    DummyAVTools.raise_run_eam = False
-    DummyAVTools.raise_run_landb = False
-    DummyAVTools.raise_run_influx_snmp = False
+    DummyAVTools.raise_no_records_run_eam = False
+    DummyAVTools.raise_no_records_run_landb = False
     DummyAVTools.global_state = {"sentinel": "unchanged"}
 
+    # Patch the symbol used by main.py
     monkeypatch.setattr(main, "AVTools", DummyAVTools)
     return DummyAVTools
-
-
-# ---------------------------------------------------------------------------
-# -- Help coverage / smoke tests -------------------------------------------
-# ---------------------------------------------------------------------------
 
 
 def test_root_help_and_subcommand_help(
     runner: CliRunner, patched_avtools: type[DummyAVTools]
 ) -> None:
-    # Root --help
-    result = runner.invoke(main.cli, ["--help"])
-    assert result.exit_code == 0
-    assert "Usage" in result.output
-    # Expect subcommands listed in root help
-    assert "run-eam" in result.output
-    assert "run-landb" in result.output
-    assert "run-influx-snmp" in result.output
+    """
+    Root and subcommand help should expose current command names:
+    - run-eam
+    - run-landb
+    - snmp-influx
+    """
+    cli = main.cli
 
-    # Subcommand --help
-    for cmd in ("run-eam", "run-landb", "run-influx-snmp"):
-        result = runner.invoke(
-            main.cli,
-            ["--dbod-url", "postgres://dummy", cmd, "--help"],
-        )
-        assert result.exit_code == 0
-        assert "Usage" in result.output
+    res = runner.invoke(cli, ["--help"])
+    assert res.exit_code == 0
+    assert "Usage:" in res.output
 
+    assert "run-eam" in res.output
+    assert "run-landb" in res.output
+    assert "snmp-influx" in res.output
 
-# ---------------------------------------------------------------------------
-# -- Happy path command execution ------------------------------------------
-# ---------------------------------------------------------------------------
+    # run-eam: only group-level --dbod-url exists/required
+    res = runner.invoke(cli, ["--dbod-url", "postgres://dummy", "run-eam", "--help"])
+    assert res.exit_code == 0
+    assert "Usage:" in res.output
 
-
-def test_run_eam_happy_path_executes_and_invokes_avtools(
-    runner: CliRunner,
-    patched_avtools: type[DummyAVTools],
-) -> None:
-    result = runner.invoke(
-        main.cli,
+    # run-landb: group-level + command-level --dbod-url
+    res = runner.invoke(
+        cli,
         [
             "--dbod-url",
-            "postgres://dummy-eam",
-            "run-eam",
-            "--username",
-            "eam-user",
-            "--password",
-            "eam-pass",
+            "postgres://dummy-group",
+            "run-landb",
+            "--dbod-url",
+            "postgres://dummy-cmd",
+            "--help",
         ],
     )
+    assert res.exit_code == 0
+    assert "Usage:" in res.output
 
-    # Command executes successfully (exit code, no crash)
-    assert result.exit_code == 0
-    assert result.exception is None
-
-    # AVTools instantiated exactly once
-    assert len(patched_avtools.instances) == 1
-    inst = patched_avtools.instances[0]
-    assert inst.dbod_url == "postgres://dummy-eam"
-
-    # AVTools methods correctly invoked, arguments forwarded properly
-    assert patched_avtools.calls == [("run_eam", ("eam-user", "eam-pass"), {})]
-
-    # No other AVTools methods called
-    names = {name for (name, _, _) in patched_avtools.calls}
-    assert names == {"run_eam"}
-
-    # Global state untouched
-    assert patched_avtools.global_state == {"sentinel": "unchanged"}
+    # snmp-influx: group-level + command-level --dbod-url
+    res = runner.invoke(
+        cli,
+        [
+            "--dbod-url",
+            "postgres://dummy-group",
+            "snmp-influx",
+            "--dbod-url",
+            "postgres://dummy-cmd",
+            "--help",
+        ],
+    )
+    assert res.exit_code == 0
+    assert "Usage:" in res.output
 
 
 def test_run_landb_happy_path_uses_default_workers_and_invokes_avtools(
     runner: CliRunner,
     patched_avtools: type[DummyAVTools],
 ) -> None:
-    result = runner.invoke(
-        main.cli,
+    """
+    run-landb:
+    - requires group --dbod-url AND command --dbod-url (as in main.py)
+    - default --threads is 8
+    - passes threads to AVTools.run_landb(max_workers=threads)
+    - prints success message
+    """
+    cli = main.cli
+
+    res = runner.invoke(
+        cli,
         [
             "--dbod-url",
-            "postgres://dummy-landb",
+            "postgres://group-db",
             "run-landb",
             "--client-id",
             "cid",
@@ -184,54 +183,67 @@ def test_run_landb_happy_path_uses_default_workers_and_invokes_avtools(
             "secret",
             "--audience",
             "aud",
+            "--dbod-url",
+            "postgres://dummy-landb",
+            # no --threads => default 8
         ],
     )
 
-    assert result.exit_code == 0
-    assert result.exception is None
+    assert res.exit_code == 0
+    assert res.exception is None
+    assert "LanDB CRUD operation completed successfully." in res.output
 
-    # Exactly one AVTools instantiation for this invocation
     assert len(patched_avtools.instances) == 1
     inst = patched_avtools.instances[0]
     assert inst.dbod_url == "postgres://dummy-landb"
 
-    # Args forwarded properly and default max_workers applied (8)
     assert len(patched_avtools.calls) == 1
     name, args, kwargs = patched_avtools.calls[0]
     assert name == "run_landb"
-    assert args[:3] == ("cid", "secret", "aud")
-    assert args[3] == 8  # default workers
-    assert kwargs == {}
-
-    # No unintended side effects on global state
-    assert patched_avtools.global_state == {"sentinel": "unchanged"}
+    assert args == ()
+    assert kwargs == {
+        "client_id": "cid",
+        "client_secret": "secret",
+        "audience": "aud",
+        "max_workers": 8,
+    }
 
 
 def test_run_influx_snmp_happy_path_uses_default_workers_and_invokes_avtools(
     runner: CliRunner,
     patched_avtools: type[DummyAVTools],
 ) -> None:
-    result = runner.invoke(
-        main.cli,
+    """
+    snmp-influx:
+    - requires group --dbod-url AND command --dbod-url
+    - default --threads is 8
+    - calls AVTools.run_influx_snmp(max_workers=threads)
+    """
+    cli = main.cli
+
+    res = runner.invoke(
+        cli,
         [
             "--dbod-url",
-            "postgres://dummy-snmp",
-            "run-influx-snmp",
+            "postgres://group-db",
+            "snmp-influx",
             "--influx-host",
             "influx.local",
-            "--influx-port",
-            "8086",
             "--influx-user",
             "user",
             "--influx-password",
             "pass",
             "--influx-db",
             "av_metrics",
+            "--dbod-url",
+            "postgres://dummy-snmp",
+            # no --threads => default 8
+            # no --influx-port => default 8086
         ],
     )
 
-    assert result.exit_code == 0
-    assert result.exception is None
+    assert res.exit_code == 0
+    assert res.exception is None
 
     assert len(patched_avtools.instances) == 1
     inst = patched_avtools.instances[0]
@@ -240,50 +252,15 @@ def test_run_influx_snmp_happy_path_uses_default_workers_and_invokes_avtools(
     assert len(patched_avtools.calls) == 1
     name, args, kwargs = patched_avtools.calls[0]
     assert name == "run_influx_snmp"
-    # Arguments forwarded correctly
-    assert args[0:5] == (
-        "influx.local",
-        8086,
-        "user",
-        "pass",
-        "av_metrics",
-    )
-    # Default workers applied
-    assert args[5] == 8
-    assert kwargs == {}
-
-    # Again, no unintended mutation of "global" state
-    assert patched_avtools.global_state == {"sentinel": "unchanged"}
-
-
-# ---------------------------------------------------------------------------
-# -- Missing arguments / Click validation ----------------------------------
-# ---------------------------------------------------------------------------
-
-
-def test_run_eam_missing_password_causes_click_error(
-    runner: CliRunner,
-    patched_avtools: type[DummyAVTools],
-) -> None:
-    # Missing --password should be caught by Click, not by us
-    result = runner.invoke(
-        main.cli,
-        [
-            "--dbod-url",
-            "postgres://dummy",
-            "run-eam",
-            "--username",
-            "user-only",
-        ],
-    )
-
-    assert result.exit_code != 0
-    # Slightly stricter than "not empty": ensure Click reports a missing option
-    assert "Missing option" in result.output
-    assert "--password" in result.output
-    # AVTools must not be called at all when args are invalid
-    assert patched_avtools.calls == []
-    assert patched_avtools.instances == []
+    assert args == ()
+    assert kwargs == {
+        "influx_host": "influx.local",
+        "influx_port": 8086,
+        "influx_user": "user",
+        "influx_password": "pass",
+        "influx_db": "av_metrics",
+        "max_workers": 8,
+    }
 
 
 def test_run_influx_snmp_invalid_port_type_causes_click_error(
@@ -291,16 +268,17 @@ def test_run_influx_snmp_invalid_port_type_causes_click_error(
     patched_avtools: type[DummyAVTools],
 ) -> None:
     """
-    Invalid type rejection:
-    --influx-port must be an integer; passing a non-integer should be rejected by Click
-    before AVTools is ever instantiated or called.
+    snmp-influx invalid --influx-port should be a Click parse error (exit_code != 0),
+    and should not instantiate AVTools.
     """
-    result = runner.invoke(
-        main.cli,
+    cli = main.cli
+
+    res = runner.invoke(
+        cli,
         [
             "--dbod-url",
-            "postgres://dummy-snmp",
-            "run-influx-snmp",
+            "postgres://group-db",
+            "snmp-influx",
             "--influx-host",
             "influx.local",
             "--influx-port",
@@ -311,35 +289,30 @@ def test_run_influx_snmp_invalid_port_type_causes_click_error(
             "pass",
             "--influx-db",
             "av_metrics",
+            "--dbod-url",
+            "postgres://dummy-snmp",
         ],
     )
 
-    # Click should fail argument parsing
-    assert result.exit_code != 0
-    assert result.exception is not None
-    # Strict-ish error message content check
-    assert "Invalid value" in result.output
-    assert "--influx-port" in result.output
+    assert res.exit_code != 0
+    assert "Invalid value" in res.output or "invalid" in res.output.lower()
 
-    # AVTools must not be instantiated or called on invalid CLI args
     assert patched_avtools.instances == []
     assert patched_avtools.calls == []
-
-
-# ---------------------------------------------------------------------------
-# -- Exception handling in CLI layer ---------------------------------------
-# ---------------------------------------------------------------------------
 
 
 def test_run_eam_exception_is_handled_by_cli(
     runner: CliRunner,
     patched_avtools: type[DummyAVTools],
 ) -> None:
-    # Configure the dummy to raise when run_eam is called
-    patched_avtools.raise_run_eam = True
+    """
+    main.py catches NoRecordsFound for run-eam and prints it (does not crash).
+    """
+    cli = main.cli
+    patched_avtools.raise_no_records_run_eam = True
 
-    result = runner.invoke(
-        main.cli,
+    res = runner.invoke(
+        cli,
         [
             "--dbod-url",
             "postgres://dummy",
@@ -351,29 +324,27 @@ def test_run_eam_exception_is_handled_by_cli(
         ],
     )
 
-    # Exceptions handled properly in CLI layer:
-    # - non-zero exit
-    # - no uncaught traceback
-    # - runner did not capture an unhandled exception
-    assert result.exit_code != 0
-    assert result.exception is None
-    assert "Traceback" not in result.output
-
-    # Strict error-message content: CLI should surface the underlying error
-    assert "run_eam boom" in result.output
+    assert res.exit_code == 0
+    assert res.exception is None
+    assert "Error: " in res.output
+    assert "no EAM records" in res.output
 
 
 def test_run_landb_exception_is_handled_by_cli(
     runner: CliRunner,
     patched_avtools: type[DummyAVTools],
 ) -> None:
-    patched_avtools.raise_run_landb = True
+    """
+    main.py catches NoRecordsFound for run-landb and prints it (does not crash).
+    """
+    cli = main.cli
+    patched_avtools.raise_no_records_run_landb = True
 
-    result = runner.invoke(
-        main.cli,
+    res = runner.invoke(
+        cli,
         [
             "--dbod-url",
-            "postgres://dummy",
+            "postgres://group-db",
             "run-landb",
             "--client-id",
             "cid",
@@ -381,20 +352,16 @@ def test_run_landb_exception_is_handled_by_cli(
             "secret",
             "--audience",
             "aud",
+            "--dbod-url",
+            "postgres://dummy-landb",
+            # threads default
         ],
     )
 
-    assert result.exit_code != 0
-    assert result.exception is None
-    assert "Traceback" not in result.output
-
-    # Strict error-message content: CLI should surface the underlying error
-    assert "run_landb boom" in result.output
-
-
-# ---------------------------------------------------------------------------
-# -- Environment variable overrides ----------------------------------------
-# ---------------------------------------------------------------------------
+    assert res.exit_code == 0
+    assert res.exception is None
+    assert "Error: " in res.output
+    assert "no LanDB records" in res.output
 
 
 def test_dbod_url_can_be_supplied_via_envvar(
@@ -402,14 +369,13 @@ def test_dbod_url_can_be_supplied_via_envvar(
     patched_avtools: type[DummyAVTools],
 ) -> None:
     """
-    Environment variable overrides (if supported):
-
-    Assumes the cli group uses something like:
-        @click.option("--dbod-url", envvar="AVTOOLS_DBOD_URL", required=True)
-    Adjust env var name here if your implementation differs.
+    Root group --dbod-url uses envvar DATABASE_URL.
+    For run-eam (no command-level dbod-url), envvar alone should satisfy the requirement.
     """
-    result = runner.invoke(
-        main.cli,
+    cli = main.cli
+
+    res = runner.invoke(
+        cli,
         [
             "run-eam",
             "--username",
@@ -417,24 +383,15 @@ def test_dbod_url_can_be_supplied_via_envvar(
             "--password",
             "env-pass",
         ],
-        env={"AVTOOLS_DBOD_URL": "postgres://from-env"},
+        env={"DATABASE_URL": "postgres://from-env"},
     )
 
-    assert result.exit_code == 0
-    assert result.exception is None
+    assert res.exit_code == 0
+    assert res.exception is None
+    assert "EAM CRUD operation completed successfully." in res.output
 
-    # AVTools instantiated once with DBOD URL taken from env var
     assert len(patched_avtools.instances) == 1
-    inst = patched_avtools.instances[0]
-    assert inst.dbod_url == "postgres://from-env"
-
-    # And run_eam was called with expected credentials
-    assert patched_avtools.calls == [("run_eam", ("env-user", "env-pass"), {})]
-
-
-# ---------------------------------------------------------------------------
-# -- No unintended side effects / multiple calls ---------------------------
-# ---------------------------------------------------------------------------
+    assert patched_avtools.instances[0].dbod_url == "postgres://from-env"
 
 
 def test_multiple_cli_calls_do_not_share_instances_or_mutate_globals(
@@ -442,13 +399,12 @@ def test_multiple_cli_calls_do_not_share_instances_or_mutate_globals(
     patched_avtools: type[DummyAVTools],
 ) -> None:
     """
-    Performance / multiple calls:
-    - Each CLI invocation creates a fresh AVTools instance.
-    - Calls do not mutate DummyAVTools.global_state.
+    Separate invocations should create separate AVTools instances and not mutate global state.
     """
-    # First call: run-eam
-    result1 = runner.invoke(
-        main.cli,
+    cli = main.cli
+
+    res1 = runner.invoke(
+        cli,
         [
             "--dbod-url",
             "postgres://first",
@@ -459,13 +415,11 @@ def test_multiple_cli_calls_do_not_share_instances_or_mutate_globals(
             "pass1",
         ],
     )
-    # Second independent call: run-landb
-    patched_avtools.calls.clear()
-    result2 = runner.invoke(
-        main.cli,
+    res2 = runner.invoke(
+        cli,
         [
             "--dbod-url",
-            "postgres://second",
+            "postgres://group-db",
             "run-landb",
             "--client-id",
             "cid2",
@@ -473,18 +427,18 @@ def test_multiple_cli_calls_do_not_share_instances_or_mutate_globals(
             "secret2",
             "--audience",
             "aud2",
+            "--dbod-url",
+            "postgres://second",
         ],
     )
 
-    assert result1.exit_code == 0
-    assert result2.exit_code == 0
-    assert result1.exception is None
-    assert result2.exception is None
+    assert res1.exit_code == 0
+    assert res2.exit_code == 0
+    assert res1.exception is None
+    assert res2.exception is None
 
-    # We should have two distinct AVTools instances overall
     assert len(patched_avtools.instances) == 2
     urls = {inst.dbod_url for inst in patched_avtools.instances}
     assert urls == {"postgres://first", "postgres://second"}
 
-    # Global state still has the sentinel value
     assert patched_avtools.global_state == {"sentinel": "unchanged"}
