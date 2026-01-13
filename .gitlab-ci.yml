@@ -56,11 +56,7 @@ unit_tests:
     - if: '$CI_COMMIT_BRANCH == "develop"'
     - if: '$CI_COMMIT_TAG'
   script:
-    - poetry run pytest tests \
-        --disable-warnings \
-        --junitxml=pytest-unit.xml \
-        --cov=avtools \
-        --cov-report=xml:coverage.xml
+    - poetry run pytest tests --disable-warnings --junitxml=pytest-unit.xml --cov=avtools --cov-report=xml:coverage.xml
   artifacts:
     when: always
     reports:
@@ -80,9 +76,7 @@ integration_tests:
   when: manual
   allow_failure: true
   script:
-    - poetry run pytest tests/integration \
-        --disable-warnings \
-        --junitxml=pytest-integration.xml
+    - poetry run pytest tests/integration --disable-warnings --junitxml=pytest-integration.xml
   artifacts:
     when: always
     reports:
@@ -97,9 +91,7 @@ e2e_tests:
   when: manual
   allow_failure: true
   script:
-    - poetry run pytest tests/e2e \
-        --disable-warnings \
-        --junitxml=pytest-e2e.xml
+    - poetry run pytest tests/e2e --disable-warnings --junitxml=pytest-e2e.xml
   artifacts:
     when: always
     reports:
