@@ -10,12 +10,11 @@ from typing import Any, TypeVar
 
 import structlog
 from cern_oauthlib.cern_session import ServiceAuthSession
-from pydantic import BaseModel
-from requests.auth import HTTPBasicAuth
+from eam_rest_client import Equipment
+from eam_rest_client.credentials import register_credentials
+from eam_rest_client.grid_query import GridQuery
+from pydantic.v1 import BaseModel
 
-from avtools.eam.client import EAMClient
-from avtools.eam.device import EAMDevice
-from avtools.eam.position import EAMPosition
 from avtools.exception.errors import (  # noqa: F401 (may be used elsewhere)
     NoRecordsFound,
 )
@@ -47,64 +46,143 @@ class AVTools:
         self.logs: bool = logs
         self.logger = structlog.get_logger(self.__class__.__name__)
 
-    def run_eam(self, username: str, password: str) -> None:
+    def run_eam(
+        self,
+        username: str,
+        password: str,
+        base_url: str = "https://cmmsx.cern.ch/",
+        *,
+        asset_grid: str = "OSOBJA",
+        position_grid: str = "OSOBJP",
+        department_code: str = "AV",
+        limit: int | None = None,
+    ) -> None:
         """
-        Authenticate with EAM and trigger synchronization of devices and positions.
+        Register EAM credentials (HTTP Basic Auth behind the scenes) and trigger synchronization
+        of devices and positions using `eam-rest-client`.
 
-        Args:
-            username (str): EAM API username.
-            password (str): EAM API password.
+        Notes:
+            - Service-account access requires the *service account* username/password.
+            - Authentication is performed via HTTP Basic Auth by the EAM API.
         """
-        auth = HTTPBasicAuth(username, password)
-        self.sync_eam_devices(auth)
-        self.sync_eam_positions(auth)
+        register_credentials(
+            base_url=base_url,
+            user=username,
+            password=password,
+        )
 
-    def sync_eam_devices(self, auth: HTTPBasicAuth) -> None:
+        self.sync_eam_devices(
+            asset_grid=asset_grid,
+            department_code=department_code,
+            limit=limit,
+        )
+        self.sync_eam_positions(
+            position_grid=position_grid,
+            limit=limit,
+        )
+
+    def sync_eam_devices(
+        self,
+        *,
+        asset_grid: str = "OSOBJA",
+        department_code: str = "AV",
+        limit: int | None = None,
+    ) -> None:
         """
-        Fetch all EAM devices from the remote API and reconcile them with the local cache.
+        Fetch EAM devices (assets) from the remote API and reconcile them with the local cache.
         """
-        eam_helper = EAMClient(auth)
-        total = eam_helper.get_number_av_assets()
-        eam_list: list[EAMDevice] = eam_helper.get_device_list(total)
-        cache_list: list[EAMDevice] = self.dbod_helper.get_all_eam_devices()
+
+        query = Equipment.objects.use_grid(name=asset_grid)
+
+        if department_code:
+            try:
+                query = query.filter(department_code__startswith=department_code)
+            except Exception:
+                self.logger.warning(
+                    "eam_asset_deparment_code_filter_failed",
+                    prefix=department_code,
+                    exc_info=True,
+                )
+
+        if limit is not None:
+            try:
+                query = query.limit(limit)
+            except Exception:
+                self.logger.warning("eam_limit_failed", limit=limit, exc_info=True)
+
+        eam_list: list[Equipment] = query.all()
+        cache_list: list[Equipment] = self.dbod_helper.get_all_eam_devices()
 
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            # Use the Python attribute name (snake_case), not the alias.
-            get_id=lambda d: d.equipment_no,
+            get_id=lambda d: d.code,
             sync_func=self.dbod_helper.sync_eam_devices,
             name="EAM Devices",
         )
 
-    def sync_eam_positions(self, auth: HTTPBasicAuth) -> None:
+    def sync_eam_positions(
+        self,
+        *,
+        position_grid: str = "OSOBJP",
+        department_code: str = "AV",
+        limit: int | None = None,
+    ) -> None:
         """
-        Fetch all EAM positions from the remote API and reconcile them with the local cache.
-
-        Retrieves the total number of positions, pulls the full list of `EAMPosition` objects
-        from the EAM API, and compares it against what’s stored locally. Any new, updated,
-        or removed positions are propagated into the local database via the `dbod_helper`.
-
-        Args:
-            auth (HTTPBasicAuth): Auth object initialized with valid EAM credentials.
-
-        Returns:
-            None
-
-        Raises:
-            EAMClientError: For any failures when calling the EAM API.
-            DatabaseSyncError: If the local synchronization operation fails.
+        Fetch EAM positions from the remote API and reconcile them with the local cache.
         """
-        eam_helper = EAMClient(auth)
-        total: int = eam_helper.get_number_av_positions()
-        eam_list: list[EAMPosition] = eam_helper.get_positions_list(total)
-        cache_list: list[EAMPosition] = self.dbod_helper.get_all_eam_positions()
+
+        # TODO: Waiting for https://gitlab.cern.ch/itdcim/av-tools/-/merge_requests/11#note_10728458 to be merged
+        query = GridQuery(
+            name=position_grid,
+            field_map={
+                "assigned_to": "assignedto",
+                "alias": "alias",
+                "category_code": "category",
+                "class_code": "class",
+                "code": "equipmentno",
+                "comission_date": "commissiondate",
+                "department_code": "department",
+                "description": "equipmentdesc",
+                "hierarchy_asset_code": "parentasset",
+                "hierarchy_location_code": "location",
+                "out_of_service": "outofservice",
+                "primary_system": "primarysystem",
+                "production": "production",
+                "status_desc": "assetstatus_display",
+                "variable2": "variable2",
+            },
+        )
+        # TODO: uncomment once it's merged
+        # query = Equipment.objects.use_grid(name=position_grid)
+
+        if department_code:
+            try:
+                query = query.filter(department_code__startswith=department_code)
+            except Exception:
+                self.logger.warning(
+                    "eam_position_department_code_filter_failed",
+                    prefix=department_code,
+                    exc_info=True,
+                )
+
+        if limit is not None:
+            try:
+                query = query.limit(limit)
+            except Exception:
+                self.logger.warning(
+                    "eam_position_limit_failed",
+                    limit=limit,
+                    exc_info=True,
+                )
+
+        eam_list: list[Position] = query.all()
+        cache_list = self.dbod_helper.get_all_eam_positions()
 
         self._sync_entities(
             api_items=eam_list,
             cached_items=cache_list,
-            # Use the Python attribute name (snake_case), not the alias.
-            get_id=lambda d: d.equipment_no,
+            get_id=lambda p: p.code,
             sync_func=self.dbod_helper.sync_eam_positions,
             name="EAM Positions",
         )
@@ -119,7 +197,7 @@ class AVTools:
         """
         Synchronize LanDB devices using Auth0 client credentials.
         """
-        eam_list: list[EAMDevice] = self.dbod_helper.get_all_eam_devices()
+        eam_list: list[Equipment] = self.dbod_helper.get_all_eam_devices()
         if not eam_list:
             self.logger.info("No EAM devices—skipping LanDB sync.")
             return
@@ -176,7 +254,7 @@ class AVTools:
 
     async def _get_landb_devices(
         self,
-        eam_records: list[EAMDevice],
+        eam_records: list[Equipment],
         session: ServiceAuthSession,
         max_workers: int = 8,
     ) -> list[LanDBDevice]:
@@ -202,13 +280,13 @@ class AVTools:
                 try:
                     dev = await to_thread(
                         helper.build_device_with_ip,
-                        rec.equipment_no,
+                        rec.code,
                         rec.serial_number,
-                        rec.eq_class,
-                        rec.manufacturer,
+                        rec.class_code,
+                        rec.manufacturer_code,
                     )
                 except Exception as e:
-                    self.logger.error(f"Error fetching {rec.equipment_no}: {e}")
+                    self.logger.error(f"Error fetching {rec.code}: {e}")
                     continue
                 if dev and dev.serial_number and dev.ip is not None:
                     result[idx] = dev
@@ -353,13 +431,71 @@ class AVTools:
         except Exception as e:
             self.logger.exception(f"Failed writing points: {e}")
 
-    def _diff_models(self, old: Model, new: Model) -> dict[str, Any]:
+    def _diff_models(self, old: Any, new: Any) -> dict[str, Any]:
         """
-        Compute field-by-field differences between two Pydantic models.
+        Compute field-by-field differences between two models/objects.
+
+        Key behavior:
+        - If `old` carries `_avtools_compare_fields`, ONLY compare those fields.
+        This prevents comparing API-only fields (alias, assigned_to, bin, store_code, etc.)
+        that are not stored in the ORM.
+        - Avoids `vars(old)` for subset-mode; instead reads exactly those fields via getattr.
+        - For `new` (API), uses exclude_unset=True when supported.
+        - Canonicalizes "" -> None to match DB semantics (your ORM `_get()` already does this).
         """
-        old_data: dict[str, Any] = old.model_dump()
-        new_data: dict[str, Any] = new.model_dump(exclude_unset=True)
-        return {k: v for k, v in new_data.items() if old_data.get(k) != v}
+
+        def canon(v: Any) -> Any:
+            return None if v == "" else v
+
+        def to_new_dict(obj: Any) -> dict[str, Any]:
+            # Pydantic v2
+            if hasattr(obj, "model_dump"):
+                return obj.model_dump(exclude_unset=True)
+            # Pydantic v1
+            if hasattr(obj, "dict"):
+                return obj.dict(exclude_unset=True)
+            # Plain object fallback
+            return vars(obj)
+
+        compare_fields = getattr(old, "_avtools_compare_fields", None)
+        new_data = to_new_dict(new)
+
+        # NOTE (cache subset vs API full model):
+        # The cached object is a lightweight DB projection (EAMDeviceORM) materialized back into an
+        # `Equipment` instance for convenience. That `Equipment` class exposes many more fields than
+        # we actually persist, so "missing" ORM columns end up as class-defaults (often None/""/False)
+        # on the derived object. If we diff the full Equipment schema, we get permanent churn:
+        #   DB-derived: alias=None, assigned_to=None, ...   vs   API: alias="", assigned_to="", ...
+        # even though those fields are not stored and can never converge.
+        #
+        # To prevent this, DB-derived Equipment instances carry an explicit whitelist of DB-backed
+        # fields (e.g. `_avtools_compare_fields`). When present, diffs are restricted to that subset:
+        # only fields persisted in the ORM are compared and allowed to drive updates.
+        if compare_fields is not None:
+            diffs: dict[str, Any] = {}
+            for k in compare_fields:
+                if k not in new_data:
+                    continue  # API didn't provide it -> don't diff it
+                old_v = canon(getattr(old, k, None))
+                new_v = canon(new_data.get(k))
+                if old_v != new_v:
+                    diffs[k] = new_data.get(k)  # keep raw API value
+            return diffs
+
+        # Fallback generic mode (if you ever compare other models)
+        old_data: dict[str, Any]
+        if hasattr(old, "model_dump"):
+            old_data = old.model_dump(exclude_unset=False)
+        elif hasattr(old, "dict"):
+            old_data = old.dict(exclude_unset=False)
+        else:
+            old_data = vars(old)
+
+        return {
+            k: v
+            for k, v in new_data.items()
+            if k in old_data and canon(old_data.get(k)) != canon(v)
+        }
 
     def _ensure_token(
         self,
