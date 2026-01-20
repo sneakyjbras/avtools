@@ -16,7 +16,6 @@ from pysnmp.hlapi import (
 )
 
 from avtools.influx.data.projector_stats import EpsonProjectorStats, ProjectorStats
-from avtools.landb.client import LanDBDevice
 from avtools.snmp.handlers.abstract_device_handler import AbstractDeviceHandler
 
 logger = structlog.get_logger(__name__)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import structlog
 
-from avtools.landb.device import LanDBDevice
 from avtools.snmp.factories.projector_factory import ProjectorHandlerFactory
 from avtools.snmp.handlers.abstract_device_handler import AbstractDeviceHandler
 

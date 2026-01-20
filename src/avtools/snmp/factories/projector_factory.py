@@ -5,7 +5,6 @@ from typing import NoReturn
 import structlog
 from pysnmp.hlapi import SnmpEngine
 
-from avtools.landb.client import LanDBDevice
 from avtools.snmp.handlers.projector import AbstractProjector, EpsonProjector
 
 # from avtools.snmp.handlers.sony_projector import SonyProjector

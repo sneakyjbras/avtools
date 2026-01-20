@@ -50,9 +50,6 @@ def make_avtools_for_tests() -> AVTools:
 
 
 def _dump_model(m: Any) -> dict[str, Any]:
-    # Support pydantic v1 and v2-ish interfaces, plus plain objects
-    if hasattr(m, "model_dump"):
-        return m.model_dump()
     if hasattr(m, "dict"):
         return m.dict()
     return dict(vars(m))
