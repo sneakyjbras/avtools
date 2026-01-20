@@ -1,29 +1,96 @@
+"""EAM Position ORM ↔ domain model adapters (subset + diff whitelist).
+
+AV Tools uses the EAM REST client's `Equipment` as the domain model for both devices
+and positions. The DB has two tables (`eam_devices`, `eam_positions`), but both are
+materialized back into `Equipment` objects for the sync pipeline.
+
+Pattern (same as `landb_ipaddress.py`):
+- ORM stores only a small subset of upstream fields.
+- ORM row -> Pydantic model for sync logic.
+- A CachedEquipment subclass carries `_avtools_compare_fields` (DB-backed whitelist),
+  so the diff compares ONLY persisted fields and avoids churn on API-only fields.
+
+Important:
+- Internally we use `commission_date` (correct spelling).
+- The upstream Equipment model uses the misspelled `comission_date`.
+  We ONLY use that misspelling at the boundary.
+"""
+
 from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Any
 
 from eam_rest_client import Equipment
+from pydantic import PrivateAttr
 from sqlalchemy import Date, Index, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-
-# --- Base --------------------------------------------------------------------
 
 
 class Base(DeclarativeBase):
     pass
 
 
-# --- ORM ---------------------------------------------------------------------
+def _none_if_blank(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        v = value.strip()
+        return v or None
+    return str(value)
+
+
+def _parse_any_date(v: Any) -> date | None:
+    if v is None or v == "":
+        return None
+
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+
+    if isinstance(v, str):
+        s = v.strip()
+        if not s:
+            return None
+
+        # EAM format: '07-Jan-2024'
+        try:
+            return datetime.strptime(s, "%d-%b-%Y").date()
+        except ValueError:
+            pass
+
+        # ISO date / ISO datetime (handle trailing Z)
+        try:
+            return date.fromisoformat(s[:10])
+        except ValueError:
+            pass
+
+        try:
+            if s.endswith("Z"):
+                s = s[:-1] + "+00:00"
+            return datetime.fromisoformat(s).date()
+        except ValueError:
+            return None
+
+    return None
+
+
+def _format_eam_date(d: date | None) -> str | None:
+    return d.strftime("%d-%b-%Y") if d else None
+
+
+class CachedEquipment(Equipment):
+    """Equipment with AVTools-only private state for diffing."""
+
+    _avtools_compare_fields: set[str] = PrivateAttr(default_factory=set)
+
+    def avtools_compare_fields(self) -> set[str]:
+        return set(self._avtools_compare_fields)
 
 
 class EAMPositionORM(Base):
-    """ORM mapping for EAM position rows.
-
-    Stores a small subset of EAM fields into the legacy `eam_positions` schema.
-
-    Note: the DB schema is legacy and keeps equipment-ish column names.
-    """
+    """PostgreSQL snapshot of EAM position data (subset)."""
 
     __tablename__ = "eam_positions"
     __table_args__ = (
@@ -32,12 +99,14 @@ class EAMPositionORM(Base):
         Index("ix_eam_positions_eqclass_category", "eqclass", "category"),
     )
 
-    # DB columns kept as-is (legacy schema)
     equipment_no: Mapped[str] = mapped_column(
         "equipmentno", String(64), primary_key=True
     )
     eq_class: Mapped[str | None] = mapped_column("eqclass", String(64), nullable=True)
+
+    # Legacy schema note: we often store department_code here (historical column name).
     category: Mapped[str | None] = mapped_column("category", String(64), nullable=True)
+
     equipment_desc: Mapped[str | None] = mapped_column(
         "equipmentdesc", Text, nullable=True
     )
@@ -46,7 +115,7 @@ class EAMPositionORM(Base):
         "parentasset", String(64), nullable=True
     )
 
-    # IMPORTANT: keep this as a real date in DB/ORM
+    # Internal spelling is correct.
     commission_date: Mapped[date | None] = mapped_column(
         "commissiondate", Date, nullable=True
     )
@@ -55,171 +124,74 @@ class EAMPositionORM(Base):
         "assetstatus_display", String(64), nullable=True
     )
 
-    # --- Helpers -------------------------------------------------------------
+    # Domain fields we consider when diffing against the DB row.
+    _DB_COMPARE_FIELDS: set[str] = {
+        "code",
+        "class_code",
+        "department_code",  # backed by legacy `category` column
+        "description",
+        "assigned_to",  # backed by `sponsor`
+        "hierarchy_asset_code",
+        "status_desc",
+        "comission_date",  # upstream typo (boundary)
+    }
 
     @staticmethod
-    def _get(obj: Any, *names: str) -> Any:
-        """Return the first non-empty attribute/key found among `names`.
-
-        Also checks `_original_response` (EamModel sometimes stores raw payload there).
-        """
-        for n in names:
-            # dict-like payload
-            if isinstance(obj, dict) and n in obj and obj[n] not in ("", None):
-                return obj[n]
-
-            # attribute on model
-            if hasattr(obj, n):
-                v = getattr(obj, n)
-                if v not in ("", None):
-                    return v
-
-            # raw/original payload
-            original = getattr(obj, "_original_response", None)
-            if (
-                isinstance(original, dict)
-                and n in original
-                and original[n] not in ("", None)
-            ):
-                return original[n]
-
-        return None
-
-    @staticmethod
-    def _parse_any_date(v: Any) -> date | None:
-        """Parse date-ish values into a `date` (same rules as devices)."""
-        if v is None or v == "":
-            return None
-
-        if isinstance(v, datetime):
-            return v.date()
-
-        if isinstance(v, date):
-            return v
-
-        if isinstance(v, str):
-            s = v.strip()
-            if not s:
-                return None
-
-            # 1) EAM: '07-Jan-2024'
-            try:
-                return datetime.strptime(s, "%d-%b-%Y").date()
-            except ValueError:
-                pass
-
-            # 2) ISO date
-            try:
-                return date.fromisoformat(s[:10])
-            except ValueError:
-                pass
-
-            # 3) ISO datetime (handle 'Z')
-            try:
-                if s.endswith("Z"):
-                    s = s[:-1] + "+00:00"
-                return datetime.fromisoformat(s).date()
-            except ValueError:
-                return None
-
-        return None
-
-    @staticmethod
-    def _format_eam_date(d: date | None) -> str | None:
-        """Format a `date` as EAM expects ('DD-Mon-YYYY')."""
-        if not d:
-            return None
-        return d.strftime("%d-%b-%Y")
+    def _get(obj: Any, name: str) -> Any:
+        """Get attribute or dict key; treat '' as missing."""
+        if isinstance(obj, dict):
+            v = obj.get(name)
+            return None if v in ("", None) else v
+        v = getattr(obj, name, None)
+        return None if v in ("", None) else v
 
     # --- Converters ----------------------------------------------------------
 
     @classmethod
-    def from_position(cls, position: Any) -> EAMPositionORM:
-        """Create an ORM row from a Position-like model.
-
-        `position` may be:
-          - a Position model (OSOBJP)
-          - an Equipment-ish object/dict (legacy behaviour)
-        """
-        equipment_no = cls._get(position, "equipmentno", "code")
+    def from_equipment(cls, equipment: Equipment) -> EAMPositionORM:
+        equipment_no = _none_if_blank(cls._get(equipment, "code"))
         if not equipment_no:
-            raise ValueError("Position missing code")
+            raise ValueError("Equipment missing required field: code")
 
-        raw_commission = cls._get(
-            position,
-            "commissiondate",  # OSOBJP-style
-            "comission_date",  # equipment-style typo
-            "commission_date",
-            "commissionDate",
-            "comissionDate",
-        )
-        commission_date = cls._parse_any_date(raw_commission)
+        # Upstream typo only at the boundary:
+        raw_commission = cls._get(equipment, "comission_date")
+
+        # Legacy schema note: store department_code into `category`.
+        dept = _none_if_blank(cls._get(equipment, "department_code"))
 
         return cls(
-            equipment_no=str(equipment_no),
-            eq_class=cls._get(position, "class_code", "eqclass"),
-            category=cls._get(position, "category", "category_code"),
-            equipment_desc=cls._get(position, "equipmentdesc", "description"),
-            sponsor=cls._get(position, "sponsor"),
-            parent_asset=cls._get(position, "parentasset", "hierarchy_asset_code"),
-            commission_date=commission_date,
-            asset_status_display=cls._get(
-                position, "assetstatus_display", "status_desc"
-            ),
+            equipment_no=equipment_no,
+            eq_class=_none_if_blank(cls._get(equipment, "class_code")),
+            category=dept,
+            equipment_desc=_none_if_blank(cls._get(equipment, "description")),
+            sponsor=_none_if_blank(cls._get(equipment, "assigned_to")),
+            parent_asset=_none_if_blank(cls._get(equipment, "hierarchy_asset_code")),
+            commission_date=_parse_any_date(raw_commission),
+            asset_status_display=_none_if_blank(cls._get(equipment, "status_desc")),
         )
 
-    # --- Back conversions ----------------------------------------------------
-
     def to_equipment(self) -> Equipment:
-        """Convert this row to an `Equipment` domain model (subset only).
-
-        Positions and devices are treated uniformly as Equipment downstream.
-        """
         payload: dict[str, Any] = {
             "code": self.equipment_no,
             "class_code": self.eq_class,
-            "category_code": self.category,
+            "department_code": self.category,  # legacy mapping
             "description": self.equipment_desc,
+            "assigned_to": self.sponsor,  # legacy mapping
             "hierarchy_asset_code": self.parent_asset,
             "status_desc": self.asset_status_display,
         }
 
-        eam_commission = self._format_eam_date(self.commission_date)
+        # Boundary spelling: only misspelled key goes into the domain model.
+        eam_commission = _format_eam_date(self.commission_date)
         if eam_commission:
             payload["comission_date"] = eam_commission
 
-        eq = Equipment(**payload)
+        # Drop Nones so we don't spam defaults
+        payload = {k: v for k, v in payload.items() if v is not None}
 
-        # NOTE (DB subset marker):
-        # This Equipment instance is reconstructed from a lightweight ORM projection
-        # (EAMPositionORM), not from the full EAM API payload. The Equipment class exposes
-        # many more fields than we persist in the database; missing ORM columns would
-        # otherwise appear as default attributes (None / "" / False) on the instance.
-        #
-        # We therefore attach an explicit whitelist of DB-backed fields. Downstream diff
-        # logic uses this marker to ensure that only fields actually stored in the ORM
-        # are compared against the API model, preventing permanent churn on API-only
-        # fields that can never converge with the DB.
-        setattr(eq, "_avtools_compare_fields", set(payload.keys()))
-
+        eq = CachedEquipment(**payload)
+        eq._avtools_compare_fields = set(self._DB_COMPARE_FIELDS)
         return eq
-
-    # Optional: keep this if you still use Position elsewhere.
-    # If not needed anymore, delete it to avoid confusion.
-    def to_position_payload(self) -> dict[str, Any]:
-        """Convert this row back to a Position-shaped payload (subset only)."""
-        payload: dict[str, Any] = {
-            "equipmentno": self.equipment_no,
-            "class_code": self.eq_class,
-            "category_code": self.category,  # legacy column reused for department in some flows
-            "equipmentdesc": self.equipment_desc,
-            "sponsor": self.sponsor,
-            "parentasset": self.parent_asset,
-            "assetstatus_display": self.asset_status_display,
-        }
-        if self.commission_date is not None:
-            payload["commissiondate"] = self.commission_date.isoformat()
-        return payload
 
     def __repr__(self) -> str:
         return (
