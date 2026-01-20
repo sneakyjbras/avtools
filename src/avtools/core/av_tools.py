@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import os
-import re
 from asyncio import TaskGroup
 from asyncio import run as asyncio_run
 from collections.abc import Callable, Sequence
@@ -20,6 +19,8 @@ from avtools.influx.client import InfluxClient
 from avtools.postgres.client import PostgresClient
 from avtools.postgres.orm.landb_ipaddress import CachedIPAddress
 from avtools.snmp.client import SNMPClient
+from avtools.utils.eam_sanitizer import EAMTextSanitizer
+from avtools.utils.sync_reporting import SyncReportLogger
 
 Model = TypeVar("Model")
 Point = dict[str, Any]
@@ -33,6 +34,7 @@ class AVTools:
         self.logs = logs
         self.logger = structlog.get_logger(self.__class__.__name__)
         self._landb_initialized = False
+        self._eam_sanitizer = EAMTextSanitizer()
 
     # ---------------------------------------------------------------------
     # EAM
@@ -88,7 +90,7 @@ class AVTools:
                 self.logger.warning("eam_limit_failed", limit=limit, exc_info=True)
 
         eam_list: list[Equipment] = query.all()
-        eam_list = self._clean_eam_text_fields(eam_list)
+        eam_list = self._eam_sanitizer.clean_items(eam_list)
         cache_list: list[Equipment] = self.dbod_helper.get_all_eam_devices()
 
         self._sync_entities(
@@ -151,7 +153,7 @@ class AVTools:
                 )
 
         eam_list: list[Equipment] = query.all()
-        eam_list = self._clean_eam_text_fields(eam_list)
+        eam_list = self._eam_sanitizer.clean_items(eam_list)
         cache_list: list[Equipment] = self.dbod_helper.get_all_eam_positions()
 
         self._sync_entities(
@@ -610,7 +612,15 @@ class AVTools:
         to_insert: list[Model] = [api_map[i] for i in api_ids - cache_ids]
         to_update: list[tuple[Model, dict[str, Any]]] = []
 
-        updated_rows: list[dict[str, Any]] = [] if self.logs else []
+        reporter = (
+            SyncReportLogger(
+                self.logger,
+                entity=name,
+                sanitize_text=self._eam_sanitizer.sanitize_text,
+            )
+            if self.logs
+            else None
+        )
 
         for eid in api_ids & cache_ids:
             old_item = cache_map[eid]
@@ -619,116 +629,26 @@ class AVTools:
             if changes:
                 to_update.append((new_item, changes))
 
-                if self.logs:
-                    # Build a row-level verbose diff for the end-of-sync report.
-                    verbose: dict[str, dict[str, Any]] = {}
-                    for k, new_v in changes.items():
-                        old_v = getattr(old_item, k, None)
-                        # Normalize empty strings to None for readability.
-                        if old_v == "":
-                            old_v = None
-                        if new_v == "":
-                            new_v = None
-
-                        if old_v != new_v:
-                            verbose[k] = {"old": old_v, "new": new_v}
-
-                    updated_rows.append(
-                        {
-                            "id": eid,
-                            "serial_number": self._sanitize_text(
-                                getattr(new_item, "serial_number", None)
-                            ),
-                            "changed_fields": sorted(verbose.keys()),
-                            "diff": verbose,
-                        }
+                if reporter is not None:
+                    reporter.record_updated(
+                        id=eid,
+                        old_item=old_item,
+                        new_item=new_item,
+                        changes=changes,
                     )
 
         sync_func(to_insert=to_insert, to_update=to_update, to_delete=to_delete)
 
-        if self.logs:
-
-            def sn(obj: Any) -> str | None:
-                return self._sanitize_text(getattr(obj, "serial_number", None))
-
-            deleted: list[dict[str, Any]] = []
+        if reporter is not None:
             for did in to_delete:
                 old_item = cache_map.get(did)
-                if old_item is None:
-                    continue
-                deleted.append(
-                    {
-                        "id": did,
-                        "serial_number": sn(old_item),
-                    }
-                )
+                if old_item is not None:
+                    reporter.record_deleted(id=did, item=old_item)
 
-            added: list[dict[str, Any]] = []
             for it in to_insert:
-                added.append(
-                    {
-                        "id": get_id(it),
-                        "serial_number": sn(it),
-                    }
-                )
+                reporter.record_added(id=get_id(it), item=it)
 
-            # Convenience lists (serials only)
-            deleted_serials = [
-                d["serial_number"] for d in deleted if d.get("serial_number")
-            ]
-            added_serials = [
-                a["serial_number"] for a in added if a.get("serial_number")
-            ]
-            updated_serials = [
-                u.get("serial_number") for u in updated_rows if u.get("serial_number")
-            ]
-
-            # Shell-friendly detailed report (line-by-line)
-            # NOTE: We keep the existing per-row 'sync_row_update' logs for full diffs;
-            # here we only summarize which rows changed and which fields triggered it.
-
-            # Stable order for readability
-            deleted = sorted(deleted, key=lambda r: r.get("id", ""))
-            added = sorted(added, key=lambda r: r.get("id", ""))
-            updated_rows_sorted = sorted(updated_rows, key=lambda r: r.get("id", ""))
-
-            for row in deleted:
-                self.logger.info(
-                    "sync_report_deleted_row",
-                    entity=name,
-                    id=row.get("id"),
-                    serial_number=row.get("serial_number"),
-                )
-
-            for row in added:
-                self.logger.info(
-                    "sync_report_added_row",
-                    entity=name,
-                    id=row.get("id"),
-                    serial_number=row.get("serial_number"),
-                )
-
-            for row in updated_rows_sorted:
-                self.logger.info(
-                    "sync_report_updated_row",
-                    entity=name,
-                    id=row.get("id"),
-                    serial_number=row.get("serial_number"),
-                    changed_fields=row.get("changed_fields", []),
-                    # Full per-field diffs are already emitted in 'sync_row_update'.
-                )
-
-            # Compact summary (plus serial-only lists for quick copy/paste)
-            self.logger.info(
-                "sync_report_summary",
-                entity=name,
-                deleted=len(deleted),
-                added=len(added),
-                updated=len(updated_rows_sorted),
-                deleted_serials=deleted_serials,
-                added_serials=added_serials,
-                updated_serials=updated_serials,
-            )
+            reporter.emit()
 
         duration = time() - start_time
         self.logger.info(
@@ -757,22 +677,12 @@ class AVTools:
 
         new_data = to_dict(new, exclude_unset=True)
 
-        # Normalize whitespace on string fields we persist/diff against (EAM is often dirty).
-        if compare_fields is not None:
-            for k in compare_fields:
-                if k == "code" or k not in new_data:
-                    continue
-                v = new_data.get(k)
-                if k == "serial_number" or isinstance(v, str):
-                    new_data[k] = self._sanitize_text(v)
-        else:
-            # Best-effort fallback for models that don't expose compare fields.
-            for k in ("serial_number", "model", "description"):
-                if k not in new_data:
-                    continue
-                v = new_data.get(k)
-                if k == "serial_number" or isinstance(v, str):
-                    new_data[k] = self._sanitize_text(v)
+        # Normalize dirty EAM strings on the fields we persist/diff against.
+        if isinstance(new, Equipment):
+            self._eam_sanitizer.sanitize_dict_in_place(
+                new_data,
+                compare_fields=compare_fields if compare_fields is not None else None,
+            )
 
         if compare_fields is not None:
             diffs: dict[str, Any] = {}
@@ -792,107 +702,3 @@ class AVTools:
             for k, v in new_data.items()
             if k in old_data and canon(old_data.get(k)) != canon(v)
         }
-
-    # ---------------------------------------------------------------------
-    # Sanitization helpers (private)
-    # ---------------------------------------------------------------------
-
-    # TODO: Add sanitization module in the future
-    _TEXT_TRIM_RE = re.compile(r"^[\s   ​‎‏﻿]+|[\s   ​‎‏﻿]+$")
-
-    # Only sanitize fields that AVTools persists and diffs against (prevents churn).
-    _EAM_TEXT_FIELDS: tuple[str, ...] = (
-        # Keys used in downstream joins/filters
-        "serial_number",
-        "description",
-        # Common persisted/diffed device fields
-        "model",
-        "manufacturer_code",
-        "class_code",
-        "category_code",
-        "department_code",
-        "status_code",
-        "status_desc",
-        # Optional but commonly dirty fields (esp. positions grid)
-        "alias",
-        "assigned_to",
-        "primary_system",
-        "hierarchy_position_code",
-        "hierarchy_asset_code",
-        "hierarchy_location_code",
-        "variable2",
-    )
-
-    def _sanitize_text(self, value: Any) -> str | None:
-        """Normalize upstream text.
-
-        - Convert to string (if needed)
-        - Strip leading/trailing whitespace (incl. tabs, NBSP, BOM, zero-width)
-        - Preserve internal spacing
-        """
-        if value is None:
-            return None
-
-        s = value if isinstance(value, str) else str(value)
-        if not s:
-            return None
-
-        s2 = self._TEXT_TRIM_RE.sub("", s)
-        return s2 or None
-
-    def _clean_eam_text_fields(self, items: list[Equipment]) -> list[Equipment]:
-        """Return a list where selected EAM text fields are sanitized.
-
-        We only touch a small whitelist (persisted + diffed fields) to keep behavior safe
-        and predictable.
-        """
-        out: list[Equipment] = []
-        for eq in items:
-            updates: dict[str, Any] = {}
-
-            for field in self._EAM_TEXT_FIELDS:
-                raw = getattr(eq, field, None)
-                if raw is None:
-                    continue
-
-                if field != "serial_number" and not isinstance(raw, str):
-                    # Avoid accidentally stringifying dates/objects.
-                    continue
-
-                cleaned = self._sanitize_text(raw)
-                if raw != cleaned:
-                    updates[field] = cleaned
-
-            if not updates:
-                out.append(eq)
-                continue
-
-            # Prefer non-mutating copies (works for frozen models).
-            try:
-                if hasattr(eq, "model_copy"):
-                    out.append(eq.model_copy(update=updates))  # type: ignore[attr-defined]
-                    continue
-                if hasattr(eq, "copy"):
-                    out.append(eq.copy(update=updates))  # type: ignore[attr-defined]
-                    continue
-            except Exception:
-                pass
-
-            # Last resort: try in-place set, then fall back to a re-construct.
-            try:
-                for k, v in updates.items():
-                    setattr(eq, k, v)
-                out.append(eq)
-                continue
-            except Exception:
-                pass
-
-            try:
-                payload = eq.dict(exclude_unset=False)  # type: ignore[attr-defined]
-                payload.update(updates)
-                out.append(eq.__class__(**payload))
-            except Exception:
-                # If we cannot safely mutate/copy, keep original (better than crashing).
-                out.append(eq)
-
-        return out
