@@ -11,8 +11,22 @@ from typing import Any, TypeVar
 import structlog
 from eam_rest_client import Equipment
 from eam_rest_client.credentials import register_credentials
+from eam_rest_client.exceptions import (
+    EamClientHTTPError,
+    EamClientRetryableHTTPError,
+    EamClientTimeoutError,
+    EamClientTransportError,
+    EamQueryError,
+    EamRestClientError,
+)
 from eam_rest_client.grid_query import GridQuery
 from landb_rest_client import register_credentials as landb_register_credentials
+from landb_rest_client.errors import (
+    DataAwareValidationError,
+    LanDBRestError,
+    QuerySetError,
+    TokenExpired,
+)
 from landb_rest_client.models import Device, IPAddress
 
 from avtools.influx.client import InfluxClient
@@ -51,18 +65,136 @@ class AVTools:
         department_code: str = "AV",
         limit: int | None = None,
     ) -> None:
-        register_credentials(base_url=base_url, user=username, password=password)
+        """Top-level EAM sync (assets + positions) with structured exception handling."""
 
-        self.sync_eam_devices(
-            asset_grid=asset_grid,
-            department_code=department_code,
-            limit=limit,
-        )
-        self.sync_eam_positions(
-            position_grid=position_grid,
-            department_code=department_code,
-            limit=limit,
-        )
+        # --- Auth / client configuration ---------------------------------
+        try:
+            register_credentials(base_url=base_url, user=username, password=password)
+        except EamClientRetryableHTTPError as e:
+            self.logger.error(
+                "eam_register_credentials_retryable_http_error",
+                status=e.status_code,
+                url=e.url,
+                request_id=getattr(e, "request_id", None),
+                retry_after=getattr(e, "retry_after", None),
+                error=str(e),
+            )
+            return
+        except EamClientHTTPError as e:
+            self.logger.error(
+                "eam_register_credentials_http_error",
+                status=e.status_code,
+                url=e.url,
+                request_id=getattr(e, "request_id", None),
+                error=str(e),
+            )
+            return
+        except EamClientTimeoutError as e:
+            self.logger.error(
+                "eam_register_credentials_timeout",
+                retry_after=e.retry_after(),
+                error=str(e),
+            )
+            return
+        except EamClientTransportError as e:
+            self.logger.error(
+                "eam_register_credentials_transport_error",
+                error=str(e),
+                original=repr(getattr(e, "original", None)),
+            )
+            return
+        except EamRestClientError as e:
+            self.logger.error("eam_register_credentials_failed", error=str(e))
+            return
+        except Exception:
+            self.logger.exception("eam_register_credentials_failed_unexpected")
+            return
+
+        # --- Assets -------------------------------------------------------
+        try:
+            self.sync_eam_devices(
+                asset_grid=asset_grid,
+                department_code=department_code,
+                limit=limit,
+            )
+        except EamClientRetryableHTTPError as e:
+            self.logger.error(
+                "eam_devices_retryable_http_error",
+                status=e.status_code,
+                url=e.url,
+                request_id=getattr(e, "request_id", None),
+                retry_after=getattr(e, "retry_after", None),
+                error=str(e),
+            )
+        except EamClientHTTPError as e:
+            self.logger.error(
+                "eam_devices_http_error",
+                status=e.status_code,
+                url=e.url,
+                request_id=getattr(e, "request_id", None),
+                error=str(e),
+            )
+        except EamClientTimeoutError as e:
+            self.logger.error(
+                "eam_devices_timeout",
+                retry_after=e.retry_after(),
+                error=str(e),
+            )
+        except EamClientTransportError as e:
+            self.logger.error(
+                "eam_devices_transport_error",
+                error=str(e),
+                original=repr(getattr(e, "original", None)),
+            )
+        except EamQueryError as e:
+            self.logger.error("eam_devices_query_error", error=str(e))
+        except EamRestClientError as e:
+            self.logger.error("eam_devices_failed", error=str(e))
+        except Exception:
+            self.logger.exception("eam_devices_failed_unexpected")
+
+        # --- Positions ----------------------------------------------------
+        try:
+            self.sync_eam_positions(
+                position_grid=position_grid,
+                department_code=department_code,
+                limit=limit,
+            )
+        except EamClientRetryableHTTPError as e:
+            self.logger.error(
+                "eam_positions_retryable_http_error",
+                status=e.status_code,
+                url=e.url,
+                request_id=getattr(e, "request_id", None),
+                retry_after=getattr(e, "retry_after", None),
+                error=str(e),
+            )
+        except EamClientHTTPError as e:
+            self.logger.error(
+                "eam_positions_http_error",
+                status=e.status_code,
+                url=e.url,
+                request_id=getattr(e, "request_id", None),
+                error=str(e),
+            )
+        except EamClientTimeoutError as e:
+            self.logger.error(
+                "eam_positions_timeout",
+                retry_after=e.retry_after(),
+                error=str(e),
+            )
+        except EamClientTransportError as e:
+            self.logger.error(
+                "eam_positions_transport_error",
+                error=str(e),
+                original=repr(getattr(e, "original", None)),
+            )
+        except EamQueryError as e:
+            self.logger.error("eam_positions_query_error", error=str(e))
+        except EamRestClientError as e:
+            self.logger.error("eam_positions_failed", error=str(e))
+        except Exception:
+            self.logger.exception("eam_positions_failed_unexpected")
 
     def sync_eam_devices(
         self,
@@ -177,29 +309,82 @@ class AVTools:
         *,
         base_url: str = "https://landb.cern.ch/api/",
     ) -> None:
-        eam_list: list[Equipment] = self.dbod_helper.get_all_eam_devices()
+        """Top-level LanDB sync (EAM devices -> LanDB devices/IPs) with structured exception handling."""
+
+        try:
+            eam_list: list[Equipment] = self.dbod_helper.get_all_eam_devices()
+        except Exception:
+            self.logger.exception("landb_load_eam_devices_failed")
+            return
+
         if not eam_list:
             self.logger.info("No EAM devices—skipping LanDB sync")
             return
 
-        self._init_landb_rest_client(
-            client_id=client_id,
-            client_secret=client_secret,
-            audience=audience,
-            url=base_url,
-        )
+        try:
+            self._init_landb_rest_client(
+                client_id=client_id,
+                client_secret=client_secret,
+                audience=audience,
+                url=base_url,
+            )
+        except TokenExpired as e:
+            self.logger.error("landb_token_expired", error=str(e))
+            return
+        except QuerySetError as e:
+            self.logger.error("landb_client_init_queryset_error", error=str(e))
+            return
+        except LanDBRestError as e:
+            self.logger.error("landb_client_init_failed", error=str(e))
+            return
+        except Exception:
+            self.logger.exception("landb_client_init_failed_unexpected")
+            return
 
-        landb_ips: list[CachedIPAddress] = self._get_landb_ipaddresses(eam_list)
+        try:
+            landb_ips: list[CachedIPAddress] = self._get_landb_ipaddresses(eam_list)
+        except TokenExpired as e:
+            self.logger.error("landb_token_expired", error=str(e))
+            return
+        except DataAwareValidationError as e:
+            # Avoid dumping raw payloads into logs; keep it short and structured.
+            err_count = None
+            try:
+                err_count = len(e.errors())
+            except Exception:
+                err_count = None
+            self.logger.error(
+                "landb_validation_error",
+                error=str(e),
+                error_count=err_count,
+            )
+            return
+        except QuerySetError as e:
+            self.logger.error("landb_queryset_error", error=str(e))
+            return
+        except LanDBRestError as e:
+            self.logger.error("landb_fetch_failed", error=str(e))
+            return
+        except Exception:
+            self.logger.exception("landb_fetch_failed_unexpected")
+            return
 
-        cache_list = self.dbod_helper.get_all_landb_devices()
+        try:
+            cache_list = self.dbod_helper.get_all_landb_devices()
+        except Exception:
+            self.logger.exception("landb_load_cached_devices_failed")
+            return
 
-        self._sync_entities(
-            api_items=landb_ips,
-            cached_items=cache_list,
-            get_id=self._landb_get_id,
-            sync_func=self.dbod_helper.sync_landb_devices,
-            name="LanDB IPAddress",
-        )
+        try:
+            self._sync_entities(
+                api_items=landb_ips,
+                cached_items=cache_list,
+                get_id=self._landb_get_id,
+                sync_func=self.dbod_helper.sync_landb_devices,
+                name="LanDB IPAddress",
+            )
+        except Exception:
+            self.logger.exception("landb_sync_failed")
 
     def _landb_get_id(self, obj: Any) -> str:
         v = getattr(obj, "equipmentno", None) or getattr(obj, "equipment_no", None)
@@ -478,7 +663,14 @@ class AVTools:
         influx_db: str,
         max_workers: int = 8,
     ) -> None:
-        devices = self.dbod_helper.get_all_landb_devices()
+        """Collect SNMP metrics for cached LanDB devices and publish them to InfluxDB."""
+
+        try:
+            devices = self.dbod_helper.get_all_landb_devices()
+        except Exception:
+            self.logger.exception("snmp_load_landb_devices_failed")
+            return
+
         total = len(devices)
         if not devices:
             self.logger.info("No LanDB devices to monitor")
@@ -486,15 +678,28 @@ class AVTools:
 
         self.logger.info("Fetching LanDB devices", total=total, tasks=max_workers)
 
-        all_points = asyncio_run(self._get_snmp_points(devices, max_workers))
-        self._publish_snmp(
-            all_points,
-            influx_host,
-            influx_port,
-            influx_user,
-            influx_password,
-            influx_db,
-        )
+        try:
+            all_points = asyncio_run(self._get_snmp_points(devices, max_workers))
+        except KeyboardInterrupt:
+            raise
+        except Exception:
+            self.logger.exception("snmp_collection_failed")
+            return
+
+        try:
+            self._publish_snmp(
+                all_points,
+                influx_host,
+                influx_port,
+                influx_user,
+                influx_password,
+                influx_db,
+            )
+        except KeyboardInterrupt:
+            raise
+        except Exception:
+            # _publish_snmp already handles common errors, but keep a guardrail.
+            self.logger.exception("influx_publish_failed_unexpected")
 
     async def _get_snmp_points(
         self, devices: list[Any], max_workers: int
