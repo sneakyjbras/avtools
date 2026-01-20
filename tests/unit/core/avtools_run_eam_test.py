@@ -11,6 +11,10 @@ from avtools.core.av_tools import AVTools
 class DummyLogger:
     """
     Minimal logger to capture info/error/exception messages for assertions.
+
+    NOTE: av_tools.py uses structlog-style calls:
+        logger.error("event_name", key=value, ...)
+    We only store the first positional "event_name" string here.
     """
 
     def __init__(self) -> None:
@@ -66,22 +70,101 @@ def patch_register_credentials(
     )
 
 
-# 1, 5, 6, 8, 9, 11: happy path, forwarding, (no longer auth), return value, multi-call sanity
+def patch_eam_exceptions(monkeypatch: Any) -> None:
+    """
+    av_tools.py now references EamClientRetryableHTTPError, etc. in except clauses.
+    If those names aren't present in avtools.core.av_tools, Python will raise NameError
+    when an exception occurs.
+
+    These dummies are enough for matching + logging attributes used by run_eam().
+    """
+    import avtools.core.av_tools as av_mod
+
+    class EamRestClientError(Exception):
+        pass
+
+    class EamClientHTTPError(EamRestClientError):
+        def __init__(
+            self,
+            message: str = "http error",
+            *,
+            status_code: int = 500,
+            url: str = "https://example/eam",
+            request_id: str | None = None,
+        ) -> None:
+            super().__init__(message)
+            self.status_code = status_code
+            self.url = url
+            self.request_id = request_id
+
+    class EamClientRetryableHTTPError(EamClientHTTPError):
+        def __init__(
+            self,
+            message: str = "retryable http error",
+            *,
+            status_code: int = 503,
+            url: str = "https://example/eam",
+            request_id: str | None = None,
+            retry_after: int | None = None,
+        ) -> None:
+            super().__init__(
+                message, status_code=status_code, url=url, request_id=request_id
+            )
+            self.retry_after = retry_after
+
+    class EamClientTimeoutError(EamRestClientError):
+        def __init__(
+            self, message: str = "timeout", *, retry_after_s: int | None = None
+        ) -> None:
+            super().__init__(message)
+            self._retry_after_s = retry_after_s
+
+        def retry_after(self) -> int | None:
+            return self._retry_after_s
+
+    class EamClientTransportError(EamRestClientError):
+        def __init__(
+            self, message: str = "transport", *, original: Exception | None = None
+        ) -> None:
+            super().__init__(message)
+            self.original = original
+
+    class EamQueryError(EamRestClientError):
+        pass
+
+    monkeypatch.setattr(av_mod, "EamRestClientError", EamRestClientError, raising=False)
+    monkeypatch.setattr(av_mod, "EamClientHTTPError", EamClientHTTPError, raising=False)
+    monkeypatch.setattr(
+        av_mod,
+        "EamClientRetryableHTTPError",
+        EamClientRetryableHTTPError,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        av_mod, "EamClientTimeoutError", EamClientTimeoutError, raising=False
+    )
+    monkeypatch.setattr(
+        av_mod, "EamClientTransportError", EamClientTransportError, raising=False
+    )
+    monkeypatch.setattr(av_mod, "EamQueryError", EamQueryError, raising=False)
+
+
+# -----------------------------------------------------------------------------
+# Happy path
+# -----------------------------------------------------------------------------
 
 
 def test_run_eam_happy_path_calls_both_in_order_with_shared_auth_and_logs(
     monkeypatch: Any,
 ) -> None:
     """
-    Happy path (updated for new run_eam implementation):
+    Happy path (matches current run_eam implementation):
     - run_eam must call register_credentials once with correct credentials.
     - sync_eam_devices is called first, then sync_eam_positions.
-    - Devices receives asset_grid OSOBJA and department_code AV by default.
-    - Positions receives position_grid OSOBJP by default.
+    - Defaults:
+        devices: asset_grid OSOBJA, department_code AV, limit None
+        positions: position_grid OSOBJP, department_code AV, limit None
     - Returns None.
-
-    NOTE: The new run_eam does not emit logs itself; we keep the DummyLogger
-    plumbing but don't assert on logging content anymore.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
@@ -120,16 +203,17 @@ def test_run_eam_happy_path_calls_both_in_order_with_shared_auth_and_logs(
 
     pos = calls[2][1]
     assert pos["position_grid"] == "OSOBJP"
+    assert pos["department_code"] == "AV"
     assert pos["limit"] is None
 
-    # No unexpected errors logged by run_eam itself
+    # No unexpected errors logged in happy path
     assert logger.errors == []
     assert logger.exceptions == []
 
 
 def test_run_eam_can_be_called_multiple_times_without_caching(monkeypatch: Any) -> None:
     """
-    Performance / multi-call sanity (updated):
+    Multi-call sanity:
     - Calling run_eam() twice calls register_credentials twice (no caching).
     - Calls devices+positions twice in correct order.
     """
@@ -168,18 +252,26 @@ def test_run_eam_can_be_called_multiple_times_without_caching(monkeypatch: Any) 
     assert reg2["password"] == "pass-2"
 
 
-# 2, 6, 8, 13: devices raises → (NEW behavior) exception propagates; positions does NOT run
+# -----------------------------------------------------------------------------
+# Updated failure behavior: run_eam swallows phase failures and continues
+# -----------------------------------------------------------------------------
 
 
 def test_run_eam_devices_failure_still_runs_positions_and_logs_error(
     monkeypatch: Any,
 ) -> None:
     """
-    Updated for new run_eam behavior:
-    If sync_eam_devices raises:
-    - run_eam propagates the exception (no swallowing).
-    - sync_eam_positions is NOT invoked.
+    Current run_eam behavior (see av_tools.py):
+    If sync_eam_devices raises a handled EAM exception, run_eam:
+      - logs an error event
+      - continues and still runs sync_eam_positions
+      - does NOT raise
     """
+    patch_eam_exceptions(monkeypatch)
+
+    # Import the patched exception symbol from the module where run_eam resolves it.
+    import avtools.core.av_tools as av_mod
+
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
@@ -190,36 +282,39 @@ def test_run_eam_devices_failure_still_runs_positions_and_logs_error(
 
     def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
         calls.append("devices")
-        assert kwargs["asset_grid"] == "OSOBJA"
-        assert kwargs["department_code"] == "AV"
-        raise RuntimeError("devices boom")
+        raise av_mod.EamClientRetryableHTTPError(
+            "devices retryable",
+            status_code=503,
+            url="https://cmmsx.cern.ch/dev",
+            retry_after=5,
+        )
 
     def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
         calls.append("positions")
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
-    try:
-        av.run_eam("user", "pass")
-        raise AssertionError("Expected RuntimeError to propagate")
-    except RuntimeError as e:
-        assert "devices boom" in str(e)
+    result = av.run_eam("user", "pass")
+    assert result is None
 
-    # register happened, devices attempted, positions not called
+    # register happened, devices attempted, positions still called
     assert len(reg_calls) == 1
-    assert calls == ["devices"]
+    assert calls == ["devices", "positions"]
 
-
-# 3, 6, 8, 13: positions raises → exception propagates
+    # Error event logged
+    assert "eam_devices_retryable_http_error" in logger.errors
 
 
 def test_run_eam_positions_failure_is_logged_and_swallowed(monkeypatch: Any) -> None:
     """
-    Updated for new run_eam behavior:
-    If sync_eam_positions raises:
-    - devices must be called once.
-    - exception propagates (no swallowing).
+    Current run_eam behavior:
+    If sync_eam_positions raises a handled EAM exception, run_eam:
+      - logs an error event
+      - does NOT raise
     """
+    patch_eam_exceptions(monkeypatch)
+    import avtools.core.av_tools as av_mod
+
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
@@ -230,35 +325,32 @@ def test_run_eam_positions_failure_is_logged_and_swallowed(monkeypatch: Any) -> 
 
     def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
         calls.append("devices")
-        assert kwargs["asset_grid"] == "OSOBJA"
-        assert kwargs["department_code"] == "AV"
 
     def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
         calls.append("positions")
-        assert kwargs["position_grid"] == "OSOBJP"
-        raise ValueError("positions boom")
+        raise av_mod.EamClientHTTPError(
+            "positions http", status_code=500, url="https://cmmsx.cern.ch/pos"
+        )
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
-    try:
-        av.run_eam("user", "pass")
-        raise AssertionError("Expected ValueError to propagate")
-    except ValueError as e:
-        assert "positions boom" in str(e)
+    result = av.run_eam("user", "pass")
+    assert result is None
 
     assert len(reg_calls) == 1
     assert calls == ["devices", "positions"]
-
-
-# 4, 6, 13: both raise → with new behavior, first failure stops execution
+    assert "eam_positions_http_error" in logger.errors
 
 
 def test_run_eam_both_phases_fail_and_both_errors_are_logged(monkeypatch: Any) -> None:
     """
-    Updated for new run_eam behavior:
-    If devices raises, positions is never attempted (so 'both failing' can't happen in one run).
-    This test asserts that a devices failure stops execution before positions.
+    Current run_eam behavior:
+    Devices failure is swallowed and positions is still attempted.
+    If both fail with handled EAM exceptions, both errors are logged.
     """
+    patch_eam_exceptions(monkeypatch)
+    import avtools.core.av_tools as av_mod
+
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
@@ -269,25 +361,28 @@ def test_run_eam_both_phases_fail_and_both_errors_are_logged(monkeypatch: Any) -
 
     def fake_sync_devices(self: AVTools, **kwargs: Any) -> None:
         calls.append("devices")
-        raise RuntimeError("devices kaboom")
+        raise av_mod.EamClientTimeoutError("devices timeout", retry_after_s=10)
 
     def fake_sync_positions(self: AVTools, **kwargs: Any) -> None:
-        # If this runs, run_eam didn't short-circuit correctly
-        raise AssertionError("positions should not run when devices fails")
+        calls.append("positions")
+        raise av_mod.EamQueryError("positions query error")
 
     attach_sync_stubs(av, fake_sync_devices, fake_sync_positions)
 
-    try:
-        av.run_eam("user", "pass")
-        raise AssertionError("Expected RuntimeError to propagate")
-    except RuntimeError as e:
-        assert "devices kaboom" in str(e)
+    result = av.run_eam("user", "pass")
+    assert result is None
 
     assert len(reg_calls) == 1
-    assert calls == ["devices"]
+    assert calls == ["devices", "positions"]
+
+    # Two error events: one for devices timeout, one for positions query error
+    assert "eam_devices_timeout" in logger.errors
+    assert "eam_positions_query_error" in logger.errors
 
 
-# 7: no unexpected calls to other pipelines
+# -----------------------------------------------------------------------------
+# Guardrails
+# -----------------------------------------------------------------------------
 
 
 def test_run_eam_does_not_call_other_pipelines_or_snmp_or_token(
@@ -331,9 +426,6 @@ def test_run_eam_does_not_call_other_pipelines_or_snmp_or_token(
     assert calls == ["devices", "positions"]
 
 
-# 10: global state safety (no new attributes set by run_eam)
-
-
 def test_run_eam_does_not_mutate_global_state_on_avtools_instance(
     monkeypatch: Any,
 ) -> None:
@@ -371,9 +463,6 @@ def test_run_eam_does_not_mutate_global_state_on_avtools_instance(
     assert av.logs is True
     assert isinstance(av.dbod_helper, object)
     assert av.extra_state == {"key": "value"}
-
-
-# 12: large dataset mock (simulated heavy work inside devices sync)
 
 
 def test_run_eam_large_dataset_mock_does_not_hang(monkeypatch: Any) -> None:
