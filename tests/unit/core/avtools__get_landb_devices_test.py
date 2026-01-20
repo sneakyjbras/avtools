@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import asyncio
+from collections.abc import Callable
 from typing import Any
 
 import structlog
@@ -9,928 +9,478 @@ from pydantic.v1 import BaseModel
 import avtools.core.av_tools as core
 from avtools.core.av_tools import AVTools
 
+# ---------------------------------------------------------------------------
+# Test doubles
+# ---------------------------------------------------------------------------
+
 
 class DummyEAM(BaseModel):
-    # Must match what AVTools._get_landb_devices reads:
-    #   rec.code, rec.serial_number, rec.class_code, rec.manufacturer_code
+    # Fields used by _get_landb_ipaddresses()
     code: str
-    serial_number: str
-    class_code: str
-    manufacturer_code: str
+    serial_number: str | None = None
+    description: str | None = None
+
+    # Optional extra fields (harmless, sometimes useful for enrichment stubs)
+    class_code: str | None = None
+    manufacturer_code: str | None = None
 
 
-class DummyLanDBDevice(BaseModel):
-    equipment_no: str
-    serial_number: str
-    ip: str | None
-    manufacturer: str
+class DummyDevice(BaseModel):
+    serial_number: str | None = None
+    name: str | None = None
+
+
+class DummyIPAddress(BaseModel):
+    # NOTE: In AVTools._get_landb_ipaddresses() correlation is:
+    #   Device.name == IPAddress.device   (string)
+    device: str | None = None
+    ip: str | None = None
+
+    # Only used by our dummy query engine for nested filter simulation
+    device_serial_number: str | None = None
+    device_name: str | None = None
+
+
+class DummyCachedIPAddress(BaseModel):
+    equipmentno: str
+    serialnumber: str | None = None
+    ip: str | None = None
+    name: str | None = None
 
 
 class DummyLogger:
+    """
+    Minimal structlog-like logger capturing events + kwargs.
+    AVTools._get_landb_ipaddresses uses .info() and .warning().
+    """
+
     def __init__(self) -> None:
-        self.infos: list[str] = []
-        self.errors: list[str] = []
-        self.exceptions: list[str] = []
+        self.infos: list[tuple[str, dict[str, Any]]] = []
+        self.warnings: list[tuple[str, dict[str, Any]]] = []
+        self.errors: list[tuple[str, dict[str, Any]]] = []
+        self.exceptions: list[tuple[str, dict[str, Any]]] = []
 
-    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.infos.append(str(msg))
+    def info(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self.infos.append((str(event), dict(kwargs)))
 
-    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.errors.append(str(msg))
+    def warning(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self.warnings.append((str(event), dict(kwargs)))
 
-    def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
-        self.exceptions.append(str(msg))
+    def error(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self.errors.append((str(event), dict(kwargs)))
+
+    def exception(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self.exceptions.append((str(event), dict(kwargs)))
+
+    def events(self, event: str) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for ev, kw in self.infos + self.warnings + self.errors + self.exceptions:
+            if ev == event:
+                out.append(kw)
+        return out
+
+
+class DummyQuery:
+    def __init__(self, items: list[Any]) -> None:
+        self._items = list(items)
+
+    def all(self) -> list[Any]:
+        return list(self._items)
+
+
+class DummyObjects:
+    """
+    A tiny .objects implementation supporting:
+      - Device.objects.filter(serial_number__in=[...]).all()
+      - Device.objects.filter(name__in=[...]).all()
+      - IPAddress.objects.filter(device__serial_number__in=[...]).all()
+      - IPAddress.objects.filter(device__name__in=[...]).all()
+
+    Optional raise_when(kwargs)->Exception lets tests simulate REST-client failures.
+    """
+
+    def __init__(
+        self,
+        items: list[Any],
+        *,
+        raise_when: Callable[[dict[str, Any]], Exception | None] | None = None,
+    ) -> None:
+        self._items = list(items)
+        self.raise_when = raise_when
+        self.filter_calls: list[dict[str, Any]] = []
+
+    def filter(self, **kwargs: Any) -> DummyQuery:
+        self.filter_calls.append(dict(kwargs))
+
+        if self.raise_when is not None:
+            exc = self.raise_when(kwargs)
+            if exc is not None:
+                raise exc
+
+        out = list(self._items)
+
+        # Device queries
+        if "serial_number__in" in kwargs:
+            wanted = set(kwargs["serial_number__in"] or [])
+            out = [d for d in out if getattr(d, "serial_number", None) in wanted]
+
+        if "name__in" in kwargs:
+            wanted = set(kwargs["name__in"] or [])
+            out = [d for d in out if getattr(d, "name", None) in wanted]
+
+        # IPAddress queries (nested selectors in LanDB REST client)
+        if "device__serial_number__in" in kwargs:
+            wanted = set(kwargs["device__serial_number__in"] or [])
+            out = [
+                ip for ip in out if getattr(ip, "device_serial_number", None) in wanted
+            ]
+
+        if "device__name__in" in kwargs:
+            wanted = set(kwargs["device__name__in"] or [])
+            out = [ip for ip in out if getattr(ip, "device_name", None) in wanted]
+
+        return DummyQuery(out)
 
 
 def make_avtools_for_tests() -> AVTools:
-    # Bypass __init__ so we don't touch PostgresClient at all
+    # Bypass __init__ so we don't touch PostgresClient.
     av = object.__new__(AVTools)
     av.logger = structlog.get_logger("AVToolsTest")
     return av
 
 
 def _dump_model(m: Any) -> dict[str, Any]:
-    # Support pydantic v1 and v2-ish interfaces, plus plain objects
-    if hasattr(m, "model_dump"):
-        return m.model_dump()
     if hasattr(m, "dict"):
         return m.dict()
     return dict(vars(m))
 
 
-def test_get_landb_devices_returns_empty_when_no_eam_records():
-    """
-    If there are no EAM records, _get_landb_devices should log and return [].
-    """
-    av = make_avtools_for_tests()
-    av.logger = DummyLogger()
-    session = object()
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=[],
-            session=session,
-            max_workers=4,
-        )
-    )
-
-    assert result == []
-    assert any(
-        "No EAM records provided" in msg for msg in av.logger.infos  # type: ignore[attr-defined]
-    )
-
-
-def test_get_landb_devices_builds_and_filters_devices(monkeypatch):
-    """
-    _get_landb_devices should:
-    - call LanDBClient.build_device_with_ip for each EAM record
-    - filter out devices with missing serial_number or ip
-    - ignore errors from the client
-    """
-    av = make_avtools_for_tests()
-    session = object()
-
-    eam_records = [
-        # valid → should be kept
-        DummyEAM(
-            code="DEV-34",
-            serial_number="SN-34",
-            class_code="EQ-34",
-            manufacturer_code="MFG-34",
-        ),
-        # client returns None → should be skipped
-        DummyEAM(
-            code="DEV-38",
-            serial_number="SN-38",
-            class_code="EQ-38",
-            manufacturer_code="MFG-38",
-        ),
-        # missing serial_number in result → skipped
-        DummyEAM(
-            code="DEV-39",
-            serial_number="SN-39",
-            class_code="EQ-39",
-            manufacturer_code="MFG-39",
-        ),
-        # ip is None in result → skipped
-        DummyEAM(
-            code="DEV-404",
-            serial_number="SN-404",
-            class_code="EQ-404",
-            manufacturer_code="MFG-404",
-        ),
-        # client raises error → skipped
-        DummyEAM(
-            code="DEV-1911",
-            serial_number="SN-1911",
-            class_code="EQ-1911",
-            manufacturer_code="MFG-1911",
-        ),
-        # another valid → should be kept
-        DummyEAM(
-            code="DEV-2137",
-            serial_number="SN-2137",
-            class_code="EQ-2137",
-            manufacturer_code="MFG-2137",
-        ),
-    ]
-
-    behavior_map: dict[str, str] = {
-        "DEV-34": "ok",
-        "DEV-38": "none",
-        "DEV-39": "no_serial",
-        "DEV-404": "no_ip",
-        "DEV-1911": "error",
-        "DEV-2137": "ok",
-    }
-
-    class DummyLanDBClient:
-        def __init__(self, session: Any) -> None:
-            self.session = session
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice | None:
-            mode = behavior_map[equipment_no]
-            if mode == "ok":
-                return DummyLanDBDevice(
-                    equipment_no=equipment_no,
-                    serial_number=serial_number,
-                    ip=f"10.0.0.{equipment_no.split('-')[-1]}",
-                    manufacturer=manufacturer,
-                )
-            if mode == "none":
-                return None
-            if mode == "no_serial":
-                return DummyLanDBDevice(
-                    equipment_no=equipment_no,
-                    serial_number="",
-                    ip="10.0.0.39",
-                    manufacturer=manufacturer,
-                )
-            if mode == "no_ip":
-                return DummyLanDBDevice(
-                    equipment_no=equipment_no,
-                    serial_number=serial_number,
-                    ip=None,
-                    manufacturer=manufacturer,
-                )
-            if mode == "error":
-                raise RuntimeError("dummy LanDB error")
-            raise AssertionError(f"Unexpected mode {mode!r}")
-
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=list(eam_records),
-            session=session,
-            max_workers=3,
-        )
-    )
-
-    equipment_nos = [d.equipment_no for d in result]
-    assert equipment_nos == ["DEV-34", "DEV-2137"]
-    assert all(d.ip is not None for d in result)
-
-
-def test_get_landb_devices_all_invalid_returns_empty(monkeypatch):
-    """
-    If every LanDBClient call returns an invalid device (None, no serial, no ip),
-    the final result should be an empty list.
-    """
-    av = make_avtools_for_tests()
-    session = object()
-
-    eam_records = [
-        DummyEAM(
-            code="DEV-34",
-            serial_number="SN-34",
-            class_code="EQ-34",
-            manufacturer_code="MFG-34",
-        ),
-        DummyEAM(
-            code="DEV-38",
-            serial_number="SN-38",
-            class_code="EQ-38",
-            manufacturer_code="MFG-38",
-        ),
-        DummyEAM(
-            code="DEV-39",
-            serial_number="SN-39",
-            class_code="EQ-39",
-            manufacturer_code="MFG-39",
-        ),
-    ]
-
-    behavior_map: dict[str, str] = {
-        "DEV-34": "none",
-        "DEV-38": "no_serial",
-        "DEV-39": "no_ip",
-    }
-
-    class DummyLanDBClient:
-        def __init__(self, session: Any) -> None:
-            self.session = session
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice | None:
-            mode = behavior_map[equipment_no]
-            if mode == "none":
-                return None
-            if mode == "no_serial":
-                return DummyLanDBDevice(
-                    equipment_no=equipment_no,
-                    serial_number="",
-                    ip="10.0.0.39",
-                    manufacturer=manufacturer,
-                )
-            if mode == "no_ip":
-                return DummyLanDBDevice(
-                    equipment_no=equipment_no,
-                    serial_number=serial_number,
-                    ip=None,
-                    manufacturer=manufacturer,
-                )
-            raise AssertionError(f"Unexpected mode {mode!r}")
-
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=list(eam_records),
-            session=session,
-            max_workers=2,
-        )
-    )
-
-    assert result == []
-
-
-def test_get_landb_devices_respects_total_count_and_logs(monkeypatch):
-    """
-    Smoke test with a small number of devices to ensure chunking doesn't break anything
-    and that summary logging is done.
-    """
-    av = make_avtools_for_tests()
-    logger = DummyLogger()
-    av.logger = logger  # type: ignore[assignment]
-    session = object()
-
-    eam_records = [
-        DummyEAM(
-            code="DEV-14",
-            serial_number="SN-14",
-            class_code="EQ-14",
-            manufacturer_code="MFG-14",
-        ),
-        DummyEAM(
-            code="DEV-1978",
-            serial_number="SN-1978",
-            class_code="EQ-1978",
-            manufacturer_code="MFG-1978",
-        ),
-    ]
-
-    class DummyLanDBClient:
-        def __init__(self, session: Any) -> None:
-            self.session = session
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice:
-            return DummyLanDBDevice(
-                equipment_no=equipment_no,
-                serial_number=serial_number,
-                ip="10.0.0.2025",
-                manufacturer=manufacturer,
-            )
-
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=list(eam_records),
-            session=session,
-            max_workers=4,
-        )
-    )
-
-    equipment_nos = [d.equipment_no for d in result]
-    assert equipment_nos == ["DEV-14", "DEV-1978"]
-    assert all(d.ip == "10.0.0.2025" for d in result)
-
-    assert any("Fetching 2 LanDB devices with 2 tasks." in msg for msg in logger.infos)
-    assert any("Fetched 2 of 2 LanDB devices." in msg for msg in logger.infos)
-
-
-def test_get_landb_devices_with_more_workers_than_records(monkeypatch):
-    """
-    If max_workers > number of EAM records, method should still process each
-    record exactly once and return all valid devices (order not guaranteed).
-    """
-    av = make_avtools_for_tests()
-    session = object()
-
-    eam_records = [
-        DummyEAM(
-            code="DEV-34",
-            serial_number="SN-34",
-            class_code="EQ-34",
-            manufacturer_code="MFG-34",
-        ),
-        DummyEAM(
-            code="DEV-38",
-            serial_number="SN-38",
-            class_code="EQ-38",
-            manufacturer_code="MFG-38",
-        ),
-        DummyEAM(
-            code="DEV-39",
-            serial_number="SN-39",
-            class_code="EQ-39",
-            manufacturer_code="MFG-39",
-        ),
-    ]
-
-    calls: list[str] = []
-
-    class DummyLanDBClient:
-        def __init__(self, session: Any) -> None:
-            self.session = session
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice:
-            calls.append(equipment_no)
-            return DummyLanDBDevice(
-                equipment_no=equipment_no,
-                serial_number=serial_number,
-                ip="10.0.0.2025",
-                manufacturer=manufacturer,
-            )
-
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=list(eam_records),
-            session=session,
-            max_workers=10,
-        )
-    )
-
-    equipment_nos = sorted(d.equipment_no for d in result)
-    assert equipment_nos == ["DEV-34", "DEV-38", "DEV-39"]
-
-    assert sorted(calls) == ["DEV-34", "DEV-38", "DEV-39"]
-    assert len(calls) == len(eam_records)
-
-
-def test_get_landb_devices_does_not_mutate_eam_records(monkeypatch):
-    """
-    _get_landb_devices must not mutate the input EAM records.
-    """
-    av = make_avtools_for_tests()
-    session = object()
-
-    eam_records = [
-        DummyEAM(
-            code="DEV-34",
-            serial_number="SN-34",
-            class_code="EQ-34",
-            manufacturer_code="MFG-34",
-        ),
-        DummyEAM(
-            code="DEV-38",
-            serial_number="SN-38",
-            class_code="EQ-38",
-            manufacturer_code="MFG-38",
-        ),
-    ]
-
-    before = [_dump_model(rec) for rec in eam_records]
-
-    class DummyLanDBClient:
-        def __init__(self, session: Any) -> None:
-            self.session = session
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice:
-            return DummyLanDBDevice(
-                equipment_no=equipment_no,
-                serial_number=serial_number,
-                ip="10.0.0.1",
-                manufacturer=manufacturer,
-            )
-
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    _ = asyncio.run(
-        av._get_landb_devices(
-            eam_records=eam_records,  # pass original list to detect mutation
-            session=session,
-            max_workers=2,
-        )
-    )
-
-    after = [_dump_model(rec) for rec in eam_records]
-    assert after == before
-
-
-def test_get_landb_devices_creates_one_lanbd_client_per_task(monkeypatch):
-    """
-    For total N and max_workers W, _get_landb_devices creates
-    num_tasks = min(N, W) LanDBClient instances (one per slice/task).
-    """
-    av = make_avtools_for_tests()
-    session = object()
-
-    # 5 records, max_workers=2 → num_tasks = 2
-    eam_records = [
-        DummyEAM(
-            code=f"DEV-{i}",
-            serial_number=f"SN-{i}",
-            class_code=f"EQ-{i}",
-            manufacturer_code=f"MFG-{i}",
-        )
-        for i in range(5)
-    ]
-
-    class DummyLanDBClient:
-        instances: list[DummyLanDBClient] = []
-
-        def __init__(self, session: Any) -> None:
-            self.session = session
-            DummyLanDBClient.instances.append(self)
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice:
-            return DummyLanDBDevice(
-                equipment_no=equipment_no,
-                serial_number=serial_number,
-                ip="10.0.0.42",
-                manufacturer=manufacturer,
-            )
-
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=list(eam_records),
-            session=session,
-            max_workers=2,
-        )
-    )
-
-    assert sorted(d.equipment_no for d in result) == sorted(r.code for r in eam_records)
-    assert len(DummyLanDBClient.instances) == 2
-    assert all(client.session is session for client in DummyLanDBClient.instances)
-
-
-def test_get_landb_devices_logs_error_when_client_raises(monkeypatch):
-    """
-    When LanDBClient.build_device_with_ip raises, _get_landb_devices must log an error
-    and continue without propagating the exception.
-    """
-    av = make_avtools_for_tests()
-    logger = DummyLogger()
-    av.logger = logger  # type: ignore[assignment]
-    session = object()
-
-    eam_records = [
-        DummyEAM(
-            code="DEV-34",
-            serial_number="SN-34",
-            class_code="EQ-34",
-            manufacturer_code="MFG-34",
-        )
-    ]
-
-    class DummyLanDBClient:
-        def __init__(self, session: Any) -> None:
-            self.session = session
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice:
-            raise RuntimeError("dummy LanDB error")
-
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=list(eam_records),
-            session=session,
-            max_workers=1,
-        )
-    )
-
-    assert result == []
-    assert any("Error fetching DEV-34" in msg for msg in logger.errors)
-
-
 # ---------------------------------------------------------------------------
-# Combined behaviour: old tests expected token-refresh *inside* _get_landb_devices.
-# New implementation does NOT refresh tokens here; run_landb() calls _ensure_token
-# before invoking _get_landb_devices(). These tests are updated 1:1 to assert
-# that behavior (no ensure_token calls, no retries), while preserving names.
+# Tests
 # ---------------------------------------------------------------------------
 
 
-def test_get_landb_devices_401_triggers_ensure_token_and_retry_success(monkeypatch):
+def test_get_landb_ipaddresses_returns_empty_when_no_eam_records():
+    av = make_avtools_for_tests()
+    av.logger = DummyLogger()  # type: ignore[assignment]
+
+    assert av._get_landb_ipaddresses([]) == []
+
+
+def test_get_landb_ipaddresses_matches_by_serial_and_name_and_enriches(monkeypatch):
     """
-    Updated behavior:
-    - _get_landb_devices does NOT call _ensure_token and does NOT retry.
-    - Authorization-like errors are logged and skipped.
-    - Other records may still succeed.
+    _get_landb_ipaddresses should:
+      - match Devices by EAM serial_number
+      - fallback match Devices by EAM description (Device.name)
+      - then fetch IPAddresses via device serials, and fallback by device names
+      - correlate using Device.name == IPAddress.device
+      - enrich each IPAddress with EAM keys via _enrich_ipaddress_with_eam_keys
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
 
-    av.landb_cfg = object()
+    # Patch the module-level Device / IPAddress used by AVTools._get_landb_ipaddresses
+    monkeypatch.setattr(core, "Device", DummyDevice)
+    monkeypatch.setattr(core, "IPAddress", DummyIPAddress)
 
-    ensure_calls: list[tuple[Any, Any]] = []
+    eam_records = [
+        DummyEAM(code="DEV-34", serial_number="SN-34", description="DESC-34"),
+        DummyEAM(
+            code="DEV-38", serial_number="SN-38", description="DESC-38"
+        ),  # no device in LanDB
+        DummyEAM(
+            code="DEV-39", serial_number=None, description="NAME-39"
+        ),  # match by name
+        DummyEAM(
+            code="DEV-404", serial_number="SN-404", description="DESC-404"
+        ),  # device exists but no IP
+        DummyEAM(code="DEV-2137", serial_number="SN-2137", description="DESC-2137"),
+    ]
 
-    def fake_ensure_token(self: AVTools, session: Any, cfg: Any) -> None:
-        ensure_calls.append((session, cfg))
+    devices = [
+        DummyDevice(serial_number="SN-34", name="LAN-34"),
+        DummyDevice(serial_number="SN-39", name="NAME-39"),
+        DummyDevice(serial_number="SN-404", name="LAN-404"),
+        DummyDevice(serial_number="SN-2137", name="LAN-2137"),
+    ]
+    DummyDevice.objects = DummyObjects(devices)  # type: ignore[attr-defined]
 
-    monkeypatch.setattr(AVTools, "_ensure_token", fake_ensure_token)
+    ips = [
+        DummyIPAddress(
+            device="LAN-34",
+            ip="10.0.0.34",
+            device_serial_number="SN-34",
+            device_name="LAN-34",
+        ),
+        DummyIPAddress(
+            device="NAME-39",
+            ip="10.0.0.39",
+            device_serial_number="SN-39",
+            device_name="NAME-39",
+        ),
+        # NOTE: no entry for LAN-404 -> that EAM record should end up missing_ip
+        DummyIPAddress(
+            device="LAN-2137",
+            ip="10.0.0.2137",
+            device_serial_number="SN-2137",
+            device_name="LAN-2137",
+        ),
+    ]
+    DummyIPAddress.objects = DummyObjects(ips)  # type: ignore[attr-defined]
 
-    class UnauthorizedError(Exception):
-        pass
+    enrich_calls: list[tuple[DummyIPAddress, DummyEAM, DummyDevice | None]] = []
 
-    class DummySession:
-        pass
+    def fake_enrich(
+        self: AVTools,
+        ip_rec: DummyIPAddress,
+        eam_rec: DummyEAM,
+        *,
+        landb_device: DummyDevice | None = None,
+    ) -> DummyCachedIPAddress:
+        enrich_calls.append((ip_rec, eam_rec, landb_device))
+        return DummyCachedIPAddress(
+            equipmentno=str(eam_rec.code),
+            serialnumber=eam_rec.serial_number,
+            ip=ip_rec.ip,
+            name=ip_rec.device,
+        )
 
-    class DummyLanDBClient:
-        calls: list[str] = []
+    monkeypatch.setattr(AVTools, "_enrich_ipaddress_with_eam_keys", fake_enrich)
 
-        def __init__(self, session: DummySession) -> None:
-            self.session = session
+    out = av._get_landb_ipaddresses(eam_records)
 
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice:
-            DummyLanDBClient.calls.append(equipment_no)
-            if equipment_no == "DEV-401":
-                raise UnauthorizedError("401 Unauthorized")
-            return DummyLanDBDevice(
-                equipment_no=equipment_no,
-                serial_number=serial_number,
+    # Only DEV-34 (serial match), DEV-39 (name match), DEV-2137 survive.
+    assert [o.equipmentno for o in out] == ["DEV-34", "DEV-39", "DEV-2137"]
+    assert [o.ip for o in out] == ["10.0.0.34", "10.0.0.39", "10.0.0.2137"]
+
+    # Ensure correlation is based on Device.name == IPAddress.device
+    assert all(ip.device == (dev.name if dev else None) for ip, _, dev in enrich_calls)
+
+    # Summary logs should have been emitted
+    assert logger.events("landb_device_match_summary")
+    assert logger.events("landb_ipaddress_match_summary")
+
+
+def test_get_landb_ipaddresses_prefers_serial_match_over_name(monkeypatch):
+    """
+    If an EAM record could match both by serial and by name, serial match should win.
+    """
+    av = make_avtools_for_tests()
+    av.logger = DummyLogger()  # type: ignore[assignment]
+
+    monkeypatch.setattr(core, "Device", DummyDevice)
+    monkeypatch.setattr(core, "IPAddress", DummyIPAddress)
+
+    eam = DummyEAM(code="DEV-X", serial_number="SN-X", description="DESC-SAME")
+
+    # Two devices:
+    # - serial match device (should be chosen)
+    # - name match device (should be ignored for this EAM record)
+    dev_serial = DummyDevice(serial_number="SN-X", name="LAN-SERIAL")
+    dev_name = DummyDevice(serial_number="SN-Y", name="DESC-SAME")
+
+    DummyDevice.objects = DummyObjects([dev_serial, dev_name])  # type: ignore[attr-defined]
+
+    DummyIPAddress.objects = DummyObjects(
+        [
+            DummyIPAddress(
+                device="LAN-SERIAL",
                 ip="10.0.0.1",
-                manufacturer=manufacturer,
-            )
+                device_serial_number="SN-X",
+                device_name="LAN-SERIAL",
+            ),
+            DummyIPAddress(
+                device="DESC-SAME",
+                ip="10.0.0.2",
+                device_serial_number="SN-Y",
+                device_name="DESC-SAME",
+            ),
+        ]
+    )  # type: ignore[attr-defined]
 
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
+    chosen: list[DummyDevice | None] = []
 
-    session = DummySession()
-    eam_records = [
-        DummyEAM(
-            code="DEV-401",
-            serial_number="SN-401",
-            class_code="EQ-401",
-            manufacturer_code="MFG-401",
-        ),
-        DummyEAM(
-            code="DEV-OK",
-            serial_number="SN-OK",
-            class_code="EQ-OK",
-            manufacturer_code="MFG-OK",
-        ),
-    ]
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=eam_records,
-            session=session,
-            max_workers=2,
+    def fake_enrich(
+        self: AVTools,
+        ip_rec: DummyIPAddress,
+        eam_rec: DummyEAM,
+        *,
+        landb_device: DummyDevice | None = None,
+    ) -> DummyCachedIPAddress:
+        chosen.append(landb_device)
+        return DummyCachedIPAddress(
+            equipmentno=str(eam_rec.code),
+            serialnumber=eam_rec.serial_number,
+            ip=ip_rec.ip,
+            name=ip_rec.device,
         )
-    )
 
-    # Only the OK one survives (401 was skipped)
-    assert [d.equipment_no for d in result] == ["DEV-OK"]
+    monkeypatch.setattr(AVTools, "_enrich_ipaddress_with_eam_keys", fake_enrich)
 
-    # No token refresh inside _get_landb_devices
-    assert ensure_calls == []
+    out = av._get_landb_ipaddresses([eam])
 
-    # No retry: each record processed once
-    assert sorted(DummyLanDBClient.calls) == ["DEV-401", "DEV-OK"]
-
-    # Logged error for the unauthorized record
-    assert any("Error fetching DEV-401" in msg for msg in logger.errors)
+    assert [o.ip for o in out] == ["10.0.0.1"]
+    assert chosen and chosen[0] is not None
+    assert chosen[0].serial_number == "SN-X"
+    assert chosen[0].name == "LAN-SERIAL"
 
 
-def test_get_landb_devices_401_triggers_ensure_token_but_retry_still_fails(monkeypatch):
-    """
-    Updated behavior:
-    - No _ensure_token calls here.
-    - No retries.
-    - 401-like errors are logged and the device is skipped.
-    """
-    av = make_avtools_for_tests()
-    logger = DummyLogger()
-    av.logger = logger  # type: ignore[assignment]
-    av.landb_cfg = object()
-
-    ensure_calls: list[tuple[Any, Any]] = []
-
-    def fake_ensure_token(self: AVTools, session: Any, cfg: Any) -> None:
-        ensure_calls.append((session, cfg))
-
-    monkeypatch.setattr(AVTools, "_ensure_token", fake_ensure_token)
-
-    class UnauthorizedError(Exception):
-        pass
-
-    class DummySession:
-        pass
-
-    class DummyLanDBClient:
-        calls = 0
-
-        def __init__(self, session: DummySession) -> None:
-            self.session = session
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice:
-            DummyLanDBClient.calls += 1
-            raise UnauthorizedError("401 Unauthorized (still)")
-
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    session = DummySession()
-    eam_records = [
-        DummyEAM(
-            code="DEV-401F",
-            serial_number="SN-401F",
-            class_code="EQ-401F",
-            manufacturer_code="MFG-401F",
-        )
-    ]
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=eam_records,
-            session=session,
-            max_workers=1,
-        )
-    )
-
-    assert result == []
-    assert ensure_calls == []
-    assert DummyLanDBClient.calls == 1
-    assert any("Error fetching DEV-401F" in msg for msg in logger.errors)
-
-
-def test_get_landb_devices_network_error_does_not_trigger_token_refresh(monkeypatch):
-    """
-    Updated behavior:
-    - Network-like errors are logged and skipped.
-    - _ensure_token is not called here.
-    """
-    av = make_avtools_for_tests()
-    logger = DummyLogger()
-    av.logger = logger  # type: ignore[assignment]
-    av.landb_cfg = object()
-
-    ensure_calls: list[tuple[Any, Any]] = []
-
-    def fake_ensure_token(self: AVTools, session: Any, cfg: Any) -> None:
-        ensure_calls.append((session, cfg))
-
-    monkeypatch.setattr(AVTools, "_ensure_token", fake_ensure_token)
-
-    class NetworkError(Exception):
-        pass
-
-    class DummySession:
-        pass
-
-    class DummyLanDBClient:
-        def __init__(self, session: DummySession) -> None:
-            self.session = session
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice:
-            raise NetworkError("connection reset by peer")
-
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    session = DummySession()
-    eam_records = [
-        DummyEAM(
-            code="DEV-NET",
-            serial_number="SN-NET",
-            class_code="EQ-NET",
-            manufacturer_code="MFG-NET",
-        )
-    ]
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=eam_records,
-            session=session,
-            max_workers=1,
-        )
-    )
-
-    assert result == []
-    assert ensure_calls == []
-    assert any("Error fetching DEV-NET" in msg for msg in logger.errors)
-
-
-def test_get_landb_devices_calls_ensure_token_before_requests_when_no_token(
+def test_get_landb_ipaddresses_device_fetch_by_serial_exception_falls_back_to_name(
     monkeypatch,
 ):
     """
-    Updated behavior:
-    - _get_landb_devices does not call _ensure_token (run_landb does).
-    - We assert ensure_token is NOT invoked and the session can still be used.
+    If Device fetch by serial raises, function should log a warning and still try name-based device lookup.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
-    av.landb_cfg = object()
 
-    ensure_calls: list[tuple[Any, Any]] = []
+    monkeypatch.setattr(core, "Device", DummyDevice)
+    monkeypatch.setattr(core, "IPAddress", DummyIPAddress)
 
-    class DummyAuth:
-        def __init__(self) -> None:
-            self.token: str | None = None
+    eam = DummyEAM(code="DEV-1", serial_number="SN-1", description="NAME-1")
 
-    class TokenSession:
-        def __init__(self) -> None:
-            self.auth = DummyAuth()
+    def raise_on_serial(kwargs: dict[str, Any]) -> Exception | None:
+        if "serial_number__in" in kwargs:
+            return RuntimeError("boom devices-by-serial")
+        return None
 
-    def fake_ensure_token(self: AVTools, session: TokenSession, cfg: Any) -> None:
-        ensure_calls.append((session, cfg))
-        session.auth.token = "fresh-token"
+    DummyDevice.objects = DummyObjects(
+        [DummyDevice(serial_number="SN-1", name="NAME-1")],
+        raise_when=raise_on_serial,
+    )  # type: ignore[attr-defined]
 
-    monkeypatch.setattr(AVTools, "_ensure_token", fake_ensure_token)
-
-    class DummyLanDBClient:
-        instances: list[DummyLanDBClient] = []
-
-        def __init__(self, session: TokenSession) -> None:
-            # In new behavior, token is not set here (run_landb would do it)
-            assert session.auth.token is None
-            self.session = session
-            DummyLanDBClient.instances.append(self)
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice:
-            return DummyLanDBDevice(
-                equipment_no=equipment_no,
-                serial_number=serial_number,
-                ip="10.0.0.10",
-                manufacturer=manufacturer,
+    DummyIPAddress.objects = DummyObjects(
+        [
+            DummyIPAddress(
+                device="NAME-1",
+                ip="10.0.0.1",
+                device_serial_number="SN-1",
+                device_name="NAME-1",
             )
+        ]
+    )  # type: ignore[attr-defined]
 
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    session = TokenSession()
-    eam_records = [
-        DummyEAM(
-            code="DEV-TOKEN",
-            serial_number="SN-TOKEN",
-            class_code="EQ-TOKEN",
-            manufacturer_code="MFG-TOKEN",
-        )
-    ]
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=eam_records,
-            session=session,
-            max_workers=1,
-        )
+    monkeypatch.setattr(
+        AVTools,
+        "_enrich_ipaddress_with_eam_keys",
+        lambda self, ip, eam_rec, *, landb_device=None: DummyCachedIPAddress(
+            equipmentno=str(eam_rec.code),
+            serialnumber=eam_rec.serial_number,
+            ip=ip.ip,
+            name=ip.device,
+        ),
     )
 
-    assert [d.equipment_no for d in result] == ["DEV-TOKEN"]
-    assert ensure_calls == []
-    assert len(DummyLanDBClient.instances) == 1
-    assert DummyLanDBClient.instances[0].session is session
+    out = av._get_landb_ipaddresses([eam])
+
+    assert [o.equipmentno for o in out] == ["DEV-1"]
+    assert logger.events("landb_device_fetch_by_serial_failed")
 
 
-def test_get_landb_devices_handles_malformed_refresh_token_gracefully(monkeypatch):
+def test_get_landb_ipaddresses_ip_fetch_by_serial_exception_falls_back_to_name(
+    monkeypatch,
+):
     """
-    Updated behavior:
-    - _get_landb_devices does not refresh tokens and does not retry.
-    - Errors are logged and the function returns [].
+    If IPAddress fetch by serial raises, function should log a warning and still try name-based IP lookup.
     """
     av = make_avtools_for_tests()
     logger = DummyLogger()
     av.logger = logger  # type: ignore[assignment]
-    av.landb_cfg = object()
 
-    ensure_calls: list[tuple[Any, Any]] = []
+    monkeypatch.setattr(core, "Device", DummyDevice)
+    monkeypatch.setattr(core, "IPAddress", DummyIPAddress)
 
-    class DummyAuth:
-        def __init__(self) -> None:
-            self.token: str | None = None
+    eam = DummyEAM(code="DEV-1", serial_number="SN-1", description="DESC-1")
+    dev = DummyDevice(serial_number="SN-1", name="LAN-1")
 
-    class TokenSession:
-        def __init__(self) -> None:
-            self.auth = DummyAuth()
+    DummyDevice.objects = DummyObjects([dev])  # type: ignore[attr-defined]
 
-    def fake_ensure_token(self: AVTools, session: TokenSession, cfg: Any) -> None:
-        ensure_calls.append((session, cfg))
-        # token remains None (malformed refresh)
+    def raise_on_ip_serial(kwargs: dict[str, Any]) -> Exception | None:
+        if "device__serial_number__in" in kwargs:
+            return RuntimeError("boom ips-by-serial")
+        return None
 
-    monkeypatch.setattr(AVTools, "_ensure_token", fake_ensure_token)
+    # Only returned via name-based fallback
+    DummyIPAddress.objects = DummyObjects(
+        [
+            DummyIPAddress(
+                device="LAN-1",
+                ip="10.0.0.1",
+                device_serial_number="SN-1",
+                device_name="LAN-1",
+            )
+        ],
+        raise_when=raise_on_ip_serial,
+    )  # type: ignore[attr-defined]
 
-    class UnauthorizedError(Exception):
-        pass
-
-    class DummyLanDBClient:
-        calls = 0
-
-        def __init__(self, session: TokenSession) -> None:
-            self.session = session
-
-        def build_device_with_ip(
-            self,
-            equipment_no: str,
-            serial_number: str,
-            eq_class: str,
-            manufacturer: str,
-        ) -> DummyLanDBDevice:
-            DummyLanDBClient.calls += 1
-            raise UnauthorizedError("401 Unauthorized (malformed token)")
-
-    monkeypatch.setattr(core, "LanDBClient", DummyLanDBClient)
-
-    session = TokenSession()
-    eam_records = [
-        DummyEAM(
-            code="DEV-BADTOKEN",
-            serial_number="SN-BADTOKEN",
-            class_code="EQ-BADTOKEN",
-            manufacturer_code="MFG-BADTOKEN",
-        )
-    ]
-
-    result = asyncio.run(
-        av._get_landb_devices(
-            eam_records=eam_records,
-            session=session,
-            max_workers=1,
-        )
+    monkeypatch.setattr(
+        AVTools,
+        "_enrich_ipaddress_with_eam_keys",
+        lambda self, ip, eam_rec, *, landb_device=None: DummyCachedIPAddress(
+            equipmentno=str(eam_rec.code),
+            serialnumber=eam_rec.serial_number,
+            ip=ip.ip,
+            name=ip.device,
+        ),
     )
 
-    assert result == []
-    assert ensure_calls == []
-    assert DummyLanDBClient.calls == 1
-    assert logger.errors or logger.exceptions
+    out = av._get_landb_ipaddresses([eam])
+
+    assert [o.ip for o in out] == ["10.0.0.1"]
+    assert logger.events("landb_ipaddress_fetch_by_serial_failed")
+
+
+def test_get_landb_ipaddresses_does_not_mutate_eam_records(monkeypatch):
+    av = make_avtools_for_tests()
+    av.logger = DummyLogger()  # type: ignore[assignment]
+
+    monkeypatch.setattr(core, "Device", DummyDevice)
+    monkeypatch.setattr(core, "IPAddress", DummyIPAddress)
+
+    eam_records = [
+        DummyEAM(code="DEV-1", serial_number="SN-1", description="LAN-1"),
+        DummyEAM(code="DEV-2", serial_number="SN-2", description="LAN-2"),
+    ]
+    before = [_dump_model(r) for r in eam_records]
+
+    DummyDevice.objects = DummyObjects(
+        [
+            DummyDevice(serial_number="SN-1", name="LAN-1"),
+            DummyDevice(serial_number="SN-2", name="LAN-2"),
+        ]
+    )  # type: ignore[attr-defined]
+
+    DummyIPAddress.objects = DummyObjects(
+        [
+            DummyIPAddress(
+                device="LAN-1",
+                ip="10.0.0.1",
+                device_serial_number="SN-1",
+                device_name="LAN-1",
+            ),
+            DummyIPAddress(
+                device="LAN-2",
+                ip="10.0.0.2",
+                device_serial_number="SN-2",
+                device_name="LAN-2",
+            ),
+        ]
+    )  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(
+        AVTools,
+        "_enrich_ipaddress_with_eam_keys",
+        lambda self, ip, eam_rec, *, landb_device=None: DummyCachedIPAddress(
+            equipmentno=str(eam_rec.code),
+            serialnumber=eam_rec.serial_number,
+            ip=ip.ip,
+            name=ip.device,
+        ),
+    )
+
+    _ = av._get_landb_ipaddresses(eam_records)
+    after = [_dump_model(r) for r in eam_records]
+
+    assert after == before

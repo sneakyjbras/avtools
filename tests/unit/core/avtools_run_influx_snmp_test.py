@@ -18,6 +18,7 @@ class DummyLogger:
         self.info_messages.append(str(msg))
 
     def exception(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        # NOTE: We only capture the event string; not the exception text/traceback.
         self.exception_messages.append(str(msg))
 
 
@@ -221,6 +222,9 @@ def test_run_influx_snmp_snmp_collection_exception_is_caught(monkeypatch):
     - the worker exception is caught inside _get_snmp_points
     - run_influx_snmp does not raise
     - _publish_snmp is still invoked (with empty points), and it logs a skip
+
+    NOTE: current code logs event "snmp_worker_failed" (not "worker task error").
+    Also, the DummyLogger only captures the event string, not the exception text.
     """
     devices = [DummyDevice(ip="10.0.0.34")]
     av, logger, dbod = make_avtools_for_tests(devices=devices)
@@ -255,10 +259,9 @@ def test_run_influx_snmp_snmp_collection_exception_is_caught(monkeypatch):
 
     assert dbod.calls == 1
 
-    # Worker exception should have been logged
+    # Worker exception should have been logged (new event name)
     exc_text = " ".join(logger.exception_messages).lower()
-    assert "worker task error" in exc_text
-    assert "snmp failure" in exc_text
+    assert "snmp_worker_failed" in exc_text
 
     # Publish was called with empty points => info log about skipping write
     info_text = " ".join(logger.info_messages).lower()
@@ -269,6 +272,9 @@ def test_run_influx_snmp_publish_exception_is_caught(monkeypatch):
     """
     Influx write fails:
     - _publish_snmp catches and logs (does not raise)
+
+    NOTE: current code logs event "influx_write_failed" (not "failed writing points").
+    Also, the DummyLogger only captures the event string, not the exception text.
     """
     devices = [DummyDevice(ip="10.0.0.34")]
     av, logger, dbod = make_avtools_for_tests(devices=devices)
@@ -307,5 +313,4 @@ def test_run_influx_snmp_publish_exception_is_caught(monkeypatch):
 
     assert dbod.calls == 1
     exc_text = " ".join(logger.exception_messages).lower()
-    assert "failed writing points" in exc_text
-    assert "influx write failure" in exc_text
+    assert "influx_write_failed" in exc_text

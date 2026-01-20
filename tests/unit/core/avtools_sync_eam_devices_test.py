@@ -30,6 +30,25 @@ class DummyLogger:
         self.warning_messages.append((str(msg), dict(kwargs)))
 
 
+class DummySanitizer:
+    """Minimal EAM sanitizer stub used by AVTools.sync_eam_devices()."""
+
+    def clean_items(self, items: list[Any]) -> list[Any]:
+        return items
+
+    # Not used directly by these tests (since _sync_entities is mocked), but safe to provide.
+    def sanitize_text(self, v: Any) -> Any:
+        return v
+
+    def sanitize_dict_in_place(
+        self,
+        data: dict[str, Any],
+        *,
+        compare_fields: Any | None = None,
+    ) -> None:
+        return
+
+
 @dataclass
 class DummyEAMDevice:
     code: str
@@ -76,8 +95,14 @@ def make_avtools_for_tests(
     av = object.__new__(AVTools)
     logger = DummyLogger()
     helper = DummyDBODHelper(cached_devices=cached_devices)
+
     av.logger = logger
     av.dbod_helper = helper
+
+    # New AVTools expects these to exist (sync_eam_devices + _sync_entities).
+    av.logs = False
+    av._eam_sanitizer = DummySanitizer()
+
     return av, logger, helper
 
 
@@ -141,7 +166,7 @@ class DummyEquipmentObjects:
 
 
 class DummyEquipment:
-    # This mimics eam_rest_client.Equipment having a class-level `objects` manager.
+    # Mimic eam_rest_client.Equipment having a class-level objects manager.
     objects = DummyEquipmentObjects()
 
 
@@ -150,6 +175,12 @@ def patch_equipment(monkeypatch: Any) -> DummyEquipmentObjects:
     Patch avtools.core.av_tools.Equipment to our DummyEquipment, and return the objects manager.
     """
     monkeypatch.setattr(core, "Equipment", DummyEquipment, raising=True)
+
+    # Important: objects is a shared singleton on the DummyEquipment class.
+    # Reset between tests to avoid cross-test contamination.
+    DummyEquipment.objects.calls.clear()
+    DummyEquipment.objects._query_factory = None
+
     return DummyEquipment.objects
 
 
@@ -210,10 +241,11 @@ def test_sync_eam_devices_happy_path(monkeypatch):
     assert captured["api_items"] == eam_devices
     assert captured["cached_items"] == cached_devices
     assert captured["name"] == "EAM Devices"
-    assert [captured["get_id"](d) for d in eam_devices] == [d.code for d in eam_devices]
+    assert [captured["get_id"](d) for d in eam_devices] == [
+        str(d.code) for d in eam_devices
+    ]
+
     sync_func = captured["sync_func"]
-    # Bound method identity is not stable across attribute access;
-    # compare underlying function + bound instance instead.
     assert getattr(sync_func, "__self__", None) is dbod
     assert getattr(sync_func, "__func__", None) is dbod.sync_eam_devices.__func__
 
@@ -267,13 +299,12 @@ def test_sync_eam_devices_zero_total_calls_sync_entities(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 3) "EAM count error" equivalent: use_grid fails early
+# 3) Early failure: use_grid fails
 # ---------------------------------------------------------------------------
 
 
 def test_sync_eam_devices_eam_count_error_propagates(monkeypatch):
     """
-    In new implementation there is no 'count' call.
     Equivalent early failure: Equipment.objects.use_grid raises.
     Must propagate and nothing else is called.
     """
@@ -303,13 +334,12 @@ def test_sync_eam_devices_eam_count_error_propagates(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 4) "EAM list error" equivalent: query.all fails
+# 4) query.all fails
 # ---------------------------------------------------------------------------
 
 
 def test_sync_eam_devices_eam_list_error_propagates(monkeypatch):
     """
-    Equivalent to old 'get_device_list' failure:
     query.all raises.
     dbod_helper.get_all_eam_devices NOT called,
     _sync_entities NOT called, and exception propagates.
@@ -418,7 +448,6 @@ def test_sync_eam_devices_ordering(monkeypatch):
 
     av._sync_entities = fake_sync_entities.__get__(av, AVTools)
 
-    # Patch DB call ordering into call_order
     original_get_all = dbod.get_all_eam_devices
 
     def wrapped_get_all() -> list[DummyCachedEAMDevice]:
@@ -463,8 +492,7 @@ def test_sync_eam_devices_api_list_not_mutated(monkeypatch):
     objects_mgr = patch_equipment(monkeypatch)
 
     def query_factory(grid_name: str) -> DummyQuery:
-        q = DummyQuery(all_return=api_list)
-        return q
+        return DummyQuery(all_return=api_list)
 
     objects_mgr._query_factory = query_factory
 
@@ -473,7 +501,6 @@ def test_sync_eam_devices_api_list_not_mutated(monkeypatch):
     seen_api_codes: list[str] = []
 
     def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
-        # Capture container identity and element identity/order
         seen_api_list_obj.append(api_items)
         seen_api_ids.extend([id(d) for d in api_items])
         seen_api_codes.extend([d.code for d in api_items])
@@ -485,12 +512,10 @@ def test_sync_eam_devices_api_list_not_mutated(monkeypatch):
 
     av.sync_eam_devices()
 
-    # _sync_entities saw same container and same objects in same order
     assert seen_api_list_obj[0] is api_list
     assert seen_api_ids == original_ids
     assert seen_api_codes == original_codes
 
-    # sync_eam_devices did not mutate api_list
     assert [id(d) for d in api_list] == original_ids
     assert [d.code for d in api_list] == original_codes
 
@@ -533,10 +558,8 @@ def test_sync_eam_devices_cache_list_not_mutated(monkeypatch):
 
     av.sync_eam_devices()
 
-    # _sync_entities saw same elements, but in a NEW list container
     assert captured_cached_codes == internal_codes_before
     assert captured_cached_list_obj[0] is not internal_list_before
 
-    # Internal cached list unchanged
     assert dbod._cached_devices is internal_list_before
     assert [d.code for d in dbod._cached_devices] == internal_codes_before

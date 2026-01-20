@@ -30,6 +30,14 @@ class DummyLogger:
         self.warning_messages.append((str(msg), dict(kwargs)))
 
 
+class DummySanitizer:
+    """Minimal sanitizer stub used by sync_eam_positions()."""
+
+    def clean_items(self, items: list[Any]) -> list[Any]:
+        # AVTools.sync_eam_positions expects this to return a list.
+        return items
+
+
 @dataclass
 class DummyEAMPosition:
     # New sync_eam_positions uses get_id=lambda p: p.code
@@ -72,13 +80,20 @@ def make_avtools_for_tests(
     av = object.__new__(AVTools)
     logger = DummyLogger()
     helper = DummyDBODHelper(cached_positions=cached_positions)
+
     av.logger = logger
     av.dbod_helper = helper
+
+    # Newer AVTools expects these attrs even if __init__ wasn't called.
+    av.logs = False
+    av._eam_sanitizer = DummySanitizer()
+
     return av, logger, helper
 
 
 # ---------------------------------------------------------------------------
-# GridQuery stub (sync_eam_positions now builds GridQuery(...).filter(...).limit(...).all())
+# GridQuery stub (sync_eam_positions now builds GridQuery(..., model=Equipment, grid_type="LIST")
+# then .filter(...).limit(...).all())
 # ---------------------------------------------------------------------------
 
 
@@ -93,7 +108,15 @@ class DummyGridQuery:
     all_return: list[DummyEAMPosition] = []
     call_order: list[str] | None = None
 
-    def __init__(self, *, name: str, field_map: dict[str, str]) -> None:
+    def __init__(
+        self,
+        *,
+        name: str,
+        field_map: dict[str, str],
+        model: Any | None = None,
+        grid_type: str | None = None,
+        **_kwargs: Any,
+    ) -> None:
         if DummyGridQuery.call_order is not None:
             DummyGridQuery.call_order.append("gridquery.init")
 
@@ -102,6 +125,8 @@ class DummyGridQuery:
 
         self.name = name
         self.field_map = field_map
+        self.model = model
+        self.grid_type = grid_type
         self.calls: list[tuple[str, Any]] = []
         DummyGridQuery.instances.append(self)
 
@@ -151,7 +176,7 @@ def reset_gridquery_state() -> None:
 
 def test_sync_eam_positions_happy_path(monkeypatch):
     """
-    GridQuery is built with name=position_grid and a field_map,
+    GridQuery is built with name=position_grid, field_map, model=Equipment, grid_type="LIST",
     filter called with department_code__startswith (default AV),
     query.all called once,
     dbod_helper.get_all_eam_positions called once,
@@ -198,6 +223,9 @@ def test_sync_eam_positions_happy_path(monkeypatch):
 
     # Constructor args
     assert query.name == "OSOBJP"
+    assert query.model is core.Equipment
+    assert query.grid_type == "LIST"
+
     # Minimal sanity on field_map; don't over-couple, just validate key mappings exist
     assert query.field_map.get("code") == "equipmentno"
     assert query.field_map.get("department_code") == "department"
