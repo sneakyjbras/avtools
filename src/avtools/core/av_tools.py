@@ -11,22 +11,8 @@ from typing import Any, TypeVar
 import structlog
 from eam_rest_client import Equipment
 from eam_rest_client.credentials import register_credentials
-from eam_rest_client.exceptions import (
-    EamClientHTTPError,
-    EamClientRetryableHTTPError,
-    EamClientTimeoutError,
-    EamClientTransportError,
-    EamQueryError,
-    EamRestClientError,
-)
 from eam_rest_client.grid_query import GridQuery
 from landb_rest_client import register_credentials as landb_register_credentials
-from landb_rest_client.errors import (
-    DataAwareValidationError,
-    LanDBRestError,
-    QuerySetError,
-    TokenExpired,
-)
 from landb_rest_client.models import Device, IPAddress
 
 from avtools.influx.client import InfluxClient
@@ -44,6 +30,15 @@ class AVTools:
     """AV Tools orchestrator: EAM sync, LanDB sync, SNMP->Influx collection."""
 
     def __init__(self, dbod_url: str, logs: bool = False) -> None:
+        """Initialize the AV Tools orchestrator.
+
+        Args:
+            dbod_url: Postgres/DBOD connection URL used by the cache client.
+            logs: If True, emit per-entity sync reports (field-level diffs) to the logger.
+
+        Returns:
+            None.
+        """
         self.dbod_helper = PostgresClient(dbod_url)
         self.logs = logs
         self.logger = structlog.get_logger(self.__class__.__name__)
@@ -65,7 +60,24 @@ class AVTools:
         department_code: str = "AV",
         limit: int | None = None,
     ) -> None:
-        """Top-level EAM sync (assets + positions) with structured exception handling."""
+        """Run the EAM sync and persist assets + positions into Postgres.
+
+        Registers EAM credentials, then fetches assets (OSOBJA) and positions (OSOBJP)
+        for the given department prefix. Each step is guarded so a failure in one flow
+        does not crash the whole process.
+
+        Args:
+            username: EAM username.
+            password: EAM password.
+            base_url: EAM base URL.
+            asset_grid: Grid name used to fetch assets (devices).
+            position_grid: Grid name used to fetch positions.
+            department_code: Department code prefix filter.
+            limit: Optional row limit (debug/testing).
+
+        Returns:
+            None.
+        """
 
         # --- Auth / client configuration ---------------------------------
         try:
@@ -203,6 +215,19 @@ class AVTools:
         department_code: str = "AV",
         limit: int | None = None,
     ) -> None:
+        """Sync EAM assets (devices) into the Postgres cache.
+
+        Fetches Equipment rows from the EAM asset grid, applies text sanitization, loads
+        cached rows from Postgres, and delegates the reconciliation to _sync_entities.
+
+        Args:
+            asset_grid: EAM grid name for assets (default OSOBJA).
+            department_code: Department code prefix filter (e.g. 'AV').
+            limit: Optional row limit (debug/testing).
+
+        Returns:
+            None.
+        """
         query = Equipment.objects.use_grid(name=asset_grid)
 
         if department_code:
@@ -240,6 +265,20 @@ class AVTools:
         department_code: str = "AV",
         limit: int | None = None,
     ) -> None:
+        """Sync EAM positions into the Postgres cache.
+
+        Runs a GridQuery against the positions grid (OSOBJP) into Equipment models,
+        sanitizes text, loads cached rows from Postgres, and delegates the reconciliation
+        to _sync_entities.
+
+        Args:
+            position_grid: EAM grid name for positions (default OSOBJP).
+            department_code: Department code prefix filter (e.g. 'AV').
+            limit: Optional row limit (debug/testing).
+
+        Returns:
+            None.
+        """
         # TODO: switch to Position once the client exposes the model/grid officially.
         query = GridQuery(
             name=position_grid,
@@ -309,7 +348,22 @@ class AVTools:
         *,
         base_url: str = "https://landb.cern.ch/api/",
     ) -> None:
-        """Top-level LanDB sync (EAM devices -> LanDB devices/IPs) with structured exception handling."""
+        """Run the LanDB sync (EAM devices -> LanDB devices/IPs -> Postgres).
+
+        Loads cached EAM devices from Postgres, initializes the LanDB client, performs
+        a bulk lookup (Devices then IPAddresses), enriches each record with EAM keys,
+        and syncs the resulting CachedIPAddress rows into Postgres.
+
+        Args:
+            client_id: OAuth client id.
+            client_secret: OAuth client secret.
+            audience: OAuth audience for LanDB.
+            max_workers: Kept for backwards compatibility (not used by the bulk strategy).
+            base_url: LanDB REST API base URL.
+
+        Returns:
+            None.
+        """
 
         try:
             eam_list: list[Equipment] = self.dbod_helper.get_all_eam_devices()
@@ -347,7 +401,6 @@ class AVTools:
             self.logger.error("landb_token_expired", error=str(e))
             return
         except DataAwareValidationError as e:
-            # Avoid dumping raw payloads into logs; keep it short and structured.
             err_count = None
             try:
                 err_count = len(e.errors())
@@ -387,6 +440,14 @@ class AVTools:
             self.logger.exception("landb_sync_failed")
 
     def _landb_get_id(self, obj: Any) -> str:
+        """Get the stable identifier used for LanDB cached rows.
+
+        Args:
+            obj: CachedIPAddress (or compatible object) carrying equipment identifiers.
+
+        Returns:
+            Equipment number as a string.
+        """
         v = getattr(obj, "equipmentno", None) or getattr(obj, "equipment_no", None)
         return str(v)
 
@@ -398,6 +459,20 @@ class AVTools:
         audience: str,
         url: str,
     ) -> None:
+        """Configure the LanDB REST client credentials once per process.
+
+        Registers OAuth credentials for the generated LanDB client and marks the
+        instance as initialized so subsequent calls are no-ops.
+
+        Args:
+            client_id: OAuth client id.
+            client_secret: OAuth client secret.
+            audience: Target audience (e.g. production-microservice-landb-rest).
+            url: Base URL for the LanDB API.
+
+        Returns:
+            None.
+        """
         if self._landb_initialized:
             return
 
@@ -643,6 +718,16 @@ class AVTools:
         *,
         landb_device: Device | None = None,
     ) -> CachedIPAddress:
+        """Build an AV Tools CachedIPAddress by combining EAM + LanDB records.
+
+        Args:
+            ip_rec: LanDB IPAddress model returned by the REST client.
+            eam_rec: EAM Equipment model used as the source of equipment keys/metadata.
+            landb_device: Optional LanDB Device used for extra enrichment.
+
+        Returns:
+            CachedIPAddress ready to be synced into Postgres.
+        """
         # CachedIPAddress is now a standalone (non-inherited) model.
         return CachedIPAddress.from_equipment_and_ipaddress(
             eam_rec,
@@ -663,7 +748,22 @@ class AVTools:
         influx_db: str,
         max_workers: int = 8,
     ) -> None:
-        """Collect SNMP metrics for cached LanDB devices and publish them to InfluxDB."""
+        """Collect SNMP metrics for cached LanDB devices and publish them to InfluxDB.
+
+        Loads cached LanDB devices from Postgres, collects ping/SNMP points concurrently,
+        and writes the resulting metrics to InfluxDB.
+
+        Args:
+            influx_host: InfluxDB host.
+            influx_port: InfluxDB port.
+            influx_user: InfluxDB username.
+            influx_password: InfluxDB password.
+            influx_db: InfluxDB database name.
+            max_workers: Number of concurrent SNMP workers.
+
+        Returns:
+            None.
+        """
 
         try:
             devices = self.dbod_helper.get_all_landb_devices()
@@ -698,12 +798,25 @@ class AVTools:
         except KeyboardInterrupt:
             raise
         except Exception:
-            # _publish_snmp already handles common errors, but keep a guardrail.
+            # _publish_snmp already logs, but keep a guardrail.
             self.logger.exception("influx_publish_failed_unexpected")
 
     async def _get_snmp_points(
         self, devices: list[Any], max_workers: int
     ) -> list[Point]:
+        """Collect SNMP/ping points for a set of cached devices.
+
+        Splits the device list into chunks, runs workers concurrently (TaskGroup), and
+        aggregates the produced points. Each worker pings first, then probes/queries
+        only devices that replied.
+
+        Args:
+            devices: Cached LanDB device rows (must expose .ip).
+            max_workers: Number of concurrent workers/chunks.
+
+        Returns:
+            List of InfluxDB points (dicts) to be written.
+        """
         total = len(devices)
         if total == 0:
             return []
@@ -763,6 +876,21 @@ class AVTools:
         influx_password: str,
         influx_db: str,
     ) -> None:
+        """Write SNMP points to InfluxDB.
+
+        Creates an InfluxClient and writes the provided points in one batch.
+
+        Args:
+            points: Influx line protocol dicts (measurement/tags/fields).
+            influx_host: InfluxDB host.
+            influx_port: InfluxDB port.
+            influx_user: InfluxDB username.
+            influx_password: InfluxDB password.
+            influx_db: InfluxDB database name.
+
+        Returns:
+            None.
+        """
         if not points:
             self.logger.info("No metrics collected; skipping write")
             return
@@ -794,6 +922,21 @@ class AVTools:
         sync_func: Callable[..., None],
         name: str,
     ) -> None:
+        """Reconcile API items vs cached items and persist the changes.
+
+        Builds id maps, computes inserts/updates/deletes, optionally logs a per-entity
+        diff report, and calls the provided sync_func to apply DB mutations.
+
+        Args:
+            api_items: Fresh items fetched from the upstream API.
+            cached_items: Items currently stored in Postgres.
+            get_id: Function that returns a stable id for an item.
+            sync_func: DB-layer function that applies inserts/updates/deletes.
+            name: Human label used in logs/reporting.
+
+        Returns:
+            None.
+        """
         start_time = time()
 
         if not cached_items:
@@ -866,6 +1009,20 @@ class AVTools:
         )
 
     def _diff_models(self, old: Any, new: Any) -> dict[str, Any]:
+        """Compute field-level differences between a cached model and a fresh model.
+
+        Uses Pydantic v1 .dict() and an optional compare-field whitelist
+        (avtools_compare_fields / _compare_fields). For EAM Equipment, it sanitizes
+        dirty text values before comparing persisted fields.
+
+        Args:
+            old: Cached model instance from Postgres.
+            new: Fresh model instance from the API.
+
+        Returns:
+            Mapping of changed field name -> new value (empty if no changes).
+        """
+
         def canon(v: Any) -> Any:
             return None if v == "" else v
 
