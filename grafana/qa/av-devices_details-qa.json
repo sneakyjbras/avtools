@@ -31,7 +31,7 @@
       "title": "AV Rooms",
       "tooltip": "",
       "type": "link",
-      "url": "https://monit-grafana.cern.ch/d/few9yty0nez28f/av3a-rooms?orgId=12&refresh=5m&var-status=${status:regex}"
+      "url": "https://monit-grafana.cern.ch/d/av_rooms_dashboard-qa/av3a-rooms?orgId=12&refresh=5m&var-status=${status:regex}"
     },
     {
       "asDropdown": false,
@@ -43,7 +43,7 @@
       "title": "AV Devices",
       "tooltip": "",
       "type": "link",
-      "url": "https://monit-grafana.cern.ch/d/eewd94f4muozkc/av3a-devices-table?orgId=12&refresh=5m&var-status=${status:value}&var-room=${room:value}&var-eqclass=${eqclass:value}&var-category=${category:value}&var-device=All"
+      "url": "https://monit-grafana.cern.ch/d/av_devices_dashboard-qa/av3a-devices-table?orgId=12&refresh=5m&var-status=${status:value}&var-room=${room:value}&var-eqclass=${eqclass:value}&var-category=${category:value}&var-device=All"
     },
     {
       "asDropdown": false,
@@ -125,7 +125,7 @@
       "datasource": {
         "default": false,
         "type": "grafana-postgresql-datasource",
-        "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        "uid": "dfaue906qonpcf"
       },
       "fieldConfig": {
         "defaults": {
@@ -172,7 +172,7 @@
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+            "uid": "dfaue906qonpcf"
           },
           "editorMode": "code",
           "format": "table",
@@ -205,7 +205,7 @@
       "datasource": {
         "default": false,
         "type": "grafana-postgresql-datasource",
-        "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        "uid": "dfaue906qonpcf"
       },
       "fieldConfig": {
         "defaults": {
@@ -293,7 +293,7 @@
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+            "uid": "dfaue906qonpcf"
           },
           "editorMode": "code",
           "format": "table",
@@ -326,7 +326,7 @@
       "datasource": {
         "default": false,
         "type": "grafana-postgresql-datasource",
-        "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        "uid": "dfaue906qonpcf"
       },
       "fieldConfig": {
         "defaults": {
@@ -413,7 +413,7 @@
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+            "uid": "dfaue906qonpcf"
           },
           "editorMode": "code",
           "format": "table",
@@ -446,7 +446,7 @@
       "datasource": {
         "default": false,
         "type": "grafana-postgresql-datasource",
-        "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        "uid": "dfaue906qonpcf"
       },
       "fieldConfig": {
         "defaults": {
@@ -490,7 +490,7 @@
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+            "uid": "dfaue906qonpcf"
           },
           "editorMode": "code",
           "format": "table",
@@ -523,7 +523,7 @@
       "datasource": {
         "default": false,
         "type": "grafana-postgresql-datasource",
-        "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        "uid": "dfaue906qonpcf"
       },
       "fieldConfig": {
         "defaults": {
@@ -568,7 +568,7 @@
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+            "uid": "dfaue906qonpcf"
           },
           "editorMode": "code",
           "format": "table",
@@ -601,7 +601,7 @@
       "datasource": {
         "default": false,
         "type": "grafana-postgresql-datasource",
-        "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        "uid": "dfaue906qonpcf"
       },
       "fieldConfig": {
         "defaults": {
@@ -646,7 +646,7 @@
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+            "uid": "dfaue906qonpcf"
           },
           "editorMode": "code",
           "format": "table",
@@ -679,7 +679,7 @@
       "datasource": {
         "default": false,
         "type": "grafana-postgresql-datasource",
-        "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        "uid": "dfaue906qonpcf"
       },
       "fieldConfig": {
         "defaults": {
@@ -724,7 +724,7 @@
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+            "uid": "dfaue906qonpcf"
           },
           "editorMode": "code",
           "format": "table",
@@ -757,7 +757,7 @@
       "datasource": {
         "default": false,
         "type": "grafana-postgresql-datasource",
-        "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        "uid": "dfaue906qonpcf"
       },
       "fieldConfig": {
         "defaults": {
@@ -802,7 +802,7 @@
         {
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+            "uid": "dfaue906qonpcf"
           },
           "editorMode": "code",
           "format": "table",
@@ -1739,7 +1739,7 @@
     {
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+        "uid": "dfaue906qonpcf"
       },
       "gridPos": {
         "h": 2,
@@ -1781,7 +1781,7 @@
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
-          "uid": "ed690575-af6b-41b8-a72d-81f47592f349"
+          "uid": "dfaue906qonpcf"
         },
         "definition": "SELECT\n  d.equipmentno AS \"__value\",\n  COALESCE(NULLIF(d.equipmentdesc, ''), '[' || d.equipmentno || ']') AS \"__text\"\nFROM eam_devices d\nWHERE d.equipmentno IS NOT NULL\nORDER BY \"__text\";",
         "description": "Hidden helper variable. Populates all device IDs from eam_devices.equipmentno to drive per-device details/time-series panels via data links (e.g., ${__data.fields.equipmentno}). Refresh on dashboard load; not shown in UI.",
@@ -1809,7 +1809,7 @@
   },
   "timezone": "Europe/Zurich",
   "title": "AV: Device Details",
-  "uid": "ef0wybelgufwgd",
+  "uid": "av_devices_details-qa",
   "version": 170,
   "weekStart": "sunday"
 }
