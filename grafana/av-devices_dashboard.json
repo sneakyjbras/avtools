@@ -104,7 +104,7 @@
               "wrapText": false
             },
             "filterable": true,
-            "inspect": true
+            "inspect": false
           },
           "mappings": [],
           "thresholds": {
@@ -3539,6 +3539,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices Table",
   "uid": "eewd94f4muozkc",
-  "version": 695,
+  "version": 696,
   "weekStart": "sunday"
 }

@@ -176,7 +176,7 @@
               "wrapText": false
             },
             "filterable": true,
-            "inspect": true
+            "inspect": false
           },
           "mappings": [],
           "thresholds": {
@@ -3729,6 +3729,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Rooms Table",
   "uid": "few9yty0nez28f",
-  "version": 475,
+  "version": 476,
   "weekStart": "sunday"
 }
