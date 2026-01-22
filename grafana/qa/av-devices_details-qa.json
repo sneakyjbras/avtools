@@ -31,7 +31,7 @@
       "title": "AV Rooms",
       "tooltip": "",
       "type": "link",
-      "url": "https://monit-grafana.cern.ch/d/av_rooms_dashboard-qa/av3a-rooms?orgId=12&refresh=5m&var-status=${status:regex}"
+      "url": "https://monit-grafana.cern.ch/d/av_rooms_dashboard-qa/av3a-rooms?orgId=12&refresh=5m&${status:param}"
     },
     {
       "asDropdown": false,
@@ -43,7 +43,7 @@
       "title": "AV Devices",
       "tooltip": "",
       "type": "link",
-      "url": "https://monit-grafana.cern.ch/d/av_devices_dashboard-qa/av3a-devices-table?orgId=12&refresh=5m&var-status=${status:value}&var-room=${room:value}&var-eqclass=${eqclass:value}&var-category=${category:value}&var-device=All"
+      "url": "https://monit-grafana.cern.ch/d/av_devices_dashboard-qa/av3a-devices-table?orgId=12&refresh=5m&${status:param}&${room:queryparam}&${eqclass:queryparam}&${category:queryparam}&var-device=All"
     },
     {
       "asDropdown": false,
