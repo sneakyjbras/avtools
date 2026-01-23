@@ -1,21 +1,3 @@
-"""EAM Position ORM ↔ domain model adapters (subset + diff whitelist).
-
-AV Tools uses the EAM REST client's `Equipment` as the domain model for both devices
-and positions. The DB has two tables (`eam_devices`, `eam_positions`), but both are
-materialized back into `Equipment` objects for the sync pipeline.
-
-Pattern (same as `landb_ipaddress.py`):
-- ORM stores only a small subset of upstream fields.
-- ORM row -> Pydantic model for sync logic.
-- A CachedEquipment subclass carries `_avtools_compare_fields` (DB-backed whitelist),
-  so the diff compares ONLY persisted fields and avoids churn on API-only fields.
-
-Important:
-- Internally we use `commission_date` (correct spelling).
-- The upstream Equipment model uses the misspelled `comission_date`.
-  We ONLY use that misspelling at the boundary.
-"""
-
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -97,6 +79,7 @@ class EAMPositionORM(Base):
         Index("ix_eam_positions_parentasset", "parentasset"),
         Index("ix_eam_positions_status", "assetstatus_display"),
         Index("ix_eam_positions_eqclass_category", "eqclass", "category"),
+        Index("ix_eam_positions_location", "location"),
     )
 
     equipment_no: Mapped[str] = mapped_column(
@@ -124,6 +107,8 @@ class EAMPositionORM(Base):
         "assetstatus_display", String(64), nullable=True
     )
 
+    location: Mapped[str | None] = mapped_column("location", String(64), nullable=True)
+
     # Domain fields we consider when diffing against the DB row.
     _DB_COMPARE_FIELDS: set[str] = {
         "code",
@@ -133,6 +118,7 @@ class EAMPositionORM(Base):
         "assigned_to",  # backed by `sponsor`
         "hierarchy_asset_code",
         "status_desc",
+        "hierarchy_location_code",
         "comission_date",  # upstream typo (boundary)
     }
 
@@ -166,6 +152,7 @@ class EAMPositionORM(Base):
             equipment_desc=_none_if_blank(cls._get(equipment, "description")),
             sponsor=_none_if_blank(cls._get(equipment, "assigned_to")),
             parent_asset=_none_if_blank(cls._get(equipment, "hierarchy_asset_code")),
+            location=_none_if_blank(cls._get(equipment, "hierarchy_location_code")),
             commission_date=_parse_any_date(raw_commission),
             asset_status_display=_none_if_blank(cls._get(equipment, "status_desc")),
         )
@@ -178,6 +165,7 @@ class EAMPositionORM(Base):
             "description": self.equipment_desc,
             "assigned_to": self.sponsor,  # legacy mapping
             "hierarchy_asset_code": self.parent_asset,
+            "hierarchy_location_code": self.location,
             "status_desc": self.asset_status_display,
         }
 
