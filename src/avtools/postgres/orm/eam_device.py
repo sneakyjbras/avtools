@@ -71,6 +71,7 @@ class EAMDeviceORM(Base):
         Index("ix_eam_devices_eqclass_category", "eqclass", "category"),
         Index("ix_eam_devices_status", "assetstatus_display"),
         Index("ix_eam_devices_position", "position"),
+        Index("ix_eam_devices_location", "location"),
     )
 
     equipment_no: Mapped[str] = mapped_column(
@@ -104,9 +105,7 @@ class EAMDeviceORM(Base):
     asset_status_display: Mapped[str | None] = mapped_column(
         "assetstatus_display", String(64), nullable=True
     )
-    hierarchy_location_code: Mapped[str | None] = mapped_column(
-        "hierarchy_location_code", String(64), nullable=True
-    )
+    location: Mapped[str | None] = mapped_column("location", String(64), nullable=True)
     department_code: Mapped[str | None] = mapped_column(
         "department_code", String(64), nullable=True
     )
@@ -132,9 +131,7 @@ class EAMDeviceORM(Base):
             parent_asset=_none_if_blank(getattr(device, "hierarchy_asset_code", None)),
             commission_date=_parse_any_date(raw_commission),
             asset_status_display=_none_if_blank(getattr(device, "status_desc", None)),
-            hierarchy_location_code=_none_if_blank(
-                getattr(device, "hierarchy_location_code", None)
-            ),
+            location=_none_if_blank(getattr(device, "hierarchy_location_code", None)),
             department_code=_none_if_blank(getattr(device, "department_code", None)),
         )
 
@@ -150,7 +147,7 @@ class EAMDeviceORM(Base):
             "hierarchy_position_code": self.position,
             "hierarchy_asset_code": self.parent_asset,
             "status_desc": self.asset_status_display,
-            "hierarchy_location_code": self.hierarchy_location_code,
+            "hierarchy_location_code": self.location,
             "department_code": self.department_code,
         }
 

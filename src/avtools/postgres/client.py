@@ -25,7 +25,7 @@ class PostgresClient:
     - Persists EAM records as a small subset of fields in `EAMDeviceORM`/`EAMPositionORM`.
     - Persists LanDB records as a small subset of fields in `LanDBIPAddressORM`.
     - Domain model for EAM is `eam_rest_client.Equipment`.
-    - Domain model for LanDB is `avtools.postgres.orm.landb_ipaddress.CachedIPAddress`.
+    - Domain model for LanDB IP cache is `avtools.postgres.orm.landb_ipaddress.CachedIPAddress`.
     """
 
     def __init__(self, connection_string: str) -> None:
@@ -35,8 +35,8 @@ class PostgresClient:
 
         # NOTE:
         # SQLAlchemy's `create_all()` does not migrate existing tables.
-        # The LanDB IPAddress table is a cache: if we detect the legacy schema
-        # (missing our EAM-join key columns), we drop & recreate it.
+        # The LanDB tables are caches: if we detect a legacy schema,
+        # we drop & recreate them.
         try:
             inspector = inspect(self.engine)
             if "landb_ipaddresses" in inspector.get_table_names():
@@ -46,6 +46,15 @@ class PostgresClient:
                     "serialnumber",
                     "ip",
                     "name",
+                    "hostname",
+                    "landb_serial",
+                    "landb_description",
+                    "eqclass",
+                    "manufacturer",
+                    "model",
+                    "building",
+                    "floor",
+                    "room",
                 }
                 if not expected.issubset(cols):
                     logger.warning(
@@ -56,6 +65,45 @@ class PostgresClient:
                         conn.exec_driver_sql("DROP TABLE landb_ipaddresses")
         except Exception:
             logger.warning("landb_ipaddresses_schema_probe_failed", exc_info=True)
+
+        # Legacy table cleanup: `landb_location` was merged into `landb_ipaddresses`.
+        try:
+            inspector = inspect(self.engine)
+            if "landb_location" in inspector.get_table_names():
+                logger.warning("landb_location_table_found_dropping_legacy_cache_table")
+                with self.engine.begin() as conn:
+                    conn.exec_driver_sql("DROP TABLE landb_location")
+        except Exception:
+            logger.warning("landb_location_drop_failed", exc_info=True)
+
+        # Ensure EAM tables include the new `location` column (cache tables; drop & recreate on schema change).
+        try:
+            inspector = inspect(self.engine)
+            if "eam_devices" in inspector.get_table_names():
+                cols = {c["name"] for c in inspector.get_columns("eam_devices")}
+                if "location" not in cols:
+                    logger.warning(
+                        "eam_devices_legacy_schema_detected_dropping_cache_table",
+                        existing_columns=sorted(cols),
+                    )
+                    with self.engine.begin() as conn:
+                        conn.exec_driver_sql("DROP TABLE eam_devices")
+        except Exception:
+            logger.warning("eam_devices_schema_probe_failed", exc_info=True)
+
+        try:
+            inspector = inspect(self.engine)
+            if "eam_positions" in inspector.get_table_names():
+                cols = {c["name"] for c in inspector.get_columns("eam_positions")}
+                if "location" not in cols:
+                    logger.warning(
+                        "eam_positions_legacy_schema_detected_dropping_cache_table",
+                        existing_columns=sorted(cols),
+                    )
+                    with self.engine.begin() as conn:
+                        conn.exec_driver_sql("DROP TABLE eam_positions")
+        except Exception:
+            logger.warning("eam_positions_schema_probe_failed", exc_info=True)
 
         # Create all tables declared on Base metadata
         LanDBIPAddressORM.metadata.create_all(self.engine)
@@ -71,6 +119,10 @@ class PostgresClient:
     ) -> list[Any]:
         """
         Generic "get all" helper for fetching and converting ORM records.
+
+        Efficiency:
+        - One SELECT for the whole table (appropriate for these cache/snapshot tables).
+        - Uses scalars().all() to avoid loading row tuples.
         """
         with self.Session() as session:
             try:
@@ -126,7 +178,7 @@ class PostgresClient:
         pk_attr:
           The ORM column name that holds the primary key for this table.
           - EAM ORM tables typically use "equipment_no"
-          - LanDB IPAddress ORM uses "equipment_no"
+          - LanDB cache tables use "equipment_no"
         """
         mapper_cols = [c.key for c in inspect(orm_cls).column_attrs]
 

@@ -407,6 +407,7 @@ class AVTools:
 
         try:
             try:
+                # Load the current EAM snapshot from Postgres (source of truth for join keys).
                 eam_list: list[Equipment] = self.dbod_helper.get_all_eam_devices()
                 eam_count = len(eam_list)
             except Exception:
@@ -444,7 +445,7 @@ class AVTools:
                 return
 
             try:
-                landb_ips: list[CachedIPAddress] = self._get_landb_ipaddresses(eam_list)
+                landb_ips = self._get_landb_ipaddresses(eam_list)
                 enriched_ip_count = len(landb_ips)
             except TokenExpired as e:
                 status = "failed_fetch_token_expired"
@@ -494,13 +495,16 @@ class AVTools:
                 )
             except Exception:
                 had_errors = True
+                status = "failed_sync"
                 self.logger.exception("landb_sync_failed")
+                return
 
             status = "ok" if not had_errors else "completed_with_errors"
 
         except KeyboardInterrupt:
             status = "interrupted"
             raise
+
         finally:
             duration_s = time() - run_started
             self.logger.info(
@@ -579,6 +583,7 @@ class AVTools:
 
         Output:
         - List[CachedIPAddress] enriched with EAM keys (equipment_no, class_code, etc.).
+        - Only includes devices that have a usable SNMP target IP (LanDB ipv4 or ipv6).
 
         IMPORTANT CORRELATION:
         - (EAM) Equipment.serial_number == (LanDB) Device.serial_number
@@ -750,6 +755,7 @@ class AVTools:
         # --- Correlate EAM -> Device -> IPAddress, enrich, return ---------
         out: list[CachedIPAddress] = []
         missing_ip_eam: list[Equipment] = []
+        missing_target_ip_eam: list[Equipment] = []
 
         for eam_rec, dev, _match_kind in matched:
             dev_name = norm(getattr(dev, "name", None))
@@ -762,13 +768,18 @@ class AVTools:
                 missing_ip_eam.append(eam_rec)
                 continue
 
-            out.append(
-                self._enrich_ipaddress_with_eam_keys(
-                    ip_rec,
-                    eam_rec,
-                    landb_device=dev,
-                )
+            cached = self._enrich_ipaddress_with_eam_keys(
+                ip_rec,
+                eam_rec,
+                landb_device=dev,
             )
+
+            # Only commit devices that have a real SNMP target IP (ipv4 or ipv6).
+            if not getattr(cached, "ip", None):
+                missing_target_ip_eam.append(eam_rec)
+                continue
+
+            out.append(cached)
 
         self.logger.info(
             "landb_ipaddress_match_summary",
@@ -778,18 +789,21 @@ class AVTools:
             ip_records=len(ips_by_device),
             enriched=len(out),
             missing_ip=len(missing_ip_eam),
+            missing_target_ip=len(missing_target_ip_eam),
         )
-        if missing_ip_eam:
+        if missing_ip_eam or missing_target_ip_eam:
             self.logger.warning(
                 "landb_ipaddress_not_found_for_equipment",
-                missing_count=len(missing_ip_eam),
+                missing_count=len(missing_ip_eam) + len(missing_target_ip_eam),
+                missing_ip=len(missing_ip_eam),
+                missing_target_ip=len(missing_target_ip_eam),
             )
 
         return out
 
     def _enrich_ipaddress_with_eam_keys(
         self,
-        ip_rec: IPAddress,
+        ip_rec: IPAddress | None,
         eam_rec: Equipment,
         *,
         landb_device: Device | None = None,
@@ -843,6 +857,11 @@ class AVTools:
         try:
             try:
                 devices = self.dbod_helper.get_all_landb_devices()
+                devices_total = len(devices)
+
+                # The LanDB cache table now also stores rows that may not have an IP.
+                # SNMP collection requires a target IP, so filter here.
+                devices = [d for d in devices if getattr(d, "ip", None)]
                 devices_total = len(devices)
             except Exception:
                 status = "failed_load_landb_devices"
