@@ -1,3 +1,5 @@
+"""Projector SNMP handler implementations."""
+
 from __future__ import annotations
 
 from abc import abstractmethod

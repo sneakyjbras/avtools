@@ -1,3 +1,5 @@
+"""Sync reporting helper for compact structured logs."""
+
 from __future__ import annotations
 
 from collections.abc import Callable

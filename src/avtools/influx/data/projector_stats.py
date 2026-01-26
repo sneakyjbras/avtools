@@ -1,3 +1,5 @@
+"""Projector-specific stats model used for Influx points."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

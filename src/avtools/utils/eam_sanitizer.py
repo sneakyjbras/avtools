@@ -1,3 +1,5 @@
+"""Utilities for sanitizing dirty EAM text fields."""
+
 from __future__ import annotations
 
 import re

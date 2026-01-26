@@ -1,3 +1,9 @@
+"""InfluxDB v2 client helper.
+
+AVTools primarily uses the InfluxDB v1 client for its current deployment, but
+this helper remains available for future migration/experiments.
+"""
+
 from __future__ import annotations
 
 import datetime
@@ -6,6 +12,8 @@ from typing import Dict
 import structlog
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
+
+from avtools.exception.errors import TimeSeriesHelperError
 
 logger = structlog.get_logger(__name__)
 
@@ -44,13 +52,18 @@ class TimeSeriesHelper:
         self.org: str = org
         self.bucket: str = bucket
         # Create client and write API
-        self.client: InfluxDBClient = InfluxDBClient(
-            url=self.url,
-            token=self.token,
-            org=self.org,
-        )
-        self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
-        logger.info(f"TimeSeriesHelper connected to InfluxDB at {self.url}")
+        try:
+            self.client: InfluxDBClient = InfluxDBClient(
+                url=self.url,
+                token=self.token,
+                org=self.org,
+            )
+            self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
+            logger.info(f"TimeSeriesHelper connected to InfluxDB at {self.url}")
+        except Exception as err:
+            raise TimeSeriesHelperError(
+                f"Failed to initialize InfluxDB v2 helper for {self.url}"
+            ) from err
 
     def write_snmp_data(self, snmp_results: dict[str, str]) -> None:
         """
@@ -82,3 +95,6 @@ class TimeSeriesHelper:
             logger.info("SNMP data written successfully to InfluxDB.")
         except Exception as err:
             logger.error(f"Error writing SNMP data to InfluxDB: {err}")
+            raise TimeSeriesHelperError(
+                "Failed to write SNMP data to InfluxDB"
+            ) from err

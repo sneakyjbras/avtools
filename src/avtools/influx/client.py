@@ -1,9 +1,17 @@
+"""InfluxDB v1.x client wrapper used by AVTools.
+
+This module is intentionally small: it provides a minimal adapter so the core
+orchestrator can publish points and handle failures via typed exceptions.
+"""
+
 from __future__ import annotations
 
 from asyncio import get_running_loop
 from typing import Any, Dict, List
 
 from influxdb import InfluxDBClient
+
+from avtools.exception.errors import InfluxClientError
 
 
 class InfluxClient:
@@ -35,15 +43,18 @@ class InfluxClient:
             ssl:         Whether to use HTTPS.
             verify_ssl:  Whether to verify the server's TLS certificate.
         """
-        self.client: InfluxDBClient = InfluxDBClient(
-            host=host,
-            port=port,
-            username=username,
-            password=password,
-            database=database,
-            ssl=ssl,
-            verify_ssl=verify_ssl,
-        )
+        try:
+            self.client: InfluxDBClient = InfluxDBClient(
+                host=host,
+                port=port,
+                username=username,
+                password=password,
+                database=database,
+                ssl=ssl,
+                verify_ssl=verify_ssl,
+            )
+        except Exception as exc:
+            raise InfluxClientError("Failed to initialize InfluxDB client") from exc
 
     def write_points(self, points: list[dict[str, Any]]) -> None:
         """
@@ -61,8 +72,7 @@ class InfluxClient:
         try:
             self.client.write_points(points)
         except Exception as exc:
-            # Replace with your logger if desired
-            print(f"[InfluxClient] Error writing points: {exc}")
+            raise InfluxClientError("Failed to write points to InfluxDB") from exc
 
     async def write_points_async(self, points: list[dict[str, Any]]) -> None:
         """

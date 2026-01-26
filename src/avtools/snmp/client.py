@@ -1,3 +1,5 @@
+"""Async SNMP and ICMP collection client."""
+
 from __future__ import annotations
 
 from asyncio import to_thread

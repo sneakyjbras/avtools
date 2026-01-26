@@ -1,3 +1,5 @@
+"""Utility helpers used across AVTools."""
+
 from __future__ import annotations
 
 from avtools.utils.eam_sanitizer import EAMTextSanitizer

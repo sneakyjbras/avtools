@@ -1,3 +1,5 @@
+"""Serialization helpers for Influx-related models."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

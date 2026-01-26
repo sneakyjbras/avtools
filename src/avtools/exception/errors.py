@@ -1,3 +1,15 @@
+"""AV Tools exception hierarchy.
+
+The original AV Tools code only defined a small set of exceptions (EAM/LanDB).
+For operational visibility we want typed exceptions for the major subsystems.
+
+Design goals:
+- Keep the taxonomy explicit (no metaprogramming).
+- Preserve backwards compatibility: existing exceptions remain unchanged.
+- Add module-level base exceptions and per-file leaf exceptions so that
+  core/av_tools.py can catch and log failures at sensible boundaries.
+"""
+
 from __future__ import annotations  # Enable postponed evaluation of annotations
 
 from collections.abc import Callable
@@ -81,3 +93,140 @@ class MoreThanOneDeviceFound(EAMError):  # type: ignore[misc]
             message (str): Human-readable error message (default provided).
         """
         super().__init__(message)
+
+
+# ---------------------------------------------------------------------------
+# AV Tools typed exceptions (new)
+# ---------------------------------------------------------------------------
+
+
+class AVToolsError(Exception):
+    """Base class for AV Tools internal errors."""
+
+
+class InfluxError(AVToolsError):
+    """Base class for Influx-related failures."""
+
+
+class PostgresError(AVToolsError):
+    """Base class for Postgres/SQLAlchemy-related failures."""
+
+
+class SNMPError(AVToolsError):
+    """Base class for SNMP collection/handler failures."""
+
+
+class UtilsError(AVToolsError):
+    """Base class for utility/helper failures."""
+
+
+# --- Influx tree -----------------------------------------------------------
+
+
+class InfluxPackageError(InfluxError):
+    """Errors originating from avtools.influx package initialization."""
+
+
+class InfluxClientError(InfluxError):
+    """Errors originating from avtools.influx.client."""
+
+
+class InfluxParsableError(InfluxError):
+    """Errors originating from avtools.influx.parsable."""
+
+
+class InfluxSerializableError(InfluxError):
+    """Errors originating from avtools.influx.serializable."""
+
+
+class TimeSeriesHelperError(InfluxError):
+    """Errors originating from avtools.influx.ts_helper."""
+
+
+class InfluxDataPackageError(InfluxError):
+    """Errors originating from avtools.influx.data package initialization."""
+
+
+class StatsBaseError(InfluxError):
+    """Errors originating from avtools.influx.data.stats_base."""
+
+
+class ProjectorStatsError(InfluxError):
+    """Errors originating from avtools.influx.data.projector_stats."""
+
+
+# --- Postgres tree ---------------------------------------------------------
+
+
+class PostgresPackageError(PostgresError):
+    """Errors originating from avtools.postgres package initialization."""
+
+
+class PostgresClientError(PostgresError):
+    """Errors originating from avtools.postgres.client."""
+
+
+class PostgresORMPackageError(PostgresError):
+    """Errors originating from avtools.postgres.orm package initialization."""
+
+
+class EAMDeviceORMError(PostgresError):
+    """Errors originating from avtools.postgres.orm.eam_device."""
+
+
+class EAMPositionORMError(PostgresError):
+    """Errors originating from avtools.postgres.orm.eam_position."""
+
+
+class LanDBIPAddressORMError(PostgresError):
+    """Errors originating from avtools.postgres.orm.landb_ipaddress."""
+
+
+# --- SNMP tree -------------------------------------------------------------
+
+
+class SNMPPackageError(SNMPError):
+    """Errors originating from avtools.snmp package initialization."""
+
+
+class SNMPClientError(SNMPError):
+    """Errors originating from avtools.snmp.client."""
+
+
+class SNMPFactoriesPackageError(SNMPError):
+    """Errors originating from avtools.snmp.factories package initialization."""
+
+
+class DeviceHandlerFactoryError(SNMPError):
+    """Errors originating from avtools.snmp.factories.device_factory."""
+
+
+class ProjectorHandlerFactoryError(SNMPError):
+    """Errors originating from avtools.snmp.factories.projector_factory."""
+
+
+class SNMPHandlersPackageError(SNMPError):
+    """Errors originating from avtools.snmp.handlers package initialization."""
+
+
+class AbstractDeviceHandlerError(SNMPError):
+    """Errors originating from avtools.snmp.handlers.abstract_device_handler."""
+
+
+class ProjectorHandlerError(SNMPError):
+    """Errors originating from avtools.snmp.handlers.projector."""
+
+
+# --- Utils tree ------------------------------------------------------------
+
+
+class UtilsPackageError(UtilsError):
+    """Errors originating from avtools.utils package initialization."""
+
+
+class EAMTextSanitizerError(UtilsError):
+    """Errors originating from avtools.utils.eam_sanitizer."""
+
+
+class SyncReportLoggerError(UtilsError):
+    """Errors originating from avtools.utils.sync_reporting."""

@@ -1,3 +1,5 @@
+"""Factory for projector SNMP handlers."""
+
 from __future__ import annotations
 
 from typing import NoReturn

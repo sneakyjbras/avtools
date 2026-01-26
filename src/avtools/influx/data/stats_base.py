@@ -1,3 +1,5 @@
+"""Common SNMP stats structures used for Influx points."""
+
 from __future__ import annotations
 
 from typing import Any, ClassVar, Dict, Tuple
