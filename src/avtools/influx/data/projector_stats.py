@@ -24,11 +24,13 @@ class ProjectorStats(StatsBase):
     power_status: int  # raw numeric status code
 
     def to_fields(self) -> dict[str, int]:
-        """
-        What actually gets sent to InfluxDB as numeric fields:
-          - uptime_seconds: total uptime in seconds (ticks ÷ 60)
-          - lamp_hours:     total lamp hours
-          - power_status:   raw status code
+        """Project projector metrics into numeric InfluxDB fields.
+
+        Returns:
+            Dict with:
+            - ``uptime_seconds``: uptime ticks converted to seconds (ticks ÷ 60)
+            - ``lamp_hours``: total lamp hours
+            - ``power_status``: raw status code
         """
         return {
             "uptime_seconds": self.uptime // 60,

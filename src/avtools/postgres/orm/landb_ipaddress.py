@@ -16,15 +16,22 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from avtools.exception.errors import LanDBIPAddressORMError
 
-from avtools.exception.errors import LanDBIPAddressORMError
-
 
 class Base(DeclarativeBase):
+    """SQLAlchemy declarative base for this module."""
+
     pass
 
 
 def _none_if_blank(value: Any) -> str | None:
-    """Normalise empty strings and None to None; stringify everything else."""
+    """Normalize a potentially empty value to a trimmed string.
+
+    Args:
+        value: Input value (string/number/None).
+
+    Returns:
+        Trimmed string, or ``None`` if the value is ``None`` or blank after trimming.
+    """
     if value is None:
         return None
     if isinstance(value, str):
@@ -34,7 +41,17 @@ def _none_if_blank(value: Any) -> str | None:
 
 
 def _parse_location(loc: Any) -> tuple[str | None, str | None, str | None]:
-    """Parse LanDB Device.location into (building, floor, room) best-effort."""
+    """Parse LanDB ``Device.location`` into a (building, floor, room) tuple.
+
+    Args:
+        loc: The LanDB location value (may be a dict, object, tuple, or ``None``).
+
+    Returns:
+        ``(building, floor, room)`` where each element may be ``None``.
+
+    Notes:
+        LanDB's location shape can vary; this function is intentionally tolerant.
+    """
     building = floor = room = None
 
     if loc is None:
@@ -105,7 +122,11 @@ class CachedIPAddress(BaseModel):
         allow_mutation = True
 
     def avtools_compare_fields(self) -> set[str]:
-        # Return a copy to avoid accidental external mutation.
+        """Return the set of field names to compare when diffing.
+
+        Returns:
+            A copy of the compare-field set.
+        """
         return set(self._avtools_compare_fields)
 
     @classmethod
@@ -116,11 +137,19 @@ class CachedIPAddress(BaseModel):
         *,
         landb_device: Device | None = None,
     ) -> CachedIPAddress:
-        """Create the cached record from EAM Equipment + LanDB IPAddress.
+        """Build a cached LanDB IP record from EAM + LanDB models.
 
-        Notes
-        - We *always* pass all DB-backed fields explicitly (even if None) so that
-          `.dict(exclude_unset=True)` still includes them for diffing.
+        Args:
+            equipment: EAM ``Equipment`` instance.
+            ipaddr: LanDB ``IPAddress`` instance (may be ``None``).
+            landb_device: LanDB ``Device`` instance, if already resolved.
+
+        Returns:
+            A ``CachedIPAddress`` populated with the subset of fields AVTools stores.
+
+        Notes:
+            AVTools passes all DB-backed fields explicitly (even if ``None``) so that
+            diffing is stable and does not depend on ``exclude_unset`` behavior.
         """
 
         equipment_no = _none_if_blank(getattr(equipment, "code", None))
@@ -273,6 +302,17 @@ class LanDBIPAddressORM(Base):
 
     @classmethod
     def from_ipaddress(cls, ipaddr: CachedIPAddress) -> LanDBIPAddressORM:
+        """Convert a cached domain object into an ORM row.
+
+        Args:
+            ipaddr: Cached LanDB IP domain object.
+
+        Returns:
+            ORM instance ready to be inserted/updated in Postgres.
+
+        Raises:
+            LanDBIPAddressORMError: If the required join key (``equipment_no``) is missing.
+        """
         equipment_no = _none_if_blank(getattr(ipaddr, "equipment_no", None))
         if not equipment_no:
             raise LanDBIPAddressORMError(
@@ -298,7 +338,11 @@ class LanDBIPAddressORM(Base):
         )
 
     def to_ipaddress(self) -> CachedIPAddress:
-        """Convert this row back into an AVTools cached IPAddress domain object."""
+        """Convert this ORM row back into a ``CachedIPAddress`` domain object.
+
+        Returns:
+            A ``CachedIPAddress`` populated from this row.
+        """
         payload: dict[str, Any] = {
             "equipment_no": self.equipment_no,
             "serial_number": self.serial_number,

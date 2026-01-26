@@ -21,10 +21,20 @@ logger = structlog.get_logger(__name__)
 
 
 class Base(DeclarativeBase):
+    """SQLAlchemy declarative base for this module."""
+
     pass
 
 
 def _none_if_blank(value: Any) -> str | None:
+    """Normalize a potentially empty value to a trimmed string.
+
+    Args:
+        value: Input value (string/number/None).
+
+    Returns:
+        Trimmed string, or ``None`` if the value is ``None`` or blank after trimming.
+    """
     if value is None:
         return None
     if isinstance(value, str):
@@ -34,6 +44,18 @@ def _none_if_blank(value: Any) -> str | None:
 
 
 def _parse_any_date(v: Any) -> date | None:
+    """Parse a date from multiple common EAM representations.
+
+    Args:
+        v: A value that may represent a date (``date``, ``datetime``, or string).
+
+    Returns:
+        A ``date`` if parsing succeeds, otherwise ``None``.
+
+    Notes:
+        Supports EAM's common ``"%d-%b-%Y"`` format as well as ISO-8601 date/datetime
+        strings (including a trailing ``Z``).
+    """
     if v is None or v == "":
         return None
     if isinstance(v, datetime):
@@ -62,17 +84,44 @@ def _parse_any_date(v: Any) -> date | None:
 
 
 def _format_eam_date(d: date | None) -> str | None:
+    """Format a date in EAM's typical display format.
+
+    Args:
+        d: Date value.
+
+    Returns:
+        A string formatted as ``DD-Mon-YYYY`` or ``None``.
+    """
     return d.strftime("%d-%b-%Y") if d else None
 
 
 class CachedEquipment(Equipment):
+    """Equipment subclass carrying AVTools-only state for diffing.
+
+    Notes:
+        AVTools computes diffs using a whitelist of fields. This model stores that
+        whitelist in a private attribute so it does not leak into persisted schema.
+    """
+
     _avtools_compare_fields: set[str] = PrivateAttr(default_factory=set)
 
     def avtools_compare_fields(self) -> set[str]:
+        """Return the set of field names to compare when diffing.
+
+        Returns:
+            A copy of the compare-field set.
+        """
         return set(self._avtools_compare_fields)
 
 
 class EAMDeviceORM(Base):
+    """Postgres snapshot row for an EAM device.
+
+    This ORM stores a small, stable subset of fields from ``eam_rest_client.Equipment``
+    so AVTools can perform fast joins and diffs without depending on full upstream
+    payloads.
+    """
+
     __tablename__ = "eam_devices"
     __table_args__ = (
         Index("ix_eam_devices_serialnumber", "serialnumber"),
@@ -120,6 +169,21 @@ class EAMDeviceORM(Base):
 
     @classmethod
     def from_equipment(cls, device: Equipment) -> EAMDeviceORM:
+        """Convert an EAM ``Equipment`` domain object into an ORM row.
+
+        Args:
+            device: EAM equipment/device record.
+
+        Returns:
+            ORM instance ready to be inserted/updated in Postgres.
+
+        Raises:
+            EAMDeviceORMError: If the required join key (``code``) is missing.
+
+        Notes:
+            The upstream EAM payload uses the misspelled key ``comission_date``.
+            Internally we store the corrected spelling as ``commission_date``.
+        """
         equipment_no = _none_if_blank(getattr(device, "code", None))
         if not equipment_no:
             raise EAMDeviceORMError("EAM Equipment missing required field: code")
@@ -144,6 +208,16 @@ class EAMDeviceORM(Base):
         )
 
     def to_equipment(self) -> Equipment:
+        """Convert this ORM row back into an EAM ``Equipment``-shaped object.
+
+        Returns:
+            A ``CachedEquipment`` instance (subclass of ``Equipment``) containing
+            only the fields AVTools persists/diffs against.
+
+        Notes:
+            - The outbound payload uses the upstream misspelling ``comission_date``.
+            - The returned object carries an AVTools compare-field whitelist.
+        """
         payload: dict[str, Any] = {
             "code": self.equipment_no,
             "serial_number": self.serial_number,

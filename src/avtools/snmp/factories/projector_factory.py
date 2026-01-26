@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from typing import NoReturn
-
 import structlog
-from pysnmp.hlapi import SnmpEngine
 
 from avtools.snmp.handlers.projector import AbstractProjector, EpsonProjector
 
@@ -17,29 +14,33 @@ logger = structlog.get_logger(__name__)
 
 
 class ProjectorHandlerFactory:
-    """
-    Factory for creating an AbstractProjector handler based on the device's manufacturer.
+    """Factory for projector SNMP handlers.
+
+    The selection is currently based on the device manufacturer code.
     """
 
     def __init__(self, target: LanDBDevice) -> None:
-        """
-        Initialize the factory with the given LANDBDevice.
+        """Create a projector handler factory.
 
         Args:
-            target (LanDBDevice): The device to create a handler for. Must have
-                                 `.manufacturer`, `.ip`, and SNMP credentials.
+            target: LanDB device-like object. Must expose at least ``manufacturer`` and
+                ``ip`` (and optionally SNMP credentials).
+
+        Returns:
+            None.
         """
         self.target = target
 
-    def create(self) -> AbstractProjector:
-        """
-        Instantiate and return a concrete AbstractProjector subclass for this device.
+    def create(self) -> AbstractProjector | None:
+        """Instantiate the appropriate projector handler.
 
         Returns:
-            AbstractProjector: An instance of the appropriate handler (e.g. EpsonProjector).
+            A concrete ``AbstractProjector`` instance (e.g. ``EpsonProjector``), or
+            ``None`` if the manufacturer is not supported.
 
-        Raises:
-            ValueError: If no handler exists for the device's manufacturer.
+        Notes:
+            The manufacturer value is normalized to uppercase and matched against
+            known vendor codes.
         """
         brand = self.target.manufacturer.strip().upper()
 

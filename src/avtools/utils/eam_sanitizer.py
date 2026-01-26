@@ -43,11 +43,18 @@ class EAMTextSanitizer:
     )
 
     def sanitize_text(self, value: Any) -> str | None:
-        """Return a sanitized string or None.
+        """Sanitize a single EAM text value.
 
-        - Converts non-strings to str only for serial_number use-cases.
-        - Trims leading/trailing whitespace (incl. NBSP/BOM/zero-width).
-        - Preserves internal spacing.
+        Args:
+            value: Input value.
+
+        Returns:
+            Sanitized string, or ``None`` if the input is missing/blank.
+
+        Notes:
+            - Leading/trailing whitespace is trimmed (including NBSP/BOM/zero-width).
+            - Internal spacing is preserved.
+            - Non-string values are stringified (primarily for serial-number edge cases).
         """
         if value is None:
             return None
@@ -60,9 +67,17 @@ class EAMTextSanitizer:
         return s2 or None
 
     def clean_items(self, items: list[Equipment]) -> list[Equipment]:
-        """Sanitize selected text fields for a list of Equipment.
+        """Sanitize selected text fields for a list of EAM ``Equipment`` objects.
 
-        Returns a new list (prefers non-mutating copies for frozen models).
+        Args:
+            items: List of EAM domain objects.
+
+        Returns:
+            A new list of ``Equipment`` instances with sanitized fields.
+
+        Notes:
+            This method prefers non-mutating copies (``model_copy``/``copy``) to support
+            frozen/immutable upstream models.
         """
         out: list[Equipment] = []
         for eq in items:
@@ -121,11 +136,18 @@ class EAMTextSanitizer:
         *,
         compare_fields: Iterable[str] | None,
     ) -> None:
-        """Sanitize a dict (typically produced by Equipment.dict()).
+        """Sanitize an ``Equipment.dict()`` payload in place.
 
-        Only sanitizes keys that are both:
-        - in EAM_TEXT_FIELDS
-        - and in compare_fields (when compare_fields is provided)
+        Args:
+            new_data: Dict to sanitize in place.
+            compare_fields: Optional whitelist of keys to consider (used by diffing).
+
+        Returns:
+            None.
+
+        Notes:
+            Only keys that are in ``EAM_TEXT_FIELDS`` are sanitized. When ``compare_fields``
+            is provided, the intersection is used.
         """
         if compare_fields is None:
             keys = (k for k in self.EAM_TEXT_FIELDS if k in new_data)

@@ -36,13 +36,32 @@ class AbstractDeviceHandler(ABC):
     """
 
     def __init__(self, ip: str, community: str = "public", port: int = 161) -> None:
+        """Initialize a base SNMP handler with connection parameters.
+
+        Args:
+            ip: Target IP address or DNS name.
+            community: SNMP v2c community string.
+            port: SNMP UDP port.
+
+        Returns:
+            None.
+        """
         self.ip: str = ip
         self.community: str = community
         self.port: int = port
 
     def set_engine(self, engine: SnmpEngine) -> None:
-        """
-        TODO: comment
+        """Attach a shared PySNMP engine to this handler.
+
+        Args:
+            engine: Shared ``SnmpEngine`` instance.
+
+        Returns:
+            None.
+
+        Notes:
+            Sharing an engine across handlers allows connection reuse and helps keep
+            SNMP state in one place.
         """
         self.engine = engine
 

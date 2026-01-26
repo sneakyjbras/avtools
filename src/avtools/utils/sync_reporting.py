@@ -9,6 +9,8 @@ from typing import Any
 
 @dataclass
 class _Row:
+    """Internal representation of a change row for the sync report."""
+
     id: str
     serial_number: str | None
     changed_fields: list[str] = field(default_factory=list)
@@ -30,6 +32,16 @@ class SyncReportLogger:
         entity: str,
         sanitize_text: Callable[[Any], str | None],
     ) -> None:
+        """Create a sync report accumulator.
+
+        Args:
+            logger: Structlog-compatible logger instance.
+            entity: Entity name used in emitted log records (e.g. ``"eam_device"``).
+            sanitize_text: Function used to normalize serial numbers for logs.
+
+        Returns:
+            None.
+        """
         self._logger = logger
         self._entity = entity
         self._sanitize_text = sanitize_text
@@ -39,6 +51,15 @@ class SyncReportLogger:
         self._updated: list[_Row] = []
 
     def record_deleted(self, *, id: str, item: Any) -> None:
+        """Record a deleted row.
+
+        Args:
+            id: Stable identifier for the row.
+            item: Domain object that was deleted (used only to extract serial_number).
+
+        Returns:
+            None.
+        """
         self._deleted.append(
             _Row(
                 id=id,
@@ -47,6 +68,15 @@ class SyncReportLogger:
         )
 
     def record_added(self, *, id: str, item: Any) -> None:
+        """Record an added row.
+
+        Args:
+            id: Stable identifier for the row.
+            item: Domain object that was added (used only to extract serial_number).
+
+        Returns:
+            None.
+        """
         self._added.append(
             _Row(
                 id=id,
@@ -62,6 +92,17 @@ class SyncReportLogger:
         new_item: Any,
         changes: dict[str, Any],
     ) -> None:
+        """Record an updated row.
+
+        Args:
+            id: Stable identifier for the row.
+            old_item: Previous version of the domain object.
+            new_item: Updated version of the domain object.
+            changes: Dict of fields deemed different by the diff algorithm.
+
+        Returns:
+            None.
+        """
         # changes only includes fields deemed different by AVTools. We still
         # double-check old vs new for cleanliness and to build changed_fields.
         changed_fields: list[str] = []
@@ -85,6 +126,14 @@ class SyncReportLogger:
         )
 
     def emit(self) -> None:
+        """Emit structured log lines for all recorded changes.
+
+        Returns:
+            None.
+
+        Notes:
+            Rows are sorted by id before emission to keep logs diff-friendly.
+        """
         # Stable ordering keeps logs readable and diff-friendly.
         self._deleted.sort(key=lambda r: r.id)
         self._added.sort(key=lambda r: r.id)

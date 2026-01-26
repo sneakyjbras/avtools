@@ -48,6 +48,19 @@ class SNMPClient:
         targets: list[Device],
         snmp_engine: SnmpEngine | None = None,
     ) -> None:
+        """Create an SNMPClient for a set of targets.
+
+        Args:
+            targets: List of LanDB ``Device`` objects to measure.
+            snmp_engine: Optional shared ``SnmpEngine`` instance.
+
+        Returns:
+            None.
+
+        Notes:
+            Targets without an IP are skipped for SNMP handler creation, but can still
+            emit ping points with status=0.
+        """
         self.targets = targets
         self.engine = snmp_engine or SnmpEngine()
 
@@ -75,7 +88,15 @@ class SNMPClient:
 
     @staticmethod
     def _get(obj: Any, *names: str) -> Any:
-        """Return the first non-empty attribute/key found among `names`."""
+        """Return the first non-empty attribute/key among candidate names.
+
+        Args:
+            obj: Object or dict.
+            *names: Candidate attribute/key names to try in order.
+
+        Returns:
+            The first non-empty value, or ``None``.
+        """
         for n in names:
             if isinstance(obj, dict) and n in obj and obj[n] not in ("", None):
                 return obj[n]
@@ -88,6 +109,16 @@ class SNMPClient:
     def _build_point(
         self, measurement: str, device: Device, fields: dict[str, Any]
     ) -> dict[str, Any]:
+        """Build a standard InfluxDB point dict for a device.
+
+        Args:
+            measurement: Influx measurement name.
+            device: Target device used to populate tags.
+            fields: Influx fields payload.
+
+        Returns:
+            InfluxDB-compatible point dict.
+        """
         tags: dict[str, str] = {}
 
         for influx_key, candidates in self.TAG_KEYS.items():
@@ -103,7 +134,19 @@ class SNMPClient:
         }
 
     def _ping_host(self, ip: str, timeout: int) -> float | None:
-        """Blocking helper—wrapped in asyncio.to_thread."""
+        """Ping a host once and return round-trip time in milliseconds.
+
+        Args:
+            ip: Target IP address.
+            timeout: Timeout in seconds.
+
+        Returns:
+            RTT in ms (float) if reachable, otherwise ``None``.
+
+        Notes:
+            This is a blocking call and is intended to be executed via
+            ``asyncio.to_thread``.
+        """
         if _system().lower() == "windows":
             cmd = ["ping", "-n", "1", "-w", str(timeout * 1000), ip]
         else:
@@ -125,7 +168,14 @@ class SNMPClient:
     # --- Public API ----------------------------------------------------------
 
     async def collect_ping(self) -> list[dict[str, Any]]:
-        """Sequentially ping each target, offloading to threads one at a time."""
+        """Collect ICMP reachability for all targets.
+
+        Returns:
+            List of Influx point dicts for measurement ``ping_check``.
+
+        Notes:
+            This is sequential and offloads each blocking ping to a worker thread.
+        """
         logger.info("Starting ICMP pinging", targets=len(self.targets))
         points: list[dict[str, Any]] = []
 
@@ -146,10 +196,15 @@ class SNMPClient:
         return points
 
     async def collect_snmp_probe(self) -> tuple[list[dict[str, Any]], list[Device]]:
-        """
-        Sequentially probe sysUpTime on each handler, offloading each to a thread.
+        """Probe SNMP reachability for all devices that have a handler.
 
-        Returns (points, alive_devices).
+        Returns:
+            Tuple ``(points, alive_devices)`` where:
+            - ``points`` is a list of Influx point dicts for measurement ``snmp_probe``
+            - ``alive_devices`` is the subset that responded successfully
+
+        Notes:
+            Each probe is executed via ``asyncio.to_thread``.
         """
         logger.info("Starting SNMP probing", targets=len(self.handlers))
         points: list[dict[str, Any]] = []
@@ -174,9 +229,17 @@ class SNMPClient:
     async def collect_snmp_query(
         self, alive: list[Device] | None = None
     ) -> list[dict[str, Any]]:
-        """
-        Sequentially fetch full SNMP stats for each alive device,
-        offloading each fetch_stats call to a thread.
+        """Collect full SNMP stats for alive devices.
+
+        Args:
+            alive: Optional pre-filtered alive device list. If omitted, an SNMP probe
+                is performed first.
+
+        Returns:
+            List of Influx point dicts for measurement ``snmp_query``.
+
+        Notes:
+            Each stats fetch is executed via ``asyncio.to_thread``.
         """
         if alive is None:
             _, alive = await self.collect_snmp_probe()

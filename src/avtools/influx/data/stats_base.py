@@ -21,6 +21,15 @@ class StatsBase(InfluxSerializable, InfluxParsable):
     tags: ClassVar[tuple[str, ...]] = ()
 
     def to_influx(self) -> dict[str, Any]:
+        """Serialize the stats object into an InfluxDB point dict.
+
+        Returns:
+            Influx point dict with ``measurement``, ``tags``, and ``fields``.
+
+        Notes:
+            Attributes listed in the class-level ``tags`` tuple are emitted as tags.
+            All other attributes are emitted as fields.
+        """
         raw = vars(self)
         tag_dict = {k: str(raw[k]) for k in self.tags if k in raw}
         field_dict = {k: raw[k] for k in raw if k not in self.tags}
@@ -31,4 +40,9 @@ class StatsBase(InfluxSerializable, InfluxParsable):
         }
 
     def to_human(self) -> dict[str, str]:
+        """Render the stats object as a human-friendly mapping.
+
+        Returns:
+            Mapping where keys are title-cased field names and values are strings.
+        """
         return {k.replace("_", " ").title(): str(v) for k, v in vars(self).items()}

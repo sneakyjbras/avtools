@@ -42,23 +42,34 @@ class AbstractProjector(AbstractDeviceHandler):
     OIDS: ClassVar[Mapping[str, str]]
 
     def __init__(self, target: LanDBDevice) -> None:
-        """
-        Initialize with connection parameters sourced from a LanDBDevice.
+        """Initialize the handler from a LanDB device-like object.
 
         Args:
-            target (LanDBDevice): Must have `.ip` (str), `.community` (str), and
-                                  `.port` (int, defaults to 161).
+            target: LanDB device-like object. Must expose ``ip``.
+
+        Returns:
+            None.
+
+        Notes:
+            If the target exposes ``community``/``port`` (or ``snmp_community``/
+            ``snmp_port``), those are used; otherwise defaults are applied.
         """
-        super().__init__(ip=target.ip)
+        community = (
+            getattr(target, "community", None)
+            or getattr(target, "snmp_community", None)
+            or "public"
+        )
+        port = (
+            getattr(target, "port", None) or getattr(target, "snmp_port", None) or 161
+        )
+        super().__init__(ip=str(target.ip), community=str(community), port=int(port))
 
     @abstractmethod
     def fetch_stats(self) -> ProjectorStats:
-        """
-        Poll the SNMP agent for all OIDs defined in `self.OIDS` and return
-        parsed metrics.
+        """Fetch device statistics via SNMP.
 
         Returns:
-            ProjectorStats: A dataclass containing projector metrics.
+            A ``ProjectorStats`` instance containing parsed metrics.
 
         Raises:
             RuntimeError: On SNMP engine errors or individual OID failures.
@@ -90,13 +101,13 @@ class EpsonProjector(AbstractProjector):
         super().__init__(target)
 
     def fetch_stats(self) -> EpsonProjectorStats:
-        """
-        Perform an SNMP GET for all configured OIDs and return parsed stats.
+        """Fetch Epson projector statistics via SNMP.
 
         Returns:
-            EpsonProjectorStats
+            ``EpsonProjectorStats`` populated from the queried OIDs.
+
         Raises:
-            RuntimeError: on SNMP engine error or individual OID lookup failure.
+            RuntimeError: On SNMP engine error or individual OID lookup failure.
         """
         # 1. Prepare the list of ObjectType binders
         object_types: list[ObjectType] = [

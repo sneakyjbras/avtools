@@ -37,21 +37,37 @@ try:  # pragma: no cover
 except Exception:  # pragma: no cover
 
     class EamRestClientError(Exception):
+        """Fallback EAM REST client base error.
+
+        This placeholder is used when the installed ``eam_rest_client`` version does
+        not expose typed exceptions.
+        """
+
         pass
 
     class EamClientHTTPError(Exception):
+        """Fallback error for non-retryable HTTP failures from EAM REST client."""
+
         pass
 
     class EamClientRetryableHTTPError(Exception):
+        """Fallback error for retryable HTTP failures from EAM REST client."""
+
         pass
 
     class EamClientTimeoutError(Exception):
+        """Fallback error raised on EAM request timeouts."""
+
         pass
 
     class EamClientTransportError(Exception):
+        """Fallback error for low-level transport failures talking to EAM."""
+
         pass
 
     class EamQueryError(Exception):
+        """Fallback error for EAM query construction/execution issues."""
+
         pass
 
 
@@ -65,15 +81,23 @@ try:  # pragma: no cover
 except Exception:  # pragma: no cover
 
     class TokenExpired(Exception):
+        """Fallback error for expired OAuth tokens (LanDB REST client)."""
+
         pass
 
     class QuerySetError(Exception):
+        """Fallback error for LanDB query/filter issues."""
+
         pass
 
     class LanDBRestError(Exception):
+        """Fallback base error for LanDB REST client failures."""
+
         pass
 
     class DataAwareValidationError(Exception):
+        """Fallback error for validation problems in LanDB REST client models."""
+
         pass
 
 
@@ -122,11 +146,30 @@ class AVTools:
         department_code: str = "AV",
         limit: int | None = None,
     ) -> None:
-        """Run the EAM sync and persist assets + positions into Postgres.
+        """Sync EAM assets and positions into the Postgres cache.
 
-        Registers EAM credentials, then fetches assets (OSOBJA) and positions (OSOBJP)
-        for the given department prefix. Each step is guarded so a failure in one flow
-        does not crash the whole process.
+        This registers EAM credentials, then runs two independent sync flows:
+        - **Assets/devices** from ``asset_grid`` (default: ``OSOBJA``)
+        - **Positions** from ``position_grid`` (default: ``OSOBJP``)
+
+        Each flow is guarded so failures are logged and the overall run can still
+        complete (status becomes ``completed_with_errors``).
+
+        Args:
+            username: EAM username.
+            password: EAM password.
+            base_url: EAM base URL.
+            asset_grid: EAM grid name for assets/devices.
+            position_grid: EAM grid name for positions.
+            department_code: Department code prefix filter (e.g. ``"AV"``).
+            limit: Optional row limit (useful for debugging).
+
+        Returns:
+            None.
+
+        Notes:
+            This method logs a start/end envelope with a concrete ``status`` string
+            that can be used by systemd timers or log aggregation.
         """
         run_started = time()
         status: str = "started"
@@ -467,7 +510,28 @@ class AVTools:
         *,
         base_url: str = "https://landb.cern.ch/api/",
     ) -> None:
-        """Run the LanDB sync (EAM devices -> LanDB devices/IPs -> Postgres)."""
+        """Sync LanDB IP targets into Postgres by enriching the EAM snapshot.
+
+        The LanDB sync uses the **current EAM devices snapshot** in Postgres as the
+        source of truth for join keys. It then performs a small number of LanDB API
+        calls to:
+        1) Resolve LanDB devices by EAM serial numbers and/or names.
+        2) Fetch IP addresses for those devices.
+        3) Build ``CachedIPAddress`` domain objects and persist them.
+
+        Args:
+            client_id: OAuth client id for the LanDB REST client.
+            client_secret: OAuth client secret.
+            audience: OAuth audience (API identifier).
+            max_workers: Kept for backwards compatibility (LanDB sync is single-shot).
+            base_url: LanDB API base URL.
+
+        Returns:
+            None.
+
+        Notes:
+            Only devices with a usable SNMP target IP (IPv4 or IPv6) are written.
+        """
         run_started = time()
         status: str = "started"
         had_errors = False
@@ -691,6 +755,14 @@ class AVTools:
         """
 
         def norm(v: Any) -> str | None:
+            """Normalize a value into a trimmed string.
+
+            Args:
+                v: Value to normalize.
+
+            Returns:
+                Trimmed string, or ``None`` if missing/blank.
+            """
             if v is None:
                 return None
             s = str(v).strip()
@@ -938,7 +1010,23 @@ class AVTools:
         influx_db: str,
         max_workers: int = 8,
     ) -> None:
-        """Collect SNMP metrics for cached LanDB devices and publish them to InfluxDB."""
+        """Collect ping/SNMP metrics for cached LanDB targets and publish to InfluxDB.
+
+        Loads the cached LanDB IP targets from Postgres, filters out rows without a
+        target IP, collects ping + SNMP probe/query points concurrently, and writes
+        the resulting points to an InfluxDB v1.x instance.
+
+        Args:
+            influx_host: InfluxDB host.
+            influx_port: InfluxDB port.
+            influx_user: InfluxDB username.
+            influx_password: InfluxDB password.
+            influx_db: InfluxDB database name.
+            max_workers: Number of concurrent worker tasks.
+
+        Returns:
+            None.
+        """
         run_started = time()
         status: str = "started"
         had_errors = False
@@ -1057,6 +1145,14 @@ class AVTools:
         ]
 
         async def worker_fn(chunk: list[Any]) -> list[Point]:
+            """Collect ping, SNMP probe, and SNMP query points for one chunk.
+
+            Args:
+                chunk: Subset of cached devices to process.
+
+            Returns:
+                List of InfluxDB points produced for this chunk.
+            """
             monitor = SNMPClient(targets=chunk)
             pts: list[Point] = []
             try:
@@ -1257,9 +1353,26 @@ class AVTools:
         """
 
         def canon(v: Any) -> Any:
+            """Canonicalize values for stable comparisons.
+
+            Args:
+                v: Value to normalize.
+
+            Returns:
+                ``None`` for empty strings, otherwise the input value.
+            """
             return None if v == "" else v
 
         def to_dict(obj: Any, *, exclude_unset: bool) -> dict[str, Any]:
+            """Convert a Pydantic v1 model into a plain dict.
+
+            Args:
+                obj: Pydantic model instance.
+                exclude_unset: Whether to exclude unset values.
+
+            Returns:
+                Dict representation of the model.
+            """
             # Pydantic v1: we always use .dict()
             return obj.dict(exclude_unset=exclude_unset)  # type: ignore[attr-defined]
 
