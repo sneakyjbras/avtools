@@ -17,7 +17,7 @@ def test_from_equipment_maps_fields_and_parses_commission_date() -> None:
     eq = DummyEq(
         code="POS-1",
         class_code="AVS",
-        department_code="AV",
+        category="AV-SCR",
         description="DESC",
         assigned_to="SPONSOR",
         hierarchy_asset_code="ASSET-1",
@@ -30,8 +30,7 @@ def test_from_equipment_maps_fields_and_parses_commission_date() -> None:
 
     assert orm.equipment_no == "POS-1"
     assert orm.eq_class == "AVS"
-    # Legacy mapping: department_code stored into `category` column.
-    assert orm.category == "AV"
+    assert orm.category == "AV-SCR"
     assert orm.equipment_desc == "DESC"
     assert orm.sponsor == "SPONSOR"
     assert orm.parent_asset == "ASSET-1"
@@ -50,7 +49,7 @@ def test_to_equipment_sets_expected_keys_and_compare_fields() -> None:
     orm = EAMPositionORM(
         equipment_no="POS-2",
         eq_class="AVS",
-        category="AV",
+        category="AV-SCR",
         equipment_desc="X",
         sponsor="S",
         parent_asset="PA",
@@ -63,7 +62,7 @@ def test_to_equipment_sets_expected_keys_and_compare_fields() -> None:
 
     assert getattr(eq, "code") == "POS-2"
     assert getattr(eq, "class_code") == "AVS"
-    assert getattr(eq, "department_code") == "AV"
+    assert getattr(eq, "category") == "AV-SCR"
     assert getattr(eq, "description") == "X"
     assert getattr(eq, "assigned_to") == "S"
     assert getattr(eq, "hierarchy_asset_code") == "PA"
@@ -88,6 +87,6 @@ def test_to_equipment_sets_expected_keys_and_compare_fields() -> None:
     compare = eq.avtools_compare_fields()  # type: ignore[attr-defined]
     assert "code" in compare
     assert "hierarchy_location_code" in compare
-    assert "department_code" in compare
+    assert "category" in compare
     assert "assigned_to" in compare
     assert "comission_date" in compare

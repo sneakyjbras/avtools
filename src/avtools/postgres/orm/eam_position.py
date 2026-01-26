@@ -129,7 +129,7 @@ class EAMPositionORM(Base):
     )
     eq_class: Mapped[str | None] = mapped_column("eqclass", String(64), nullable=True)
 
-    # Legacy schema note: we often store department_code here (historical column name).
+    # Stores EAM `category .
     category: Mapped[str | None] = mapped_column("category", String(64), nullable=True)
 
     equipment_desc: Mapped[str | None] = mapped_column(
@@ -155,7 +155,7 @@ class EAMPositionORM(Base):
     _DB_COMPARE_FIELDS: set[str] = {
         "code",
         "class_code",
-        "department_code",  # backed by legacy `category` column
+        "category",
         "description",
         "assigned_to",  # backed by `sponsor`
         "hierarchy_asset_code",
@@ -207,13 +207,10 @@ class EAMPositionORM(Base):
         # Upstream typo only at the boundary:
         raw_commission = cls._get(equipment, "comission_date")
 
-        # Legacy schema note: store department_code into `category`.
-        dept = _none_if_blank(cls._get(equipment, "department_code"))
-
         return cls(
             equipment_no=equipment_no,
             eq_class=_none_if_blank(cls._get(equipment, "class_code")),
-            category=dept,
+            category=_none_if_blank(cls._get(equipment, "category")),
             equipment_desc=_none_if_blank(cls._get(equipment, "description")),
             sponsor=_none_if_blank(cls._get(equipment, "assigned_to")),
             parent_asset=_none_if_blank(cls._get(equipment, "hierarchy_asset_code")),
@@ -236,7 +233,7 @@ class EAMPositionORM(Base):
         payload: dict[str, Any] = {
             "code": self.equipment_no,
             "class_code": self.eq_class,
-            "department_code": self.category,  # legacy mapping
+            "category": self.category,
             "description": self.equipment_desc,
             "assigned_to": self.sponsor,  # legacy mapping
             "hierarchy_asset_code": self.parent_asset,
