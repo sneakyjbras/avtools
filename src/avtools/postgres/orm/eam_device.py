@@ -128,7 +128,6 @@ class EAMDeviceORM(Base):
         Index("ix_eam_devices_eqclass_category", "eqclass", "category"),
         Index("ix_eam_devices_status", "assetstatus_display"),
         Index("ix_eam_devices_position", "position"),
-        Index("ix_eam_devices_location", "location"),
     )
 
     equipment_no: Mapped[str] = mapped_column(
