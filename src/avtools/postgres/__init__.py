@@ -1,3 +1,5 @@
+"""Postgres cache layer for AVTools."""
+
 from __future__ import annotations
 
 from avtools.postgres.client import PostgresClient

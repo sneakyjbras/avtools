@@ -1,3 +1,5 @@
+"""Factory dispatch for SNMP handlers by device class."""
+
 from __future__ import annotations
 
 import structlog

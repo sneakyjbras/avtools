@@ -1,3 +1,5 @@
+"""Influx data model helpers."""
+
 from __future__ import annotations
 
 from avtools.influx.client import InfluxClient

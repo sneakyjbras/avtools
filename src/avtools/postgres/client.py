@@ -1,3 +1,10 @@
+"""Postgres cache client.
+
+AVTools persists external system snapshots (EAM, LanDB) into Postgres cache
+tables. This client is a thin SQLAlchemy ORM wrapper used by the core
+orchestrator.
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -10,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session, sessionmaker
 
-from avtools.exception.errors import NoRecordsFound
+from avtools.exception.errors import NoRecordsFound, PostgresClientError
 from avtools.postgres.orm.eam_device import EAMDeviceORM
 from avtools.postgres.orm.eam_position import EAMPositionORM
 from avtools.postgres.orm.landb_ipaddress import CachedIPAddress, LanDBIPAddressORM
@@ -31,7 +38,10 @@ class PostgresClient:
     def __init__(self, connection_string: str) -> None:
         from sqlalchemy.engine import Engine
 
-        self.engine: Engine = create_engine(connection_string, echo=False)
+        try:
+            self.engine: Engine = create_engine(connection_string, echo=False)
+        except Exception as exc:
+            raise PostgresClientError("Failed to create SQLAlchemy engine") from exc
 
         # NOTE:
         # SQLAlchemy's `create_all()` does not migrate existing tables.
@@ -106,9 +116,12 @@ class PostgresClient:
             logger.warning("eam_positions_schema_probe_failed", exc_info=True)
 
         # Create all tables declared on Base metadata
-        LanDBIPAddressORM.metadata.create_all(self.engine)
-        EAMDeviceORM.metadata.create_all(self.engine)
-        EAMPositionORM.metadata.create_all(self.engine)
+        try:
+            LanDBIPAddressORM.metadata.create_all(self.engine)
+            EAMDeviceORM.metadata.create_all(self.engine)
+            EAMPositionORM.metadata.create_all(self.engine)
+        except Exception as exc:
+            raise PostgresClientError("Failed to create cache tables") from exc
 
         self.Session: sessionmaker[Session] = sessionmaker(bind=self.engine)
 
@@ -130,8 +143,8 @@ class PostgresClient:
                 orm_instances = session.execute(stmt).scalars().all()
                 return [converter(inst) for inst in orm_instances]
             except SQLAlchemyError as e:
-                logger.error(f"{error_msg}: {e}")
-                raise
+                logger.error(error_msg, error=str(e), exc_info=True)
+                raise PostgresClientError(error_msg) from e
 
     @staticmethod
     def _get_pk(obj: Any) -> str:
@@ -182,31 +195,40 @@ class PostgresClient:
         """
         mapper_cols = [c.key for c in inspect(orm_cls).column_attrs]
 
-        with self.Session() as session:
-            with session.begin():
-                if to_delete:
-                    pk_col = getattr(orm_cls, pk_attr)
-                    stmt = delete(orm_cls).where(pk_col.in_(to_delete))
-                    session.execute(stmt)
+        try:
+            with self.Session() as session:
+                with session.begin():
+                    if to_delete:
+                        pk_col = getattr(orm_cls, pk_attr)
+                        stmt = delete(orm_cls).where(pk_col.in_(to_delete))
+                        session.execute(stmt)
 
-                for domain_obj, _changes in to_update:
-                    pk = id_getter(domain_obj)
-                    orm_obj = session.get(orm_cls, pk)
-                    if not orm_obj:
-                        continue
-
-                    mapped = from_domain(domain_obj)
-
-                    # Copy all mapped column attributes except the PK.
-                    for attr in mapper_cols:
-                        if attr == pk_attr:
+                    for domain_obj, _changes in to_update:
+                        pk = id_getter(domain_obj)
+                        orm_obj = session.get(orm_cls, pk)
+                        if not orm_obj:
                             continue
-                        if hasattr(mapped, attr):
-                            setattr(orm_obj, attr, getattr(mapped, attr))
 
-                if to_insert:
-                    orm_objs = [from_domain(d) for d in to_insert]
-                    session.add_all(orm_objs)
+                        mapped = from_domain(domain_obj)
+
+                        # Copy all mapped column attributes except the PK.
+                        for attr in mapper_cols:
+                            if attr == pk_attr:
+                                continue
+                            if hasattr(mapped, attr):
+                                setattr(orm_obj, attr, getattr(mapped, attr))
+
+                    if to_insert:
+                        orm_objs = [from_domain(d) for d in to_insert]
+                        session.add_all(orm_objs)
+        except SQLAlchemyError as e:
+            logger.error(
+                "postgres_sync_failed",
+                table=getattr(orm_cls, "__tablename__", str(orm_cls)),
+                error=str(e),
+                exc_info=True,
+            )
+            raise PostgresClientError("Failed to sync cache table") from e
 
     # --- Getters -------------------------------------------------------------
 

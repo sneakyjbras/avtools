@@ -15,6 +15,68 @@ from eam_rest_client.grid_query import GridQuery
 from landb_rest_client import register_credentials as landb_register_credentials
 from landb_rest_client.models import Device, IPAddress
 
+from avtools.exception.errors import InfluxError, PostgresError, SNMPError, UtilsError
+
+# ---------------------------------------------------------------------------
+# Optional rest-client exception imports
+#
+# The upstream REST clients may define additional typed exceptions. AVTools uses
+# them when available, but falls back to placeholder types if the dependency
+# version does not expose them.
+# ---------------------------------------------------------------------------
+
+try:  # pragma: no cover
+    from eam_rest_client.exceptions import (  # type: ignore
+        EamRestClientError,
+        EamClientHTTPError,
+        EamClientRetryableHTTPError,
+        EamClientTimeoutError,
+        EamClientTransportError,
+        EamQueryError,
+    )
+except Exception:  # pragma: no cover
+
+    class EamRestClientError(Exception):
+        pass
+
+    class EamClientHTTPError(Exception):
+        pass
+
+    class EamClientRetryableHTTPError(Exception):
+        pass
+
+    class EamClientTimeoutError(Exception):
+        pass
+
+    class EamClientTransportError(Exception):
+        pass
+
+    class EamQueryError(Exception):
+        pass
+
+
+try:  # pragma: no cover
+    from landb_rest_client.exceptions import (  # type: ignore
+        DataAwareValidationError,
+        LanDBRestError,
+        QuerySetError,
+        TokenExpired,
+    )
+except Exception:  # pragma: no cover
+
+    class TokenExpired(Exception):
+        pass
+
+    class QuerySetError(Exception):
+        pass
+
+    class LanDBRestError(Exception):
+        pass
+
+    class DataAwareValidationError(Exception):
+        pass
+
+
 from avtools.influx.client import InfluxClient
 from avtools.postgres.client import PostgresClient
 from avtools.postgres.orm.landb_ipaddress import CachedIPAddress
@@ -177,6 +239,14 @@ class AVTools:
             except EamRestClientError as e:
                 had_errors = True
                 self.logger.error("eam_devices_failed", error=str(e))
+
+            except PostgresError as e:
+                had_errors = True
+                self.logger.exception("eam_devices_postgres_error", error=str(e))
+
+            except UtilsError as e:
+                had_errors = True
+                self.logger.exception("eam_devices_utils_error", error=str(e))
             except Exception:
                 had_errors = True
                 self.logger.exception("eam_devices_failed_unexpected")
@@ -227,6 +297,14 @@ class AVTools:
             except EamRestClientError as e:
                 had_errors = True
                 self.logger.error("eam_positions_failed", error=str(e))
+
+            except PostgresError as e:
+                had_errors = True
+                self.logger.exception("eam_positions_postgres_error", error=str(e))
+
+            except UtilsError as e:
+                had_errors = True
+                self.logger.exception("eam_positions_utils_error", error=str(e))
             except Exception:
                 had_errors = True
                 self.logger.exception("eam_positions_failed_unexpected")
@@ -410,6 +488,12 @@ class AVTools:
                 # Load the current EAM snapshot from Postgres (source of truth for join keys).
                 eam_list: list[Equipment] = self.dbod_helper.get_all_eam_devices()
                 eam_count = len(eam_list)
+            except PostgresError as e:
+                status = "failed_load_eam_devices_postgres_error"
+                self.logger.exception(
+                    "landb_load_eam_devices_postgres_error", error=str(e)
+                )
+                return
             except Exception:
                 status = "failed_load_eam_devices"
                 self.logger.exception("landb_load_eam_devices_failed")
@@ -480,6 +564,12 @@ class AVTools:
             try:
                 cache_list = self.dbod_helper.get_all_landb_devices()
                 cached_count = len(cache_list)
+            except PostgresError as e:
+                status = "failed_load_cached_devices_postgres_error"
+                self.logger.exception(
+                    "landb_load_cached_devices_postgres_error", error=str(e)
+                )
+                return
             except Exception:
                 status = "failed_load_cached_devices"
                 self.logger.exception("landb_load_cached_devices_failed")
@@ -493,6 +583,16 @@ class AVTools:
                     sync_func=self.dbod_helper.sync_landb_devices,
                     name="LanDB IPAddress",
                 )
+            except PostgresError as e:
+                had_errors = True
+                status = "failed_sync_postgres_error"
+                self.logger.exception("landb_sync_postgres_error", error=str(e))
+                return
+            except UtilsError as e:
+                had_errors = True
+                status = "failed_sync_utils_error"
+                self.logger.exception("landb_sync_utils_error", error=str(e))
+                return
             except Exception:
                 had_errors = True
                 status = "failed_sync"
@@ -863,6 +963,12 @@ class AVTools:
                 # SNMP collection requires a target IP, so filter here.
                 devices = [d for d in devices if getattr(d, "ip", None)]
                 devices_total = len(devices)
+            except PostgresError as e:
+                status = "failed_load_landb_devices_postgres_error"
+                self.logger.exception(
+                    "snmp_load_landb_devices_postgres_error", error=str(e)
+                )
+                return
             except Exception:
                 status = "failed_load_landb_devices"
                 self.logger.exception("snmp_load_landb_devices_failed")
@@ -900,6 +1006,8 @@ class AVTools:
             except KeyboardInterrupt:
                 status = "interrupted"
                 raise
+            except InfluxError:
+                had_errors = True
             except Exception:
                 had_errors = True
                 # _publish_snmp already logs, but keep a guardrail.
@@ -1016,20 +1124,24 @@ class AVTools:
             self.logger.info("No metrics collected; skipping write")
             return
 
-        publisher = InfluxClient(
-            host=influx_host,
-            port=influx_port,
-            username=influx_user,
-            password=influx_password,
-            database=influx_db,
-            ssl=True,
-            verify_ssl=True,
-        )
         try:
+            publisher = InfluxClient(
+                host=influx_host,
+                port=influx_port,
+                username=influx_user,
+                password=influx_password,
+                database=influx_db,
+                ssl=True,
+                verify_ssl=True,
+            )
             publisher.write_points(points)
             self.logger.info("influx_write_ok", points=len(points))
-        except Exception:
-            self.logger.exception("influx_write_failed")
+        except InfluxError as e:
+            self.logger.exception("influx_write_failed", error=str(e))
+            raise
+        except Exception as e:
+            self.logger.exception("influx_write_failed_unexpected", error=str(e))
+            raise
 
     # ---------------------------------------------------------------------
     # Generic sync

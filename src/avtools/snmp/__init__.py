@@ -1,3 +1,5 @@
+"""SNMP collection subsystem."""
+
 from __future__ import annotations
 
 from avtools.snmp.client import SNMPClient

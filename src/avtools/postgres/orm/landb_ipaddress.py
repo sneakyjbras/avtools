@@ -1,3 +1,9 @@
+"""LanDB IP cache ORM.
+
+Defines the LanDB IP cache table and the CachedIPAddress domain helper used by
+AVTools when joining EAM metadata with LanDB network targets.
+"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -7,6 +13,10 @@ from landb_rest_client.models import Device, IPAddress
 from pydantic import BaseModel, PrivateAttr
 from sqlalchemy import Index, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from avtools.exception.errors import LanDBIPAddressORMError
+
+from avtools.exception.errors import LanDBIPAddressORMError
 
 
 class Base(DeclarativeBase):
@@ -265,7 +275,7 @@ class LanDBIPAddressORM(Base):
     def from_ipaddress(cls, ipaddr: CachedIPAddress) -> LanDBIPAddressORM:
         equipment_no = _none_if_blank(getattr(ipaddr, "equipment_no", None))
         if not equipment_no:
-            raise ValueError(
+            raise LanDBIPAddressORMError(
                 "LanDB cached IPAddress missing required join key 'equipment_no' (EAM code)."
             )
 

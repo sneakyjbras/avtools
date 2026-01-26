@@ -1,3 +1,9 @@
+"""EAM Position ORM.
+
+Defines the SQLAlchemy ORM table for cached EAM position snapshot rows, along
+with conversion helpers to/from `eam_rest_client.Equipment`.
+"""
+
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -7,6 +13,10 @@ from eam_rest_client import Equipment
 from pydantic import PrivateAttr
 from sqlalchemy import Date, Index, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+from avtools.exception.errors import EAMPositionORMError
+
+from avtools.exception.errors import EAMPositionORMError
 
 
 class Base(DeclarativeBase):
@@ -137,7 +147,7 @@ class EAMPositionORM(Base):
     def from_equipment(cls, equipment: Equipment) -> EAMPositionORM:
         equipment_no = _none_if_blank(cls._get(equipment, "code"))
         if not equipment_no:
-            raise ValueError("Equipment missing required field: code")
+            raise EAMPositionORMError("Equipment missing required field: code")
 
         # Upstream typo only at the boundary:
         raw_commission = cls._get(equipment, "comission_date")
