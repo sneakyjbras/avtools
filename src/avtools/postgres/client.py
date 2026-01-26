@@ -26,16 +26,33 @@ logger = structlog.get_logger(__name__)
 
 
 class PostgresClient:
-    """
-    Helper class for managing database operations using SQLAlchemy ORM.
+    """Postgres cache client used by AVTools.
 
-    - Persists EAM records as a small subset of fields in `EAMDeviceORM`/`EAMPositionORM`.
-    - Persists LanDB records as a small subset of fields in `LanDBIPAddressORM`.
-    - Domain model for EAM is `eam_rest_client.Equipment`.
-    - Domain model for LanDB IP cache is `avtools.postgres.orm.landb_ipaddress.CachedIPAddress`.
+    AVTools stores *snapshots* of upstream systems (EAM, LanDB) in Postgres cache
+    tables. This client is a thin SQLAlchemy wrapper that:
+
+    - reads full snapshot tables into domain objects, and
+    - applies inserts/updates/deletes computed by the core sync logic.
+
+    Notes:
+        These are cache tables. When a schema mismatch is detected, the client may
+        drop and recreate specific tables on startup.
     """
 
     def __init__(self, connection_string: str) -> None:
+        """Create a PostgresClient and ensure cache tables exist.
+
+        Args:
+            connection_string: SQLAlchemy connection string (e.g. DBoD URL).
+
+        Returns:
+            None.
+
+        Notes:
+            The cache tables are created via SQLAlchemy metadata. This is not a
+            migration system: on detected legacy schemas, the relevant cache tables
+            are dropped and recreated.
+        """
         from sqlalchemy.engine import Engine
 
         try:
@@ -130,12 +147,19 @@ class PostgresClient:
     def _get_all(
         self, orm_cls: type, converter: Callable[[Any], Any], error_msg: str
     ) -> list[Any]:
-        """
-        Generic "get all" helper for fetching and converting ORM records.
+        """Fetch all rows from a cache table and convert them to domain objects.
 
-        Efficiency:
-        - One SELECT for the whole table (appropriate for these cache/snapshot tables).
-        - Uses scalars().all() to avoid loading row tuples.
+        Args:
+            orm_cls: SQLAlchemy ORM mapped class for the cache table.
+            converter: Function converting an ORM instance to a domain object.
+            error_msg: Log/exception message prefix.
+
+        Returns:
+            List of converted domain objects.
+
+        Notes:
+            This performs a full-table SELECT. That is intentional because these
+            tables are snapshots and are expected to remain reasonably small.
         """
         with self.Session() as session:
             try:
@@ -150,9 +174,16 @@ class PostgresClient:
     def _get_pk(obj: Any) -> str:
         """Best-effort primary key getter for domain objects.
 
-        For EAM `Equipment`, the identifier is `code`.
-        For LanDB cached records, the identifier is usually `equipment_no`.
-        For older/other models, we try a few common fallbacks.
+        Args:
+            obj: Domain object with a stable identifier attribute.
+
+        Returns:
+            A stringified identifier.
+
+        Notes:
+            AVTools primarily uses:
+            - EAM Equipment: ``code``
+            - LanDB cached records: ``equipment_no``/``equipmentno``
         """
         for attr in (
             "code",
@@ -180,18 +211,24 @@ class PostgresClient:
         *,
         pk_attr: str = "equipment_no",
     ) -> None:
-        """
-        Generic sync implementation for "device-like" tables.
+        """Apply inserts/updates/deletes to a cache table.
 
-        Note:
-          With `Equipment`, the diff keys (domain field names) do not match ORM attribute
-          names. For updates, we therefore re-map using `from_domain(domain_obj)` and
-          copy mapped ORM attributes onto the persisted row.
+        Args:
+            orm_cls: Target SQLAlchemy ORM mapped class.
+            from_domain: Converter from domain object to ORM instance.
+            id_getter: Function extracting the primary key from a domain object.
+            to_insert: Items that do not exist in the cache table yet.
+            to_update: Items that exist in the cache table and have field diffs.
+            to_delete: Primary keys that exist in the cache table but not upstream.
+            pk_attr: ORM attribute name representing the primary key column.
 
-        pk_attr:
-          The ORM column name that holds the primary key for this table.
-          - EAM ORM tables typically use "equipment_no"
-          - LanDB cache tables use "equipment_no"
+        Returns:
+            None.
+
+        Notes:
+            For updates, AVTools re-builds an ORM instance from the domain object and
+            copies column attributes onto the persisted row. This avoids having to
+            maintain a separate field name mapping for each update.
         """
         mapper_cols = [c.key for c in inspect(orm_cls).column_attrs]
 
@@ -233,10 +270,13 @@ class PostgresClient:
     # --- Getters -------------------------------------------------------------
 
     def get_all_landb_devices(self) -> list[CachedIPAddress]:
-        """
-        Retrieve all LanDB cached IP addresses (CachedIPAddress) from the database.
+        """Return all cached LanDB IP targets.
 
-        NOTE: method name kept for backwards compatibility with callers.
+        Returns:
+            List of ``CachedIPAddress`` rows converted from the cache table.
+
+        Notes:
+            Method name is kept for backwards compatibility.
         """
         return self._get_all(
             LanDBIPAddressORM,
@@ -245,8 +285,10 @@ class PostgresClient:
         )
 
     def get_all_eam_devices(self) -> list[Equipment]:
-        """
-        Retrieve all EAM devices (Equipment) from the database.
+        """Return all cached EAM devices.
+
+        Returns:
+            List of ``Equipment`` domain objects reconstructed from the cache table.
         """
         return self._get_all(
             EAMDeviceORM,
@@ -255,8 +297,10 @@ class PostgresClient:
         )
 
     def get_all_eam_positions(self) -> list[Equipment]:
-        """
-        Retrieve all EAM positions (Equipment) from the database.
+        """Return all cached EAM positions.
+
+        Returns:
+            List of ``Equipment`` domain objects reconstructed from the cache table.
         """
         return self._get_all(
             EAMPositionORM,
@@ -272,8 +316,15 @@ class PostgresClient:
         to_update: list[tuple[Equipment, dict[str, Any]]],
         to_delete: list[str],
     ) -> None:
-        """
-        Sync EAM devices (Equipment) by delegating to the generic sync implementation.
+        """Persist the EAM device diff into the cache table.
+
+        Args:
+            to_insert: Devices that should be inserted.
+            to_update: Devices that should be updated, along with a diff dict.
+            to_delete: Primary keys that should be deleted.
+
+        Returns:
+            None.
         """
         self._sync_devices(
             EAMDeviceORM,
@@ -291,8 +342,15 @@ class PostgresClient:
         to_update: list[tuple[Equipment, dict[str, Any]]],
         to_delete: list[str],
     ) -> None:
-        """
-        Sync EAM positions (Equipment) by delegating to the generic sync implementation.
+        """Persist the EAM position diff into the cache table.
+
+        Args:
+            to_insert: Positions that should be inserted.
+            to_update: Positions that should be updated, along with a diff dict.
+            to_delete: Primary keys that should be deleted.
+
+        Returns:
+            None.
         """
         self._sync_devices(
             EAMPositionORM,
@@ -310,8 +368,19 @@ class PostgresClient:
         to_update: list[tuple[CachedIPAddress, dict[str, Any]]],
         to_delete: list[str],
     ) -> None:
-        """
-        Sync LanDB cached IP addresses (CachedIPAddress) using the LanDB IP cache ORM.
+        """Persist the LanDB IP cache diff into the cache table.
+
+        Args:
+            to_insert: New cached IP rows to insert.
+            to_update: Cached IP rows to update, along with a diff dict.
+            to_delete: Primary keys (equipment numbers) to delete.
+
+        Returns:
+            None.
+
+        Notes:
+            The primary key is the EAM equipment number (``equipment_no``) to keep
+            joins back to EAM fast and stable.
         """
         self._sync_devices(
             LanDBIPAddressORM,

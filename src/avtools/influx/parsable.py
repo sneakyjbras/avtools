@@ -13,7 +13,9 @@ class InfluxParsable(ABC):
 
     @abstractmethod
     def to_human(self) -> dict[str, str]:
-        """
-        Return a mapping of label -> formatted value as strings.
+        """Render the object into a human-friendly mapping.
+
+        Returns:
+            Mapping of label to formatted string value.
         """
         pass

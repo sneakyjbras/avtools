@@ -27,19 +27,24 @@ AV Tools is CERN’s monitoring and data‑collection stack for **Audio/Video (A
 10. [Installation from Internal PyPI](#installation-from-internal-pypi)
 11. [Configuration & Secrets](#configuration--secrets)
 12. [Systemd Services, Timers & Wrapper](#systemd-services-timers--wrapper)
-13. [Operations: Day‑2 Tasks](#operations-day-2-tasks)
-14. [Troubleshooting Checklist](#troubleshooting-checklist)
-15. [Repository Layout](#repository-layout)
-16. [Local Development (Python 3.11)](#local-development-python-311)
-17. [Docs](#docs)
-18. [Security Notes](#security-notes)
-19. [Appendix: Links](#appendix-links)
+13. [CLI Usage](#cli-usage)
+14. [Testing & Coverage](#testing--coverage)
+15. [Operations: Day‑2 Tasks](#operations-day-2-tasks)
+16. [Troubleshooting Checklist](#troubleshooting-checklist)
+17. [Repository Layout](#repository-layout)
+18. [Local Development (Python 3.11)](#local-development-python-311)
+19. [Docs](#docs)
+20. [Security Notes](#security-notes)
+21. [Appendix: Links](#appendix-links)
 
 ---
 
 ## What AV Tools Does
 
 - Integrates authoritative **inventory** from EAM and LanDB into a normalized **PostgreSQL** cache (periodic snapshots).
+- Snapshots both **EAM devices (OSOBJA)** and **EAM positions (OSOBJP)** into separate cache tables (`eam_devices`, `eam_positions`), filtered to the AV department.
+- Enriches the EAM snapshot with LanDB **SNMP target IPs** + location metadata into `landb_ipaddresses` (only rows with an IPv4/IPv6 target are persisted).
+- Provides a fast diff/sync engine with an **EAM text sanitizer** (reduces churn from dirty whitespace) and optional per-row **sync reports**.
 - Performs **real‑time telemetry** (e.g., ping/SNMP probe results) written to **InfluxDB** for time‑series analysis.
 - Exposes curated metrics to **Grafana** dashboards for operations and reporting.
 - Is designed for **scale** (tens of thousands of rows in inventory, many probes), **reliability** (systemd timers with idempotent runs), and **observability** (structured logging).
@@ -103,6 +108,20 @@ The scope is **AV devices** deployed at CERN (examples include **projectors**, *
 - **InfluxDB** stores **real‑time probe** outputs (e.g., *ping_check*, *snmp_probe*) for latency/availability and device health.
 - **PostgreSQL** → supports relational joins (e.g., room hierarchies, inventory merges).
 - **Grafana** → primary consumer of both **PostgreSQL** snapshots (slowly‑changing data) and **InfluxDB** (live signals).
+
+
+
+### Cache tables (schema overview)
+
+These Postgres tables are **cache snapshots** owned by AV Tools (safe to rebuild):
+
+- `eam_devices` — subset of EAM `Equipment` rows representing **devices/assets**.
+- `eam_positions` — subset of EAM `Equipment` rows representing **positions** (distinct concept; used for hierarchy/location joins).
+- `landb_ipaddresses` — EAM‑keyed cache of **LanDB SNMP targets** (IPv4/IPv6) enriched with LanDB serial/name and parsed location (`building`, `floor`, `room`).
+
+Notes:
+- Cache tables may be **dropped & recreated automatically** if a legacy schema is detected (to avoid manual migrations).
+- LanDB enrichment is designed to be efficient (bulk lookups by serial number/name; a small number of API calls).
 
 > The project includes SQL/Influx examples and service‑specific usage under `./docs`.
 
@@ -192,11 +211,14 @@ MY_PASSWORD="<SECRET>"
 LANDB_CLIENT_ID=av-tools
 LANDB_CLIENT_SECRET="<SECRET>"
 LANDB_AUDIENCE=production-microservice-landb-rest
-LANDB_TOKEN_FILE=/var/lib/avtools/token
+# Note: `avtools run-landb` takes OAuth parameters as CLI flags.
+# It's still convenient to keep them in env and pass through a wrapper/systemd unit.
+# Optional: depending on LanDB REST client configuration, an OAuth token may be cached on disk.
+# LANDB_TOKEN_FILE=/var/lib/avtools/token
 
 # ---------- InfluxDB ----------
 INFLUX_HOST=<influx-host>
-INFLUX_PORT=8090
+INFLUX_PORT=8086
 INFLUX_USER=<user>
 INFLUX_PASSWORD=<secret>
 INFLUX_DB=<db-name>
@@ -253,6 +275,83 @@ systemctl cat 'avtools@run-eam.service'
 journalctl -u 'avtools@*.service' --since '1h' -n 200 -o cat
 ```
 
+
+## CLI Usage
+
+AV Tools ships a Click-based CLI (console script: `avtools`). Systemd units typically invoke these commands through the wrapper.
+
+### Global options
+
+- `--dbod-url` (or env `DATABASE_URL`) — PostgreSQL cache connection string.
+- `--logs` — enables extra structured logging, including optional per-row sync reports.
+
+### Commands
+
+#### `run-eam`
+
+Snapshots EAM **devices** and **positions** into Postgres.
+
+- Credentials: `MY_USERNAME`, `MY_PASSWORD` (or pass via options).
+- Default grids: `OSOBJA` (devices/assets) and `OSOBJP` (positions), filtered by department code prefix `AV`.
+
+```bash
+export DATABASE_URL='postgresql://<USER>:<PASS>@<HOST>:<PORT>/<DB>'
+export MY_USERNAME='...'
+export MY_PASSWORD='...'
+
+poetry run avtools --logs run-eam
+```
+
+#### `run-landb`
+
+Enriches the current EAM snapshot with LanDB network targets and writes `landb_ipaddresses`.
+
+- OAuth parameters are passed as CLI flags (you can still store them in env and reference them).
+- Only devices with a usable SNMP target IP (**IPv4 or IPv6**) are persisted.
+
+```bash
+export DATABASE_URL='postgresql://<USER>:<PASS>@<HOST>:<PORT>/<DB>'
+
+poetry run avtools run-landb \
+  --client-id "$LANDB_CLIENT_ID" \
+  --client-secret "$LANDB_CLIENT_SECRET" \
+  --audience "$LANDB_AUDIENCE" \
+  --threads 16
+```
+
+#### `snmp-influx`
+
+Loads cached LanDB targets from Postgres, performs ping + SNMP collection, and writes to InfluxDB 1.x.
+
+Measurements written include:
+- `ping_check` (fields: `status`, optional `rtt_ms`)
+- `snmp_probe` (field: `status`)
+- `snmp_query` (device-specific fields; currently implemented for projectors)
+
+```bash
+export DATABASE_URL='postgresql://<USER>:<PASS>@<HOST>:<PORT>/<DB>'
+export INFLUX_HOST='...'
+export INFLUX_PORT=8086
+export INFLUX_USER='...'
+export INFLUX_PASSWORD='...'
+export INFLUX_DB='...'
+
+poetry run avtools snmp-influx --threads 16
+```
+
+
+## Testing & Coverage
+
+Unit tests live under `./tests` and focus on core sync logic, edge cases, and failure handling.
+
+```bash
+poetry install
+poetry run pytest
+
+# Coverage (Cobertura-compatible XML for CI)
+poetry run pytest --cov=avtools --cov-report=term-missing --cov-report=xml:coverage.xml
+```
+
 ## Operations: Day‑2 Tasks
 
 - **Upgrade to a new AV Tools release** (after `poetry publish` to IT‑DCIM PyPI):
@@ -292,7 +391,8 @@ journalctl -u 'avtools@*.service' --since '1h' -n 200 -o cat
 
 ```
 .
-├── avtools/                 # Python 3.11 source tree (packages, entrypoints)
+├── src/avtools/             # Python 3.11 source tree (packages, CLI entrypoints)
+├── tests/                   # Unit tests (pytest)
 ├── docs/                    # Service-specific docs (ETL, probes, SQL/Influx examples, runbooks)
 ├── deployment/              # Deployment notes (e.g., systemd/Puppet details)
 ├── db/                      # DB-related notes or migrations (if applicable)
@@ -333,7 +433,7 @@ Detailed docs for individual services live in **`./docs`**. At a minimum, expect
 - **Do not commit secrets** (passwords, tokens, client secrets).
 - Environment files must be owned by the **service account** (e.g., `avtools`) with restrictive permissions.
 - For internal services, ensure the **corporate CA** is trusted by the runtime (`REQUESTS_CA_BUNDLE`).
-- Tokens (e.g., **LanDB**) are written to paths like `/var/lib/avtools/token` and should be readable only by the service user.
+- OAuth tokens (e.g., **LanDB**) may be cached on disk depending on client configuration; ensure any token files are readable only by the service user.
 
 ## Appendix: Links
 

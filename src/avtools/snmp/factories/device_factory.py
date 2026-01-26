@@ -25,10 +25,28 @@ class DeviceHandlerFactory:
     """Factory for SNMP device handlers based on LanDB eq_class."""
 
     def __init__(self, target: LanDBDevice) -> None:
+        """Create a factory for a single LanDB device.
+
+        Args:
+            target: LanDB device-like object (must expose ``eq_class``, ``ip``, and
+                optionally ``equipment_no``/``serial_number`` for logging).
+
+        Returns:
+            None.
+        """
         self.target = target
 
     def create(self) -> AbstractDeviceHandler | None:
-        """Return an appropriate handler for the target device, or None."""
+        """Create an SNMP handler for the target.
+
+        Returns:
+            A concrete ``AbstractDeviceHandler`` instance, or ``None`` if the device
+            class is unsupported.
+
+        Notes:
+            Unsupported device classes are logged with enough identifiers to debug
+            inventory issues.
+        """
         eq_class = (self.target.eq_class or "").upper()
         factory_cls = _FACTORY_REGISTRY.get(eq_class)
         if not factory_cls:

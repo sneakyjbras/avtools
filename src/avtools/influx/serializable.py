@@ -13,11 +13,13 @@ class InfluxSerializable(ABC):
 
     @abstractmethod
     def to_influx(self) -> dict[str, Any]:
-        """
-        Return a dict with keys:
-          - measurement: str
-          - tags: Dict[str, str]
-          - fields: Dict[str, Any]
-          - time (optional): str
+        """Serialize the object to an InfluxDB point dict.
+
+        Returns:
+            Dict with keys:
+            - ``measurement`` (str)
+            - ``tags`` (dict[str, str])
+            - ``fields`` (dict[str, Any])
+            - ``time`` (optional str)
         """
         pass

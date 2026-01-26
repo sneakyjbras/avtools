@@ -16,14 +16,22 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from avtools.exception.errors import EAMPositionORMError
 
-from avtools.exception.errors import EAMPositionORMError
-
 
 class Base(DeclarativeBase):
+    """SQLAlchemy declarative base for this module."""
+
     pass
 
 
 def _none_if_blank(value: Any) -> str | None:
+    """Normalize a potentially empty value to a trimmed string.
+
+    Args:
+        value: Input value (string/number/None).
+
+    Returns:
+        Trimmed string, or ``None`` if the value is ``None`` or blank after trimming.
+    """
     if value is None:
         return None
     if isinstance(value, str):
@@ -33,6 +41,18 @@ def _none_if_blank(value: Any) -> str | None:
 
 
 def _parse_any_date(v: Any) -> date | None:
+    """Parse a date from multiple common EAM representations.
+
+    Args:
+        v: A value that may represent a date (``date``, ``datetime``, or string).
+
+    Returns:
+        A ``date`` if parsing succeeds, otherwise ``None``.
+
+    Notes:
+        Supports EAM's common ``"%d-%b-%Y"`` format as well as ISO-8601 date/datetime
+        strings (including a trailing ``Z``).
+    """
     if v is None or v == "":
         return None
 
@@ -69,6 +89,14 @@ def _parse_any_date(v: Any) -> date | None:
 
 
 def _format_eam_date(d: date | None) -> str | None:
+    """Format a date in EAM's typical display format.
+
+    Args:
+        d: Date value.
+
+    Returns:
+        A string formatted as ``DD-Mon-YYYY`` or ``None``.
+    """
     return d.strftime("%d-%b-%Y") if d else None
 
 
@@ -78,6 +106,11 @@ class CachedEquipment(Equipment):
     _avtools_compare_fields: set[str] = PrivateAttr(default_factory=set)
 
     def avtools_compare_fields(self) -> set[str]:
+        """Return the set of field names to compare when diffing.
+
+        Returns:
+            A copy of the compare-field set.
+        """
         return set(self._avtools_compare_fields)
 
 
@@ -134,7 +167,15 @@ class EAMPositionORM(Base):
 
     @staticmethod
     def _get(obj: Any, name: str) -> Any:
-        """Get attribute or dict key; treat '' as missing."""
+        """Fetch an attribute or dict key, treating empty strings as missing.
+
+        Args:
+            obj: Domain object or dict payload.
+            name: Attribute/key name to look up.
+
+        Returns:
+            The value if present and non-empty, otherwise ``None``.
+        """
         if isinstance(obj, dict):
             v = obj.get(name)
             return None if v in ("", None) else v
@@ -145,6 +186,21 @@ class EAMPositionORM(Base):
 
     @classmethod
     def from_equipment(cls, equipment: Equipment) -> EAMPositionORM:
+        """Convert an EAM ``Equipment`` domain object into an ORM row.
+
+        Args:
+            equipment: EAM equipment/position record.
+
+        Returns:
+            ORM instance ready to be inserted/updated in Postgres.
+
+        Raises:
+            EAMPositionORMError: If the required join key (``code``) is missing.
+
+        Notes:
+            The upstream EAM payload uses the misspelled key ``comission_date``.
+            Internally we store the corrected spelling as ``commission_date``.
+        """
         equipment_no = _none_if_blank(cls._get(equipment, "code"))
         if not equipment_no:
             raise EAMPositionORMError("Equipment missing required field: code")
@@ -168,6 +224,16 @@ class EAMPositionORM(Base):
         )
 
     def to_equipment(self) -> Equipment:
+        """Convert this ORM row back into an EAM ``Equipment``-shaped object.
+
+        Returns:
+            A ``CachedEquipment`` instance (subclass of ``Equipment``) containing
+            only the fields AVTools persists/diffs against.
+
+        Notes:
+            - The outbound payload uses the upstream misspelling ``comission_date``.
+            - The returned object carries an AVTools compare-field whitelist.
+        """
         payload: dict[str, Any] = {
             "code": self.equipment_no,
             "class_code": self.eq_class,
@@ -192,6 +258,7 @@ class EAMPositionORM(Base):
         return eq
 
     def __repr__(self) -> str:
+        """Return a compact, debug-friendly representation."""
         return (
             "EAMPositionORM("
             f"equipment_no={self.equipment_no!r}, "
