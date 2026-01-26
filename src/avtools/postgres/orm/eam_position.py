@@ -122,7 +122,6 @@ class EAMPositionORM(Base):
         Index("ix_eam_positions_parentasset", "parentasset"),
         Index("ix_eam_positions_status", "assetstatus_display"),
         Index("ix_eam_positions_eqclass_category", "eqclass", "category"),
-        Index("ix_eam_positions_location", "location"),
     )
 
     equipment_no: Mapped[str] = mapped_column(
