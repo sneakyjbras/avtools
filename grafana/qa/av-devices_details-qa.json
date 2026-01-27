@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 40132,
+  "id": 51267,
   "links": [
     {
       "asDropdown": false,
@@ -147,7 +147,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
+        "w": 2,
         "x": 0,
         "y": 4
       },
@@ -177,7 +177,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "-- Panel query (Device \u2192 Room for Stat)\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position::varchar AS position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position                                AS start_pos,\n    p.equipmentno::varchar                     AS cur_pos,\n    p.parentasset::varchar                     AS parent_pos,\n    0                                          AS depth,\n    ARRAY[p.equipmentno::varchar]::varchar[]   AS visited\n  FROM device_positions dp\n  JOIN eam_positions p\n    ON p.equipmentno::varchar = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno::varchar,\n    p.parentasset::varchar,\n    c.depth + 1,\n    (c.visited || p.equipmentno::varchar)::varchar[]\n  FROM climb c\n  JOIN eam_positions p\n    ON p.equipmentno::varchar = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno::varchar = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp\n    ON rp.equipmentno::varchar = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nlisted AS (\n  SELECT\n    room.equipmentno::varchar AS ConferenceRoomNo,\n    CONCAT(parts.part1_txt, '/', parts.part2_txt, '-', parts.part3_txt) AS ConferenceRoomNoFmt,\n    room.equipmentdesc       AS ConferenceRoom,\n    d.equipmentno            AS EquipmentNo\n  FROM eam_devices d\n  JOIN pos_to_room pr\n    ON pr.start_pos = d.position::varchar\n  JOIN eam_positions room\n    ON room.equipmentno::varchar = pr.room_no\n\n  -- natural-sort split for room code\n  CROSS JOIN LATERAL (\n    SELECT\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',1) AS part1_txt,\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',2) AS part2_txt,\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',3) AS part3_txt\n  ) AS parts\n)\nSELECT\n  ConferenceRoomNoFmt\nFROM listed\nWHERE EquipmentNo IN (${device:sqlstring})\nLIMIT 1;\n",
+          "rawSql": "-- Panel query (Device → Room for Stat)\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position::varchar AS position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position                                AS start_pos,\n    p.equipmentno::varchar                     AS cur_pos,\n    p.parentasset::varchar                     AS parent_pos,\n    0                                          AS depth,\n    ARRAY[p.equipmentno::varchar]::varchar[]   AS visited\n  FROM device_positions dp\n  JOIN eam_positions p\n    ON p.equipmentno::varchar = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno::varchar,\n    p.parentasset::varchar,\n    c.depth + 1,\n    (c.visited || p.equipmentno::varchar)::varchar[]\n  FROM climb c\n  JOIN eam_positions p\n    ON p.equipmentno::varchar = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno::varchar = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp\n    ON rp.equipmentno::varchar = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nlisted AS (\n  SELECT\n    room.equipmentno::varchar AS ConferenceRoomNo,\n    CONCAT(parts.part1_txt, '/', parts.part2_txt, '-', parts.part3_txt) AS ConferenceRoomNoFmt,\n    room.equipmentdesc       AS ConferenceRoom,\n    d.equipmentno            AS EquipmentNo\n  FROM eam_devices d\n  JOIN pos_to_room pr\n    ON pr.start_pos = d.position::varchar\n  JOIN eam_positions room\n    ON room.equipmentno::varchar = pr.room_no\n\n  -- natural-sort split for room code\n  CROSS JOIN LATERAL (\n    SELECT\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',1) AS part1_txt,\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',2) AS part2_txt,\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',3) AS part3_txt\n  ) AS parts\n)\nSELECT\n  ConferenceRoomNoFmt\nFROM listed\nWHERE EquipmentNo IN (${device:sqlstring})\nLIMIT 1;\n",
           "refId": "A",
           "sql": {
             "columns": [
@@ -269,7 +269,7 @@
       "gridPos": {
         "h": 4,
         "w": 3,
-        "x": 3,
+        "x": 2,
         "y": 4
       },
       "id": 37,
@@ -388,8 +388,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
-        "x": 6,
+        "w": 2,
+        "x": 5,
         "y": 4
       },
       "id": 38,
@@ -465,8 +465,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
-        "x": 9,
+        "w": 2,
+        "x": 7,
         "y": 4
       },
       "id": 44,
@@ -517,6 +517,83 @@
         }
       ],
       "title": "Manufacturer",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "default": false,
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#00000087",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 4
+      },
+      "id": 49,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/.*/",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "value",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.5.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT model FROM eam_devices WHERE equipmentno = ${device:sqlstring};",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          }
+        }
+      ],
+      "title": "Model",
       "type": "stat"
     },
     {
@@ -1810,6 +1887,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Device Details",
   "uid": "av_devices_details-qa",
-  "version": 170,
+  "version": 12,
   "weekStart": "sunday"
 }
