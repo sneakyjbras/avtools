@@ -17,7 +17,7 @@ def test_from_equipment_maps_fields_and_parses_commission_date() -> None:
     eq = DummyEq(
         code="POS-1",
         class_code="AVS",
-        category="AV-SCR",
+        category_code="AV-SCR",
         description="DESC",
         assigned_to="SPONSOR",
         hierarchy_asset_code="ASSET-1",
@@ -62,7 +62,7 @@ def test_to_equipment_sets_expected_keys_and_compare_fields() -> None:
 
     assert getattr(eq, "code") == "POS-2"
     assert getattr(eq, "class_code") == "AVS"
-    assert getattr(eq, "category") == "AV-SCR"
+    assert getattr(eq, "category_code") == "AV-SCR"
     assert getattr(eq, "description") == "X"
     assert getattr(eq, "assigned_to") == "S"
     assert getattr(eq, "hierarchy_asset_code") == "PA"
@@ -87,6 +87,6 @@ def test_to_equipment_sets_expected_keys_and_compare_fields() -> None:
     compare = eq.avtools_compare_fields()  # type: ignore[attr-defined]
     assert "code" in compare
     assert "hierarchy_location_code" in compare
-    assert "category" in compare
+    assert "category_code" in compare
     assert "assigned_to" in compare
     assert "comission_date" in compare
