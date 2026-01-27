@@ -155,7 +155,7 @@ class EAMPositionORM(Base):
     _DB_COMPARE_FIELDS: set[str] = {
         "code",
         "class_code",
-        "category",
+        "category_code",
         "description",
         "assigned_to",  # backed by `sponsor`
         "hierarchy_asset_code",
@@ -210,7 +210,7 @@ class EAMPositionORM(Base):
         return cls(
             equipment_no=equipment_no,
             eq_class=_none_if_blank(cls._get(equipment, "class_code")),
-            category=_none_if_blank(cls._get(equipment, "category")),
+            category=_none_if_blank(cls._get(equipment, "category_code")),
             equipment_desc=_none_if_blank(cls._get(equipment, "description")),
             sponsor=_none_if_blank(cls._get(equipment, "assigned_to")),
             parent_asset=_none_if_blank(cls._get(equipment, "hierarchy_asset_code")),
@@ -233,7 +233,7 @@ class EAMPositionORM(Base):
         payload: dict[str, Any] = {
             "code": self.equipment_no,
             "class_code": self.eq_class,
-            "category": self.category,
+            "category_code": self.category,
             "description": self.equipment_desc,
             "assigned_to": self.sponsor,  # legacy mapping
             "hierarchy_asset_code": self.parent_asset,
