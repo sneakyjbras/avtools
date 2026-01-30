@@ -476,7 +476,7 @@
                   {
                     "targetBlank": false,
                     "title": "Details",
-                    "url": "https://monit-grafana.cern.ch/d/av_devices_details-qa/av3a-device-details?orgId=12&refresh=5m&${status:param}﻿﻿&{$room:queryparam}﻿&${eqclass:queryparam}﻿&${category:queryparam}&var-device=﻿﻿${__data.fields.equipmentno}"
+                    "url": "https://monit-grafana.cern.ch/d/av_devices_details-qa/av3a-device-details?orgId=12&refresh=5m&${status:param}﻿﻿&{$room:queryparam}﻿&${eqclass:queryparam}﻿&${category:queryparam}&var-device=﻿﻿${__data.fields.equipmentno}&var-hostname=${__data.fields.Hostname}"
                   }
                 ]
               },
@@ -3732,6 +3732,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices Table",
   "uid": "av_devices_dashboard-qa",
-  "version": 3,
+  "version": 4,
   "weekStart": "sunday"
 }

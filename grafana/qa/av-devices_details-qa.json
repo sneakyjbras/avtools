@@ -67,7 +67,7 @@
       "title": "LanDB",
       "tooltip": "",
       "type": "link",
-      "url": "https://landb.cern.ch/portal/devices/${device:text}"
+      "url": "https://landb.cern.ch/portal/devices/${hostname:text}"
     },
     {
       "asDropdown": false,
@@ -79,7 +79,7 @@
       "title": "Hostpage",
       "tooltip": "",
       "type": "link",
-      "url": "https://${device:text}.cern.ch/"
+      "url": "https://${hostname:text}/"
     }
   ],
   "liveNow": true,
@@ -1733,8 +1733,8 @@
       {
         "current": {
           "selected": false,
-          "text": "PROJECTOR008",
-          "value": "CCAX-000008"
+          "text": "DMP64-PLUS-CAT-015",
+          "value": "CCAX-004336"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -1754,6 +1754,31 @@
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "DMP64-PLUS-CAT-015.CERN.CH",
+          "value": "CCAX-004336"
+        },
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "dfaue906qonpcf"
+        },
+        "definition": "SELECT\n  l.equipmentno AS \"__value\",\n  COALESCE(NULLIF(l.hostname, ''), '[' || l.equipmentno || ']') AS \"__text\"\nFROM landb_ipaddresses l\nWHERE l.equipmentno IS NOT NULL\nORDER BY \"__text\";\n",
+        "description": "Populates the device selector with values from landb_ipaddresses. The variable value is the device equipmentno, and the displayed text is the LanDB hostname (falls back to [equipmentno] if the hostname is empty). Results are sorted alphabetically by the displayed text.",
+        "hide": 2,
+        "includeAll": false,
+        "label": "Hostname",
+        "multi": false,
+        "name": "hostname",
+        "options": [],
+        "query": "SELECT\n  l.equipmentno AS \"__value\",\n  COALESCE(NULLIF(l.hostname, ''), '[' || l.equipmentno || ']') AS \"__text\"\nFROM landb_ipaddresses l\nWHERE l.equipmentno IS NOT NULL\nORDER BY \"__text\";\n",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
       }
     ]
   },
@@ -1767,6 +1792,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Device Details",
   "uid": "av_devices_details-qa",
-  "version": 13,
+  "version": 17,
   "weekStart": "sunday"
 }
