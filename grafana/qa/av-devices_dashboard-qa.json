@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 51266,
+  "id": 52255,
   "links": [
     {
       "asDropdown": false,
@@ -404,7 +404,7 @@
                   {
                     "targetBlank": true,
                     "title": "LanDB",
-                    "url": "https://landb.cern.ch/portal/devices/${__data.fields.Device}"
+                    "url": "https://landb.cern.ch/portal/devices/${__data.fields.Hostname}"
                   }
                 ]
               },
@@ -440,7 +440,7 @@
                   {
                     "targetBlank": true,
                     "title": "Hostpage",
-                    "url": "https://${__data.fields.Device}.cern.ch"
+                    "url": "https://${__data.fields.Hostname}"
                   }
                 ]
               },
@@ -535,6 +535,18 @@
                 "value": 220
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Hostname"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
           }
         ]
       },
@@ -570,7 +582,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "-- Panel query (Status → Manufacturer → Device filtering)\n\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position::varchar AS position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position                                AS start_pos,\n    p.equipmentno::varchar                     AS cur_pos,\n    p.parentasset::varchar                     AS parent_pos,\n    0                                          AS depth,\n    ARRAY[p.equipmentno::varchar]::varchar[]   AS visited\n  FROM device_positions dp\n  JOIN eam_positions p\n    ON p.equipmentno::varchar = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno::varchar,\n    p.parentasset::varchar,\n    c.depth + 1,\n    (c.visited || p.equipmentno::varchar)::varchar[]\n  FROM climb c\n  JOIN eam_positions p\n    ON p.equipmentno::varchar = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno::varchar = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp\n    ON rp.equipmentno::varchar = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nlisted AS (\n  SELECT\n    room.equipmentno::varchar AS ConferenceRoomNo,\n    CONCAT(parts.part1_txt, '/', parts.part2_txt, '-', parts.part3_txt) AS ConferenceRoomNoFmt,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.assetstatus_display AS RoomStatus,\n    d.equipmentno            AS EquipmentNo,\n    d.equipmentdesc          AS DeviceDesc,\n    d.model                  AS Model,         -- NEW\n    COALESCE(ld.manufacturer, d.manufacturer) AS Manufacturer,\n    d.commissiondate         AS CommissionDate,\n    d.assetstatus_display    AS LeafStatus,\n    d.eqclass                AS DeviceClass,\n    d.category               AS DeviceCategory,\n\n    -- Link flags: only when LanDB has a matching equipment (ld.equipmentno IS NOT NULL)\n    CASE WHEN ld.equipmentno IS NOT NULL THEN 1 END AS LinkLanDB,\n    CASE WHEN ld.equipmentno IS NOT NULL THEN 1 END AS LinkHostPage,\n    CASE WHEN ld.equipmentno IS NOT NULL THEN 1 END AS LinkDetails,\n\n    parts.part1_txt, parts.part2_txt, parts.part3_txt\n  FROM eam_devices d\n  JOIN pos_to_room pr\n    ON pr.start_pos = d.position::varchar\n  JOIN eam_positions room\n    ON room.equipmentno::varchar = pr.room_no\n\n  -- natural-sort split for room code\n  CROSS JOIN LATERAL (\n    SELECT\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',1) AS part1_txt,\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',2) AS part2_txt,\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',3) AS part3_txt\n  ) AS parts\n\n  -- LanDB enrichment (prefer LanDB manufacturer; fallback to EAM)\n  LEFT JOIN LATERAL (\n    SELECT DISTINCT ON (equipmentno)\n           equipmentno,\n           manufacturer\n    FROM landb_ipaddresses\n    WHERE equipmentno = d.equipmentno\n      AND (d.serialnumber IS NULL OR serialnumber = d.serialnumber)\n    ORDER BY equipmentno\n  ) ld ON true\n\n  WHERE\n    -- ROOM: All (__all) = no filter, else CSV list\n    ( '${room:raw}' = '__all'\n      OR room.equipmentno::varchar = ANY( STRING_TO_ARRAY('${room:csv}', ',') ) )\n\n    -- EQCLASS: All (__all) = no filter, else CSV list\n    AND (\n      '${eqclass:raw}' = '__all'\n      OR d.eqclass = ANY( STRING_TO_ARRAY('${eqclass:csv}', ',') )\n    )\n\n    -- ROOM STATUS: regex on room status\n    AND (\n      '${status:raw}' = '__all'\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')\n    )\n\n    -- CATEGORY: All (__all) = no filter; otherwise include real cats and __none__\n    AND (\n      '${category:raw}' = '__all'\n      OR COALESCE(NULLIF(d.category,''), '__none__')\n           = ANY( STRING_TO_ARRAY('${category:csv}', ',') )\n    )\n)\nSELECT\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomStatus,\n  EquipmentNo,\n  DeviceDesc,\n  Model,                -- NEW\n  Manufacturer,\n  CommissionDate,\n  LeafStatus,\n  DeviceClass,\n  DeviceCategory,\n  LinkLanDB,\n  LinkHostPage,\n  LinkDetails,\n  ConferenceRoomNo\nFROM (\n  SELECT *,\n    NULLIF(regexp_replace(part1_txt,'\\D.*$',''),'')::int AS part1_num,\n    regexp_replace(part1_txt,'^\\d+','')                  AS part1_suf,\n    NULLIF(regexp_replace(part2_txt,'\\D.*$',''),'')::int AS part2_num,\n    regexp_replace(part2_txt,'^\\d+','')                  AS part2_suf,\n    NULLIF(regexp_replace(part3_txt,'\\D.*$',''),'')::int AS part3_num,\n    regexp_replace(part3_txt,'^\\d+','')                  AS part3_suf\n  FROM listed\n) s\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo,\n  DeviceDesc;\n",
+          "rawSql": "-- Panel query (Status → Manufacturer → Device filtering)\n\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position::varchar AS position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position                                AS start_pos,\n    p.equipmentno::varchar                     AS cur_pos,\n    p.parentasset::varchar                     AS parent_pos,\n    0                                          AS depth,\n    ARRAY[p.equipmentno::varchar]::varchar[]   AS visited\n  FROM device_positions dp\n  JOIN eam_positions p\n    ON p.equipmentno::varchar = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno::varchar,\n    p.parentasset::varchar,\n    c.depth + 1,\n    (c.visited || p.equipmentno::varchar)::varchar[]\n  FROM climb c\n  JOIN eam_positions p\n    ON p.equipmentno::varchar = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno::varchar = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp\n    ON rp.equipmentno::varchar = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nlisted AS (\n  SELECT\n    room.equipmentno::varchar AS ConferenceRoomNo,\n    CONCAT(parts.part1_txt, '/', parts.part2_txt, '-', parts.part3_txt) AS ConferenceRoomNoFmt,\n    room.equipmentdesc       AS ConferenceRoom,\n    room.assetstatus_display AS RoomStatus,\n    d.equipmentno            AS EquipmentNo,\n    d.equipmentdesc          AS DeviceDesc,\n    d.model                  AS Model,         -- NEW\n    COALESCE(ld.manufacturer, d.manufacturer) AS Manufacturer,\n    ld.hostname              AS Hostname,      -- NEW: Hostname (nullable)\n    d.commissiondate         AS CommissionDate,\n    d.assetstatus_display    AS LeafStatus,\n    d.eqclass                AS DeviceClass,\n    d.category               AS DeviceCategory,\n\n    -- Link flags: only when LanDB has a matching equipment (ld.equipmentno IS NOT NULL)\n    CASE WHEN ld.equipmentno IS NOT NULL THEN 1 END AS LinkLanDB,\n    CASE WHEN ld.equipmentno IS NOT NULL THEN 1 END AS LinkHostPage,\n    CASE WHEN ld.equipmentno IS NOT NULL THEN 1 END AS LinkDetails,\n\n    parts.part1_txt, parts.part2_txt, parts.part3_txt\n  FROM eam_devices d\n  JOIN pos_to_room pr\n    ON pr.start_pos = d.position::varchar\n  JOIN eam_positions room\n    ON room.equipmentno::varchar = pr.room_no\n\n  -- natural-sort split for room code\n  CROSS JOIN LATERAL (\n    SELECT\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',1) AS part1_txt,\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',2) AS part2_txt,\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',3) AS part3_txt\n  ) AS parts\n\n  -- LanDB enrichment (prefer LanDB manufacturer; fallback to EAM)\n  LEFT JOIN LATERAL (\n    SELECT DISTINCT ON (equipmentno)\n           equipmentno,\n           manufacturer,\n           hostname          -- NEW: Hostname\n    FROM landb_ipaddresses\n    WHERE equipmentno = d.equipmentno\n      AND (d.serialnumber IS NULL OR serialnumber = d.serialnumber)\n    ORDER BY equipmentno\n  ) ld ON true\n\n  WHERE\n    -- ROOM: All (__all) = no filter, else CSV list\n    ( '${room:raw}' = '__all'\n      OR room.equipmentno::varchar = ANY( STRING_TO_ARRAY('${room:csv}', ',') ) )\n\n    -- EQCLASS: All (__all) = no filter, else CSV list\n    AND (\n      '${eqclass:raw}' = '__all'\n      OR d.eqclass = ANY( STRING_TO_ARRAY('${eqclass:csv}', ',') )\n    )\n\n    -- ROOM STATUS: regex on room status\n    AND (\n      '${status:raw}' = '__all'\n      OR room.assetstatus_display ~ ('^(' || '${status:regex}' || ')$')\n    )\n\n    -- CATEGORY: All (__all) = no filter; otherwise include real cats and __none__\n    AND (\n      '${category:raw}' = '__all'\n      OR COALESCE(NULLIF(d.category,''), '__none__')\n           = ANY( STRING_TO_ARRAY('${category:csv}', ',') )\n    )\n)\nSELECT\n  ConferenceRoomNoFmt,\n  ConferenceRoom,\n  RoomStatus,\n  EquipmentNo,\n  DeviceDesc,\n  Model,                -- NEW\n  Manufacturer,\n  Hostname,             -- NEW\n  CommissionDate,\n  LeafStatus,\n  DeviceClass,\n  DeviceCategory,\n  LinkLanDB,\n  LinkHostPage,\n  LinkDetails,\n  ConferenceRoomNo\nFROM (\n  SELECT *,\n    NULLIF(regexp_replace(part1_txt,'\\D.*$',''),'')::int AS part1_num,\n    regexp_replace(part1_txt,'^\\d+','')                  AS part1_suf,\n    NULLIF(regexp_replace(part2_txt,'\\D.*$',''),'')::int AS part2_num,\n    regexp_replace(part2_txt,'^\\d+','')                  AS part2_suf,\n    NULLIF(regexp_replace(part3_txt,'\\D.*$',''),'')::int AS part3_num,\n    regexp_replace(part3_txt,'^\\d+','')                  AS part3_suf\n  FROM listed\n) s\nORDER BY\n  part1_num NULLS LAST, part1_suf,\n  part2_num NULLS LAST, part2_suf,\n  part3_num NULLS LAST, part3_suf,\n  ConferenceRoomNo,\n  DeviceDesc;\n",
           "refId": "A",
           "sql": {
             "columns": [
@@ -689,6 +701,7 @@
               "devicedesc": "Device",
               "deviceno": "Asset",
               "equipmentno": "Asset",
+              "hostname": "Hostname",
               "leafstatus": "Status",
               "linkdetails": "Details",
               "linkeam": "",
@@ -1586,8 +1599,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -2070,8 +2082,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           }
@@ -2527,8 +2538,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           }
@@ -2934,8 +2944,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           }
@@ -3723,6 +3732,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Devices Table",
   "uid": "av_devices_dashboard-qa",
-  "version": 11,
+  "version": 3,
   "weekStart": "sunday"
 }

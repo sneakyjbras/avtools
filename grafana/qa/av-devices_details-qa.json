@@ -147,7 +147,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 2,
+        "w": 3,
         "x": 0,
         "y": 4
       },
@@ -269,7 +269,7 @@
       "gridPos": {
         "h": 4,
         "w": 3,
-        "x": 2,
+        "x": 3,
         "y": 4
       },
       "id": 37,
@@ -330,126 +330,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "mappings": [
-            {
-              "options": {
-                "AV-PRO": {
-                  "index": 0,
-                  "text": "Projector"
-                },
-                "AV-PSC": {
-                  "index": 1,
-                  "text": "Projection Screen"
-                },
-                "AV-SCR": {
-                  "index": 2,
-                  "text": "LCD Screen"
-                },
-                "AV-WIR": {
-                  "index": 3,
-                  "text": "Wireless Display"
-                },
-                "AVC-AR": {
-                  "index": 4,
-                  "text": "Audio Recording"
-                },
-                "AVC-CO": {
-                  "index": 5,
-                  "text": "Control PC"
-                },
-                "AVC-EN": {
-                  "index": 6,
-                  "text": "Encoding PC"
-                },
-                "AVC-PR": {
-                  "index": 7,
-                  "text": "Presentation PC"
-                },
-                "AVC-SC": {
-                  "index": 8,
-                  "text": "Screen Control PC"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#00000087",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 2,
-        "x": 5,
-        "y": 4
-      },
-      "id": 38,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "dfaue906qonpcf"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT category FROM eam_devices WHERE equipmentno = ${device:sqlstring};",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "Device Category",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "grafana-postgresql-datasource",
-        "uid": "dfaue906qonpcf"
-      },
-      "fieldConfig": {
-        "defaults": {
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -465,8 +345,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 2,
-        "x": 7,
+        "w": 3,
+        "x": 6,
         "y": 4
       },
       "id": 44,
@@ -1887,6 +1767,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Device Details",
   "uid": "av_devices_details-qa",
-  "version": 12,
+  "version": 13,
   "weekStart": "sunday"
 }
