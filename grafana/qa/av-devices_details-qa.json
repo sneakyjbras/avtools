@@ -1094,8 +1094,12 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "transparent",
                 "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
               },
               {
                 "color": "#EAB839",
@@ -1828,6 +1832,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Device Details",
   "uid": "av_devices_details-qa",
-  "version": 28,
+  "version": 31,
   "weekStart": "sunday"
 }

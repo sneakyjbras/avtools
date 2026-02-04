@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 51267,
+  "id": 52254,
   "links": [
     {
       "asDropdown": false,
@@ -1094,8 +1094,12 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "transparent",
                 "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
               },
               {
                 "color": "#EAB839",
@@ -1795,7 +1799,7 @@
         "current": {
           "selected": false,
           "text": "TELEVIC-005.CERN.CH",
-          "value": "CCAX-001707"
+          "value": "CCAX-001923"
         },
         "datasource": {
           "type": "grafana-postgresql-datasource",
@@ -1828,6 +1832,6 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Device Details",
   "uid": "av_devices_details",
-  "version": 28,
+  "version": 9,
   "weekStart": "sunday"
 }
