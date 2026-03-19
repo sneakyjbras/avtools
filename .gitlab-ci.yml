@@ -139,6 +139,7 @@ deploy_grafana_qa:
     - apt-get update
     - apt-get install -y --no-install-recommends curl ca-certificates
     - chmod +x scripts/sync_grafana_dashboards.sh scripts/sync_grafana_rulegroup.sh scripts/sync_grafana_rulegroup_qa.sh
+    - : "${GRAFANA_API_TOKEN_QA:?Missing required CI/CD variable GRAFANA_API_TOKEN_QA}"
     - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_QA"
   script:
     - ./scripts/sync_grafana_dashboards.sh put qa
@@ -164,7 +165,8 @@ deploy_grafana_prod:
     - apt-get update
     - apt-get install -y --no-install-recommends curl ca-certificates
     - chmod +x scripts/sync_grafana_dashboards.sh scripts/sync_grafana_rulegroup.sh scripts/sync_grafana_rulegroup_qa.sh
+    - : "${GRAFANA_API_TOKEN_PROD:?Missing required CI/CD variable GRAFANA_API_TOKEN_PROD}"
     - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_PROD"
   script:
     - ./scripts/sync_grafana_dashboards.sh put prod
-    - ./scripts/sync_grafana_rulegroup.sh put prod
+    - ./scripts/sync_grafana_rulegroup.sh prod
