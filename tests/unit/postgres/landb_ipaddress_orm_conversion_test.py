@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 import pytest
 
-import avtools.postgres.orm.landb_ipaddress as mod
-from avtools.postgres.orm.landb_ipaddress import (
+import avtools.postgres.inventory.orm.landb_ipaddress as mod
+from avtools.postgres.inventory.orm.landb_ipaddress import (
     CachedIPAddress,
     LanDBIPAddressORM,
     LanDBIPAddressORMError,

@@ -3,7 +3,10 @@ from __future__ import annotations
 from sqlalchemy import select
 
 from avtools.postgres.client import PostgresClient
-from avtools.postgres.orm.landb_ipaddress import CachedIPAddress, LanDBIPAddressORM
+from avtools.postgres.inventory.orm.landb_ipaddress import (
+    CachedIPAddress,
+    LanDBIPAddressORM,
+)
 
 
 def test_sync_landb_devices_inserts_updates_and_deletes(tmp_path) -> None:

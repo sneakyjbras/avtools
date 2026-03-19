@@ -1,42 +1,30 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from pathlib import Path
-from typing import Any
 
 import click
+import requests
 import structlog
 
 from avtools.core.av_tools import AVTools
 from avtools.exception.errors import NoRecordsFound
-from avtools.influx.ts_helper import TimeSeriesHelper
-from avtools.snmp.client import SNMPClient
 
 logger = structlog.get_logger(__name__)
 
 
-def _load_landb_token(ctx: click.Context, param: click.Parameter, value: str) -> str:
-    """
-    Click callback to load the LanDB API token from a file path.
+def _configure_logging(logs: bool) -> None:
+    log_level = logging.DEBUG if logs else logging.INFO
 
-    Reads and returns the token string, raising a ClickException on errors.
+    structlog.configure(
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
+    )
+    logging.basicConfig(level=log_level)
+    logger.info("Logging configured", log_level=log_level)
 
-    Args:
-        ctx (click.Context): Click context.
-        param (click.Parameter): Parameter metadata.
-        value (str): File path to the token file.
 
-    Returns:
-        str: The trimmed token string.
-    """
-    token_path = Path(value)
-    if not token_path.exists():
-        raise click.ClickException(f"LanDB token file not found: {value}")
-    token = token_path.read_text().strip()
-    if not token:
-        raise click.ClickException(f"LanDB token file is empty: {value}")
-    return token
+# -----------------------------------------------------------------------------
+# CLI
+# -----------------------------------------------------------------------------
 
 
 @click.group(
@@ -55,33 +43,11 @@ def _load_landb_token(ctx: click.Context, param: click.Parameter, value: str) ->
     help="DBoD PostgreSQL URL (env DATABASE_URL).",
 )
 @click.pass_context
-def cli(
-    ctx: click.Context,
-    logs: bool,
-    dbod_url: str,
-) -> None:
-    """
-    Root entry point that configures logging and passes context.
-
-    Args:
-        ctx (click.Context): Context object for passing parameters.
-        logs (bool): Flag to enable debug logging.
-        dbod_url (str): Database URL for DBoD operations.
-    """
+def cli(ctx: click.Context, logs: bool, dbod_url: str) -> None:
     ctx.obj = {"logs": logs, "dbod_url": dbod_url}
-
-    # Simple structlog-based logging config replacing system_logger.configure
-    log_level = logging.DEBUG if logs else logging.INFO
-    structlog.configure(
-        wrapper_class=structlog.make_filtering_bound_logger(log_level),
-    )
-    logging.basicConfig(level=log_level)
-    logger.info("Logging configured", log_level=log_level)
+    _configure_logging(logs)
 
 
-# ---------------------------------------------------------------------------- #
-# run-eam                                                                     #
-# ---------------------------------------------------------------------------- #
 @cli.command("run-eam", help="Run EAM CRUD operations.")
 @click.option(
     "--username",
@@ -97,63 +63,34 @@ def cli(
     help="EAM password.",
 )
 @click.pass_context
-def run_eam(
-    ctx: click.Context,
-    username: str,
-    password: str,
-) -> None:
-    """
-    CLI command to synchronize EAM devices with the database.
-
-    Args:
-        ctx (click.Context): Context with shared options.
-        username (str): EAM API username.
-        password (str): EAM API password.
-    """
-    av = AVTools(dbod_url=ctx.obj["dbod_url"], logs=ctx.obj["logs"])
+def run_eam(ctx: click.Context, username: str, password: str) -> None:
+    dbod_url = ctx.obj["dbod_url"]
     try:
-        av.run_eam(username, password)
-        click.echo("EAM CRUD operation completed successfully.")
+        tools = AVTools(dbod_url)
+        tools.run_eam(username=username, password=password)
     except NoRecordsFound as exc:
-        click.echo(f"Error: {exc}")
+        raise click.ClickException(str(exc))
 
 
-# ---------------------------------------------------------------------------- #
-# run-landb                                                                   #
-# ---------------------------------------------------------------------------- #
 @cli.command("run-landb", help="Run LanDB CRUD operations.")
 @click.option(
     "--client-id",
-    "client_id",
+    envvar="LANDB_CLIENT_ID",
     required=True,
-    help="Auth0 Client ID.",
+    help="OAuth2 client id.",
 )
 @click.option(
     "--client-secret",
-    "client_secret",
+    envvar="LANDB_CLIENT_SECRET",
     required=True,
-    help="Auth0 Client Secret.",
+    hide_input=True,
+    help="OAuth2 client secret.",
 )
 @click.option(
     "--audience",
-    "audience",
+    envvar="LANDB_AUDIENCE",
     required=True,
-    help="Auth0 audience (API identifier).",
-)
-@click.option(
-    "--dbod-url",
-    envvar="DATABASE_URL",
-    required=True,
-    help="DBoD PostgreSQL URL (env DATABASE_URL).",
-)
-@click.option(
-    "--threads",
-    "-t",
-    envvar="THREADS",
-    default=8,
-    type=int,
-    show_default=True,
-    help="Number of threads for concurrent LanDB API requests.",
+    help="OAuth2 audience.",
 )
 @click.pass_context
 def run_landb(
@@ -161,115 +98,181 @@ def run_landb(
     client_id: str,
     client_secret: str,
     audience: str,
-    dbod_url: str,
-    threads: int,
 ) -> None:
-    """
-    CLI command to synchronize LanDB devices with the database.
-
-    Args:
-        ctx (click.Context): Context with shared options.
-        client_id (str): Auth0 Client ID.
-        client_secret (str): Auth0 Client Secret.
-        audience (str): Auth0 audience.
-        dbod_url (str): Database URL for DBoD operations.
-    """
-    av = AVTools(dbod_url=dbod_url, logs=ctx.obj["logs"])
+    dbod_url = ctx.obj["dbod_url"]
     try:
-        av.run_landb(
+        tools = AVTools(dbod_url)
+        tools.run_landb(
             client_id=client_id,
             client_secret=client_secret,
             audience=audience,
-            max_workers=threads,
         )
-        click.echo("LanDB CRUD operation completed successfully.")
     except NoRecordsFound as exc:
-        click.echo(f"Error: {exc}")
+        raise click.ClickException(str(exc))
 
 
-# ---------------------------------------------------------------------------- #
-# snmp-influx                                                                  #
-# ---------------------------------------------------------------------------- #
-@cli.command("snmp-influx", help="Query SNMP data and write it to InfluxDB 1.8.")
-@click.option(
-    "--influx-host",
-    envvar="INFLUX_HOST",
-    required=True,
-    help="InfluxDB 1.8 host URL.",
-)
-@click.option(
-    "--influx-port",
-    envvar="INFLUX_PORT",
-    default=8086,
-    type=int,
-    show_default=True,
-    help="InfluxDB 1.8 port.",
-)
-@click.option(
-    "--influx-user",
-    envvar="INFLUX_USER",
-    required=True,
-    help="InfluxDB username.",
-)
-@click.option(
-    "--influx-password",
-    envvar="INFLUX_PASSWORD",
-    required=True,
-    hide_input=True,
-    help="InfluxDB password.",
-)
-@click.option(
-    "--influx-db",
-    envvar="INFLUX_DB",
-    required=True,
-    help="InfluxDB database name.",
-)
-@click.option(
-    "--dbod-url",
-    envvar="DATABASE_URL",
-    required=True,
-    help="DBoD PostgreSQL URL (env DATABASE_URL).",
+@cli.command(
+    "snmp-timeseries",
+    help=(
+        "Collect Ping/SNMP timeseries from devices in landb_ipaddresses and "
+        "publish metrics to Prometheus via MONIT OTLP (Mimir)."
+    ),
 )
 @click.option(
     "--threads",
-    "-t",
     envvar="THREADS",
     default=8,
-    type=int,
     show_default=True,
-    help="Number of concurrent ping/SNMP worker threads.",
+    type=int,
+    help="Number of parallel workers.",
+)
+@click.option(
+    "--otlp-endpoint",
+    envvar="MONIT_OTLP_ENDPOINT",
+    default="monit-otlp.cern.ch:4316",
+    show_default=True,
+    help="MONIT OTLP gRPC endpoint (host:port).",
+)
+@click.option(
+    "--tenant",
+    envvar="MONIT_TENANT",
+    required=True,
+    help="MONIT tenant name.",
+)
+@click.option(
+    "--password",
+    envvar="MONIT_PASSWORD",
+    required=True,
+    hide_input=True,
+    help="MONIT tenant password.",
+)
+@click.option(
+    "--service-name",
+    envvar="OTEL_SERVICE_NAME",
+    default="avtools",
+    show_default=True,
+    help="OpenTelemetry resource service.name.",
+)
+@click.option(
+    "--otlp-ca-file",
+    envvar="OTLP_CA_FILE",
+    default=None,
+    help=(
+        "Optional CA bundle path for OTLP gRPC. "
+        "Usually not needed on CERN hosts with system CAs."
+    ),
+)
+@click.option(
+    "--otlp-insecure/--otlp-tls",
+    envvar="MONIT_OTLP_INSECURE",
+    default=False,
+    show_default=True,
+    help=(
+        "Use plaintext OTLP/gRPC (no TLS). "
+        "Required for endpoints that do not speak TLS (e.g. monit-otlp.cern.ch:4316)."
+    ),
 )
 @click.pass_context
-def snmp_influx(
+def snmp_timeseries(
     ctx: click.Context,
-    influx_host: str,
-    influx_port: int,
-    influx_user: str,
-    influx_password: str,
-    influx_db: str,
-    dbod_url: str,
     threads: int,
+    otlp_endpoint: str,
+    tenant: str,
+    password: str,
+    service_name: str,
+    otlp_ca_file: str | None,
+    otlp_insecure: bool,
 ) -> None:
-    """
-    Synchronize SNMP and ping metrics with InfluxDB.
-
-    Fetches cached LanDBDevice entries, runs up to `threads` parallel
-    ICMP ping checks and SNMP queries, then writes all collected points
-    to InfluxDB.
-    """
-    av = AVTools(dbod_url=dbod_url, logs=ctx.obj["logs"])
-    av.run_influx_snmp(
-        influx_host=influx_host,
-        influx_port=influx_port,
-        influx_user=influx_user,
-        influx_password=influx_password,
-        influx_db=influx_db,
+    dbod_url = ctx.obj["dbod_url"]
+    tools = AVTools(dbod_url)
+    tools.run_snmp_timeseries(
+        otlp_endpoint=otlp_endpoint,
+        monit_tenant=tenant,
+        monit_password=password,
         max_workers=threads,
+        service_name=service_name,
+        otlp_ca_file=otlp_ca_file,
+        otlp_insecure=otlp_insecure,
     )
 
 
-# ---------------------------------------------------------------------------- #
-# Entry point                                                                 #
-# ---------------------------------------------------------------------------- #
+# -----------------------------------------------------------------------------
+# get-token (standalone entry point)
+# -----------------------------------------------------------------------------
+
+
+@click.command(
+    "get-token",
+    help="Fetch an OAuth2 access token via client_credentials and print it.",
+)
+@click.option(
+    "--token-url",
+    envvar="OAUTH_TOKEN_URL",
+    required=True,
+    help="OAuth2 token endpoint URL.",
+)
+@click.option(
+    "--client-id",
+    envvar="LANDB_CLIENT_ID",
+    required=True,
+    help="OAuth2 client id.",
+)
+@click.option(
+    "--client-secret",
+    envvar="LANDB_CLIENT_SECRET",
+    required=True,
+    help="OAuth2 client secret.",
+)
+@click.option(
+    "--audience",
+    envvar="LANDB_AUDIENCE",
+    default=None,
+    help="Optional Auth0 audience (if required by your provider).",
+)
+@click.option(
+    "--scope",
+    envvar="OAUTH_SCOPE",
+    default=None,
+    help="Optional OAuth2 scope.",
+)
+def get_token(
+    token_url: str,
+    client_id: str,
+    client_secret: str,
+    audience: str | None,
+    scope: str | None,
+) -> None:
+    data: dict[str, str] = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }
+    if audience:
+        data["audience"] = audience
+    if scope:
+        data["scope"] = scope
+
+    try:
+        resp = requests.post(token_url, data=data, timeout=30)
+    except requests.RequestException as exc:
+        raise click.ClickException(f"Token request failed: {exc}")
+
+    if resp.status_code >= 400:
+        raise click.ClickException(
+            f"Token request failed ({resp.status_code}): {resp.text.strip()}"
+        )
+
+    try:
+        payload = resp.json()
+    except ValueError:
+        raise click.ClickException(f"Token endpoint did not return JSON: {resp.text}")
+
+    token = payload.get("access_token")
+    if not token:
+        raise click.ClickException(f"Missing access_token in response: {payload}")
+
+    click.echo(token)
+
+
 if __name__ == "__main__":
     cli()

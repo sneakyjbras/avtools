@@ -200,7 +200,7 @@ def test_run_landb_no_eam_devices(monkeypatch):
     av._get_landb_ipaddresses = fake_get_landb_ipaddresses.__get__(av, AVTools)
     av._sync_entities = fake_sync_entities.__get__(av, AVTools)
 
-    av.run_landb(client_id="cid", client_secret="secret", audience="aud", max_workers=4)
+    av.run_landb(client_id="cid", client_secret="secret", audience="aud")
 
     assert dbod.calls == ["get_all_eam_devices"]
     assert init_called is False
@@ -269,7 +269,6 @@ def test_run_landb_normal_flow_calls_all_steps(monkeypatch):
         client_secret="CSECRET",
         audience="AUDIENCE",
         base_url="https://example-landb/api/",
-        max_workers=5,
     )
 
     # DB calls happen in a predictable order.

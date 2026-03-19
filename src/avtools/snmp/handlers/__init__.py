@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from avtools.snmp.handlers.abstract_device_handler import AbstractDeviceHandler
+from avtools.snmp.handlers.generic_snmp_handler import GenericSnmpHandler
 from avtools.snmp.handlers.projector import AbstractProjector, EpsonProjector
 
 # from .sony_projector    import SonyProjector
@@ -12,6 +13,7 @@ __all__ = [
     "AbstractDeviceHandler",
     "AbstractProjector",
     "EpsonProjector",
+    "GenericSnmpHandler",
     # "SonyProjector",
     # "PanasonicProjector",
 ]

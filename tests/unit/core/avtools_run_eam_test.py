@@ -391,8 +391,8 @@ def test_run_eam_does_not_call_other_pipelines_or_snmp_or_token(
     """
     run_eam must not call:
       - run_landb
-      - run_influx_snmp
-      - any SNMP functions
+      - run_snmp_timeseries
+      - any SNMP collection helpers
       - any token functions
     Only register_credentials + sync_eam_devices + sync_eam_positions.
     """
@@ -416,8 +416,9 @@ def test_run_eam_does_not_call_other_pipelines_or_snmp_or_token(
         raise AssertionError("Unexpected pipeline method was called from run_eam")
 
     av.run_landb = MethodType(forbidden, av)  # type: ignore[attr-defined]
-    av.run_influx_snmp = MethodType(forbidden, av)  # type: ignore[attr-defined]
-    av._get_snmp_points = MethodType(forbidden, av)  # type: ignore[attr-defined]
+    av.run_snmp_timeseries = MethodType(forbidden, av)  # type: ignore[attr-defined]
+    av._get_snmp_raw = MethodType(forbidden, av)  # type: ignore[attr-defined]
+    av._get_snmp_samples = MethodType(forbidden, av)  # type: ignore[attr-defined]
     av._ensure_token = MethodType(forbidden, av)  # type: ignore[attr-defined]
 
     av.run_eam("user", "pass")

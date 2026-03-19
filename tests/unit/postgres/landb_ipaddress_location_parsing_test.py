@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from avtools.postgres.orm.landb_ipaddress import _parse_location
+from avtools.postgres.inventory.orm.landb_ipaddress import _parse_location
 
 
 @dataclass
