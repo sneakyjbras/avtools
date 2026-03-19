@@ -4,7 +4,7 @@ import datetime
 
 import pytest
 
-from avtools.postgres.orm.eam_device import (
+from avtools.postgres.inventory.orm.eam_device import (
     EAMDeviceORM,
     EAMDeviceORMError,
     _parse_any_date,

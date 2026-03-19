@@ -1,160 +1,100 @@
-"""Projector SNMP handler implementations."""
-
 from __future__ import annotations
 
-from abc import abstractmethod
-from collections.abc import Mapping
-from typing import ClassVar, List, Tuple
+from abc import ABC
 
-import structlog
-from pysnmp.hlapi import (
-    CommunityData,
-    ContextData,
-    ObjectIdentity,
-    ObjectType,
-    SnmpEngine,
-    UdpTransportTarget,
-    getCmd,
-)
-
-from avtools.influx.data.projector_stats import EpsonProjectorStats, ProjectorStats
 from avtools.snmp.handlers.abstract_device_handler import AbstractDeviceHandler
 
-logger = structlog.get_logger(__name__)
+
+# Common OID available on essentially all SNMP agents.
+OID_SYS_UPTIME = "1.3.6.1.2.1.1.3.0"  # sysUpTime.0 (Timeticks)
 
 
-class AbstractProjector(AbstractDeviceHandler):
+def _as_int(value) -> int | None:
+    try:
+        return int(value)
+    except Exception:
+        try:
+            s = str(value)
+            digits = "".join(ch for ch in s if ch.isdigit())
+            return int(digits) if digits else None
+        except Exception:
+            return None
+
+
+class AbstractProjector(AbstractDeviceHandler, ABC):
+    """Base class for SNMP projector handlers.
+
+    A projector is still an SNMP device handler, but with a shared notion of
+    what "projector stats" mean (uptime, firmware, lamp hours, power status).
+    Concrete vendors/models only need to provide the relevant OIDs.
     """
-    Abstract base class for network-connected projectors queried via SNMP.
 
-    Subclasses must:
-      1. Define a class-level OIDS mapping of stat names to SNMP OID strings.
-      2. Implement `fetch_stats()` to perform an SNMP GET/GETNEXT on those OIDs
-         and convert the results into a ProjectorStats instance.
-    """
+    # Vendor-specific OIDs to be provided by subclasses.
+    OID_FIRMWARE_VERSION: str
+    OID_LAMP_HOURS: str
+    OID_POWER_STATUS: str
 
-    # Mapping of stat key → SNMP OID. Example in subclasses:
-    # OIDS: ClassVar[Mapping[str, str]] = {
-    #     "uptime": "...",
-    #     "lamp_hours": "...",
-    #     ...
-    # }
-    OIDS: ClassVar[Mapping[str, str]]
+    # Reasonable defaults for projectors.
+    DEFAULT_TIMEOUT: float = 1.5
+    DEFAULT_RETRIES: int = 1
 
-    def __init__(self, target: LanDBDevice) -> None:
-        """Initialize the handler from a LanDB device-like object.
-
-        Args:
-            target: LanDB device-like object. Must expose ``ip``.
-
-        Returns:
-            None.
-
-        Notes:
-            If the target exposes ``community``/``port`` (or ``snmp_community``/
-            ``snmp_port``), those are used; otherwise defaults are applied.
-        """
-        community = (
-            getattr(target, "community", None)
-            or getattr(target, "snmp_community", None)
-            or "public"
+    def fetch_stats(self) -> dict[str, object]:
+        error_indication, error_status, _error_index, var_binds = self._snmp_get(
+            [
+                OID_SYS_UPTIME,
+                self.OID_FIRMWARE_VERSION,
+                self.OID_LAMP_HOURS,
+                self.OID_POWER_STATUS,
+            ],
+            timeout=self.DEFAULT_TIMEOUT,
+            retries=self.DEFAULT_RETRIES,
         )
-        port = (
-            getattr(target, "port", None) or getattr(target, "snmp_port", None) or 161
-        )
-        super().__init__(ip=str(target.ip), community=str(community), port=int(port))
 
-    @abstractmethod
-    def fetch_stats(self) -> ProjectorStats:
-        """Fetch device statistics via SNMP.
+        if error_indication or error_status:
+            return {}
 
-        Returns:
-            A ``ProjectorStats`` instance containing parsed metrics.
+        values = [var_bind[1] for var_bind in var_binds]
 
-        Raises:
-            RuntimeError: On SNMP engine errors or individual OID failures.
-        """
-        ...
+        # sysUpTime is Timeticks (1/100s).
+        ticks = _as_int(values[0])
+        uptime_seconds = float(ticks) / 100.0 if ticks is not None else None
+
+        firmware = str(values[1]).strip()
+        lamp_hours = _as_int(values[2])
+        power_status = str(values[3]).strip()
+
+        out: dict[str, object] = {}
+        if uptime_seconds is not None:
+            out["uptime_seconds"] = uptime_seconds
+        if firmware:
+            out["firmware"] = firmware
+        if lamp_hours is not None:
+            out["lamp_hours"] = lamp_hours
+        if power_status:
+            out["power_status"] = power_status
+        return out
 
 
 class EpsonProjector(AbstractProjector):
+    """Epson projector handler."""
+
+    # Epson enterprise MIB OIDs.
+    OID_FIRMWARE_VERSION = "1.3.6.1.4.1.1248.4.1.1.1.8.0"
+    OID_LAMP_HOURS = "1.3.6.1.4.1.1248.4.1.1.1.1.0"
+    OID_POWER_STATUS = "1.3.6.1.4.1.1248.4.1.1.1.9.0"
+
+
+class SonyProjector(AbstractProjector):
+    """Sony projector handler (placeholder).
+
+    Sony OIDs vary by model/MIB. Fill these in once the target models and MIBs
+    are known.
     """
-    SNMP client for Epson network projectors.
 
-    Provides a single‐shot GET of key projector status values.
-    """
+    # NOTE: Intentionally blank until we confirm the correct Sony MIB.
+    OID_FIRMWARE_VERSION = ""
+    OID_LAMP_HOURS = ""
+    OID_POWER_STATUS = ""
 
-    OIDS: ClassVar[Mapping[str, str]] = {
-        "uptime": "1.3.6.1.2.1.1.3.0",
-        "firmware": "1.3.6.1.4.1.1248.4.1.1.1.8.0",
-        "lamp_hours": "1.3.6.1.4.1.1248.4.1.1.1.1.0",
-        "power_status": "1.3.6.1.4.1.1248.4.1.1.1.9.0",
-    }
-
-    def __init__(self, target: LanDBDevice) -> None:
-        """
-        Initialize with the LANDBDevice containing SNMP connection info.
-
-        Args:
-            target (LanDBDevice): Must have `.ip`, `.community`, and `.port`.
-        """
-        super().__init__(target)
-
-    def fetch_stats(self) -> EpsonProjectorStats:
-        """Fetch Epson projector statistics via SNMP.
-
-        Returns:
-            ``EpsonProjectorStats`` populated from the queried OIDs.
-
-        Raises:
-            RuntimeError: On SNMP engine error or individual OID lookup failure.
-        """
-        # 1. Prepare the list of ObjectType binders
-        object_types: list[ObjectType] = [
-            ObjectType(ObjectIdentity(oid)) for oid in self.OIDS.values()
-        ]
-
-        # 2. Kick off the SNMP GET command — it returns an iterator yielding
-        #    (errorIndication, errorStatus, errorIndex, varBinds)
-        snmp_result = getCmd(
-            self.engine,
-            CommunityData(self.community, mpModel=1),
-            UdpTransportTarget((self.ip, self.port)),
-            ContextData(),
-            *object_types,
-        )
-
-        # 3. Pull the first (and only) response
-        error_indication, error_status, error_index, var_binds = next(snmp_result)
-
-        # 4. Error handling
-        if error_indication:
-            raise RuntimeError(f"SNMP engine error: {error_indication}")
-        if error_status:
-            failed_key = list(self.OIDS.keys())[error_index - 1]
-            raise RuntimeError(
-                f"{failed_key} lookup failed: {error_status.prettyPrint()}"
-            )
-
-        # 5. Extract the raw values from the var_binds
-        values = [vb[1] for vb in var_binds]
-
-        # 6. Convert each to the appropriate Python type
-        uptime: str = values[0].prettyPrint()
-        firmware: str = values[1].prettyPrint().strip('"')
-        lamp_hours: int = int(values[2])
-
-        # power_status comes back as an OCTET STRING like b'01 0000 0000 T1'
-        raw_pw = values[3]
-        try:
-            power_status: str = raw_pw.prettyPrint()
-        except AttributeError:
-            power_status = str(raw_pw)
-
-        # 7. Return the dataclass
-        return EpsonProjectorStats(
-            uptime=uptime,
-            firmware=firmware,
-            lamp_hours=lamp_hours,
-            power_status=power_status,
-        )
+    def fetch_stats(self) -> dict[str, object]:  # type: ignore[override]
+        raise NotImplementedError("Sony projector OIDs are not defined yet")

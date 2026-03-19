@@ -173,5 +173,5 @@ cython_debug/
 # Remove cached JSON file for AV monitoring tools
 src/avtools/av_device_cache.json
 
-# Remove personal script
-src/avtools/avtools_client.sh
+# Remove environment file
+.env.prod

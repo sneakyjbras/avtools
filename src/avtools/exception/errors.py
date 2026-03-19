@@ -120,6 +120,14 @@ class UtilsError(AVToolsError):
     """Base class for utility/helper failures."""
 
 
+class TimeseriesError(AVToolsError):
+    """Base class for time-series publishing/encoding failures."""
+
+
+class PipelineError(AVToolsError):
+    """Base class for pipeline/router failures."""
+
+
 # --- Influx tree -----------------------------------------------------------
 
 
@@ -182,6 +190,41 @@ class LanDBIPAddressORMError(PostgresError):
     """Errors originating from avtools.postgres.orm.landb_ipaddress."""
 
 
+# New Postgres subpackages (inventory/monitoring)
+
+
+class PostgresInventoryPackageError(PostgresError):
+    """Errors originating from avtools.postgres.inventory package initialization."""
+
+
+class PostgresInventoryClientError(PostgresError):
+    """Errors originating from avtools.postgres.inventory.client."""
+
+
+class PostgresInventoryORMPackageError(PostgresError):
+    """Errors originating from avtools.postgres.inventory.orm package initialization."""
+
+
+class PostgresMonitoringPackageError(PostgresError):
+    """Errors originating from avtools.postgres.monitoring package initialization."""
+
+
+class PostgresMonitoringClientError(PostgresError):
+    """Errors originating from avtools.postgres.monitoring.client."""
+
+
+class PostgresMonitoringCodecError(PostgresError):
+    """Errors originating from avtools.postgres.monitoring.codec."""
+
+
+class PostgresMonitoringModelsPackageError(PostgresError):
+    """Errors originating from avtools.postgres.monitoring.models package initialization."""
+
+
+class PostgresMonitoringORMPackageError(PostgresError):
+    """Errors originating from avtools.postgres.monitoring.orm package initialization."""
+
+
 # --- SNMP tree -------------------------------------------------------------
 
 
@@ -215,6 +258,59 @@ class AbstractDeviceHandlerError(SNMPError):
 
 class ProjectorHandlerError(SNMPError):
     """Errors originating from avtools.snmp.handlers.projector."""
+
+
+# New SNMP subpackages (queries)
+
+
+class SNMPQueriesPackageError(SNMPError):
+    """Errors originating from avtools.snmp.queries package initialization."""
+
+
+class SNMPQuerySpecError(SNMPError):
+    """Errors originating from avtools.snmp.queries (spec definition/validation)."""
+
+
+class SNMPQueryRoutingError(SNMPError):
+    """Errors originating from routing/selection of SNMP queries."""
+
+
+class SNMPQueryExecutionError(SNMPError):
+    """Errors originating from executing a routed SNMP query spec."""
+
+
+# New pipeline subpackage
+
+
+class PipelinePackageError(PipelineError):
+    """Errors originating from avtools.pipeline package initialization."""
+
+
+class SNMPObserverRouterError(PipelineError):
+    """Errors originating from avtools.pipeline.snmp_router."""
+
+
+# New timeseries subpackage
+
+
+class TimeseriesPackageError(TimeseriesError):
+    """Errors originating from avtools.timeseries package initialization."""
+
+
+class TimeseriesEncoderError(TimeseriesError):
+    """Errors originating from avtools.timeseries.encoder."""
+
+
+class TimeseriesMetricsError(TimeseriesError):
+    """Errors originating from avtools.timeseries.metrics."""
+
+
+class TimeseriesPublisherError(TimeseriesError):
+    """Errors originating from avtools.timeseries.otlp_publisher."""
+
+
+class OTLPPublishError(TimeseriesPublisherError):
+    """Raised when OTLP publish fails (Prometheus via MONIT)."""
 
 
 # --- Utils tree ------------------------------------------------------------

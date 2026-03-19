@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import math
 import os
+import re
 from asyncio import TaskGroup
 from asyncio import run as asyncio_run
 from collections.abc import Callable, Sequence
@@ -9,13 +11,24 @@ from time import time
 from typing import Any, TypeVar
 
 import structlog
+from sqlalchemy import create_engine, inspect, text
 from eam_rest_client import Equipment
 from eam_rest_client.credentials import register_credentials
 from eam_rest_client.grid_query import GridQuery
 from landb_rest_client import register_credentials as landb_register_credentials
 from landb_rest_client.models import Device, IPAddress
 
-from avtools.exception.errors import InfluxError, PostgresError, SNMPError, UtilsError
+from avtools.exception.errors import (
+    PipelineError,
+    PostgresError,
+    PostgresInventoryClientError,
+    PostgresMonitoringClientError,
+    SNMPError,
+    SNMPQueryExecutionError,
+    SNMPObserverRouterError,
+    TimeseriesError,
+    UtilsError,
+)
 
 # ---------------------------------------------------------------------------
 # Optional rest-client exception imports
@@ -101,19 +114,20 @@ except Exception:  # pragma: no cover
         pass
 
 
-from avtools.influx.client import InfluxClient
-from avtools.postgres.client import PostgresClient
-from avtools.postgres.orm.landb_ipaddress import CachedIPAddress
-from avtools.snmp.client import SNMPClient
+from avtools.postgres.client import PostgresClient, PostgresMonitoringClient
+from avtools.postgres.inventory.orm.landb_ipaddress import CachedIPAddress
+from avtools.snmp.client import SNMPClient, PingResult, ProbeResult, QueryResult
+from avtools.pipeline import SNMPObserverRouter
+from avtools.timeseries.models import MetricSample
+from avtools.timeseries.otlp_publisher import OTLPMetricsPublisher, OTLPPublishError
 from avtools.utils.eam_sanitizer import EAMTextSanitizer
 from avtools.utils.sync_reporting import SyncReportLogger
 
 Model = TypeVar("Model")
-Point = dict[str, Any]
 
 
 class AVTools:
-    """AV Tools orchestrator: EAM sync, LanDB sync, SNMP->Influx collection."""
+    """AV Tools orchestrator: EAM sync, LanDB sync, SNMP->Prometheus collection."""
 
     def __init__(self, dbod_url: str, logs: bool = False) -> None:
         """Initialize the AV Tools orchestrator.
@@ -125,6 +139,7 @@ class AVTools:
         Returns:
             None.
         """
+        self.dbod_url = dbod_url
         self.dbod_helper = PostgresClient(dbod_url)
         self.logs = logs
         self.logger = structlog.get_logger(self.__class__.__name__)
@@ -160,7 +175,7 @@ class AVTools:
             password: EAM password.
             base_url: EAM base URL.
             asset_grid: EAM grid name for assets/devices.
-            position_grid: EAM grid name for positions.
+
             department_code: Department code prefix filter (e.g. ``"AV"``).
             limit: Optional row limit (useful for debugging).
 
@@ -506,7 +521,6 @@ class AVTools:
         client_id: str,
         client_secret: str,
         audience: str,
-        max_workers: int = 8,  # kept for backwards compat; LanDB sync is intentionally single-shot
         *,
         base_url: str = "https://landb.cern.ch/api/",
     ) -> None:
@@ -544,7 +558,6 @@ class AVTools:
             "avtools_run_landb_start",
             base_url=base_url,
             audience=audience,
-            max_workers=max_workers,
         )
 
         try:
@@ -998,31 +1011,79 @@ class AVTools:
         )
 
     # ---------------------------------------------------------------------
-    # Influx + SNMP
+    # Time-series + SNMP (Prometheus via MONIT OTLP)
     # ---------------------------------------------------------------------
 
-    def run_influx_snmp(
-        self,
-        influx_host: str,
-        influx_port: int,
-        influx_user: str,
-        influx_password: str,
-        influx_db: str,
-        max_workers: int = 8,
-    ) -> None:
-        """Collect ping/SNMP metrics for cached LanDB targets and publish to InfluxDB.
+    def _load_timeseries_targets_from_landb_ipaddresses(self) -> list[CachedIPAddress]:
+        """Load SNMP/ping targets from the Postgres cache.
 
-        Loads the cached LanDB IP targets from Postgres, filters out rows without a
-        target IP, collects ping + SNMP probe/query points concurrently, and writes
-        the resulting points to an InfluxDB v1.x instance.
+        Targets are loaded from the ``landb_ipaddresses`` cache table as
+        :class:`~avtools.postgres.orm.landb_ipaddress.CachedIPAddress` domain
+        objects. This removes the need for downstream duck-typing / key guessing:
+        the SNMP pipeline consumes a single canonical model.
+
+        Returns:
+            List of CachedIPAddress targets with a non-empty ``equipment_no`` and ``ip``.
+
+        Raises:
+            PostgresError: If Postgres query fails.
+        """
+        try:
+            targets = self.dbod_helper.get_all_landb_devices()
+        except PostgresError:
+            raise
+        except Exception as e:
+            raise PostgresError(f"Failed to load landb_ipaddresses targets: {e}") from e
+
+        out: list[CachedIPAddress] = []
+        for t in targets:
+            equipment_no = (t.equipment_no or "").strip()
+            ip = (t.ip or "").strip()
+
+            if not equipment_no or not ip:
+                continue
+
+            # Some sources may store a CIDR. SNMP/ping expect a bare IP.
+            if "/" in ip:
+                ip = ip.split("/", 1)[0].strip()
+            if not ip:
+                continue
+
+            # Mutate in-place (Pydantic v1 allow_mutation=True) so downstream uses the normalized IP.
+            t.equipment_no = equipment_no
+            t.ip = ip
+
+            out.append(t)
+
+        return out
+
+    def run_snmp_timeseries(
+        self,
+        otlp_endpoint: str,
+        monit_tenant: str,
+        monit_password: str,
+        max_workers: int = 8,
+        service_name: str = "avtools",
+        otlp_ca_file: str | None = None,
+        otlp_insecure: bool = False,
+    ) -> None:
+        """Collect ping/SNMP metrics and publish to Prometheus via MONIT OTLP.
+
+        This replaces the old InfluxDB sink. Metrics are exported as Prometheus
+        gauges through MONIT's OTLP endpoint (stored in Mimir).
+
+        Labels:
+          - `equipmentno` is the only mandatory label and is used as the join key
+            between Prometheus and Postgres.
 
         Args:
-            influx_host: InfluxDB host.
-            influx_port: InfluxDB port.
-            influx_user: InfluxDB username.
-            influx_password: InfluxDB password.
-            influx_db: InfluxDB database name.
+            otlp_endpoint: OTLP gRPC endpoint in 'host:port' form (e.g. monit-otlp.cern.ch:4316).
+            monit_tenant: MONIT tenant name (Basic auth username).
+            monit_password: MONIT tenant password (Basic auth password).
             max_workers: Number of concurrent worker tasks.
+            service_name: OTel resource service.name (default: avtools).
+            otlp_ca_file: Optional CA bundle path for gRPC when using TLS.
+            otlp_insecure: If True, use plaintext OTLP/gRPC (no TLS). Required for endpoints that do not speak TLS.
 
         Returns:
             None.
@@ -1032,211 +1093,281 @@ class AVTools:
         had_errors = False
 
         devices_total = 0
-        points_total = 0
+        samples_total = 0
 
         self.logger.info(
-            "avtools_run_influx_snmp_start",
-            influx_host=influx_host,
-            influx_port=influx_port,
-            influx_db=influx_db,
+            "avtools_run_snmp_timeseries_start",
+            otlp_endpoint=otlp_endpoint,
             tasks=max_workers,
         )
 
         try:
             try:
-                devices = self.dbod_helper.get_all_landb_devices()
+                devices = self._load_timeseries_targets_from_landb_ipaddresses()
                 devices_total = len(devices)
-
-                # The LanDB cache table now also stores rows that may not have an IP.
-                # SNMP collection requires a target IP, so filter here.
-                devices = [d for d in devices if getattr(d, "ip", None)]
-                devices_total = len(devices)
-            except PostgresError as e:
-                status = "failed_load_landb_devices_postgres_error"
+            except PostgresInventoryClientError as e:
+                status = "failed_load_landb_ipaddresses_postgres_error"
                 self.logger.exception(
-                    "snmp_load_landb_devices_postgres_error", error=str(e)
+                    "snmp_load_landb_ipaddresses_postgres_error", error=str(e)
+                )
+                return
+            except PostgresError as e:
+                status = "failed_load_landb_ipaddresses_postgres_error"
+                self.logger.exception(
+                    "snmp_load_landb_ipaddresses_postgres_error", error=str(e)
                 )
                 return
             except Exception:
-                status = "failed_load_landb_devices"
-                self.logger.exception("snmp_load_landb_devices_failed")
+                status = "failed_load_landb_ipaddresses"
+                self.logger.exception("snmp_load_landb_ipaddresses_failed")
                 return
 
             if not devices:
-                status = "skipped_no_landb_devices"
-                self.logger.info("No LanDB devices to monitor")
+                status = "skipped_no_targets"
+                self.logger.info("No LanDB IP targets to monitor")
                 return
 
             self.logger.info(
-                "Fetching LanDB devices", total=devices_total, tasks=max_workers
+                "Fetching LanDB IP targets", total=devices_total, tasks=max_workers
             )
 
             try:
-                all_points = asyncio_run(self._get_snmp_points(devices, max_workers))
-                points_total = len(all_points)
+                ping_results, probe_results, query_results = asyncio_run(
+                    self._get_snmp_raw(devices, max_workers)
+                )
             except KeyboardInterrupt:
                 status = "interrupted"
                 raise
+            except SNMPQueryExecutionError as e:
+                status = "failed_snmp_collection"
+                self.logger.exception("snmp_query_failed", error=str(e))
+                return
+            except SNMPError as e:
+                status = "failed_snmp_collection"
+                self.logger.exception("snmp_collection_failed", error=str(e))
+                return
             except Exception:
                 status = "failed_snmp_collection"
                 self.logger.exception("snmp_collection_failed")
                 return
 
             try:
-                self._publish_snmp(
-                    all_points,
-                    influx_host,
-                    influx_port,
-                    influx_user,
-                    influx_password,
-                    influx_db,
+
+                publisher = OTLPMetricsPublisher(
+                    endpoint=otlp_endpoint,
+                    tenant=monit_tenant,
+                    password=monit_password,
+                    service_name=service_name,
+                    ca_file=otlp_ca_file,
+                    insecure=otlp_insecure,
                 )
+
+                pg_monitoring = PostgresMonitoringClient(self.dbod_url)
+
+                router = SNMPObserverRouter(
+                    timeseries_publisher=publisher,
+                    postgres_monitoring=pg_monitoring,
+                )
+
+                routing_stats = router.process(
+                    ping=ping_results,
+                    probe=probe_results,
+                    queries=query_results,
+                )
+
+                samples_total = routing_stats.ts_samples
+
             except KeyboardInterrupt:
                 status = "interrupted"
                 raise
-            except InfluxError:
+            except OTLPPublishError as e:
                 had_errors = True
+                self.logger.exception("otlp_publish_failed", error=str(e))
+            except PostgresMonitoringClientError as e:
+                had_errors = True
+                self.logger.exception("postgres_monitoring_failed", error=str(e))
+            except PostgresError as e:
+                had_errors = True
+                self.logger.exception("postgres_failed", error=str(e))
+            except SNMPObserverRouterError as e:
+                had_errors = True
+                self.logger.exception("snmp_routing_failed", error=str(e))
+            except TimeseriesError as e:
+                had_errors = True
+                self.logger.exception("timeseries_failed", error=str(e))
+            except PipelineError as e:
+                had_errors = True
+                self.logger.exception("pipeline_failed", error=str(e))
             except Exception:
                 had_errors = True
-                # _publish_snmp already logs, but keep a guardrail.
-                self.logger.exception("influx_publish_failed_unexpected")
+                self.logger.exception("timeseries_publish_failed_unexpected")
 
             status = "ok" if not had_errors else "completed_with_errors"
 
         finally:
             duration_s = time() - run_started
             self.logger.info(
-                "avtools_run_influx_snmp_end",
+                "avtools_run_snmp_timeseries_end",
                 status=status,
                 duration_s=round(duration_s, 3),
                 duration_ms=int(duration_s * 1000),
                 devices=devices_total,
-                points=points_total,
-                influx_host=influx_host,
-                influx_port=influx_port,
-                influx_db=influx_db,
+                samples=samples_total,
+                otlp_endpoint=otlp_endpoint,
                 tasks=max_workers,
             )
 
-    async def _get_snmp_points(
-        self, devices: list[Any], max_workers: int
-    ) -> list[Point]:
-        """Collect SNMP/ping points for a set of cached devices.
+    async def _get_snmp_raw(
+        self, devices: list[CachedIPAddress], max_workers: int
+    ) -> tuple[list["PingResult"], list["ProbeResult"], list["QueryResult"]]:
+        """Collect raw ping/probe/query results with global barriers between phases.
 
-        Splits the device list into chunks, runs workers concurrently (TaskGroup), and
-        aggregates the produced points. Each worker pings first, then probes/queries
-        only devices that replied.
-
-        Args:
-            devices: Cached LanDB device rows (must expose .ip).
-            max_workers: Number of concurrent workers/chunks.
+        This keeps the existing, efficient 3-phase pipeline:
+          1) Ping -> subset of ping-online devices
+          2) Barrier + redistribute -> SNMP probe -> subset of SNMP-available devices
+          3) Barrier + redistribute -> Routed SNMP queries
 
         Returns:
-            List of InfluxDB points (dicts) to be written.
+            (ping_results, probe_results, query_results)
         """
         total = len(devices)
         if total == 0:
-            return []
+            return ([], [], [])
 
-        max_workers = max(1, max_workers)
-        chunk_size = math.ceil(total / max_workers)
-        device_chunks = [
-            devices[i : i + chunk_size] for i in range(0, total, chunk_size)
-        ]
+        max_workers = max(1, int(max_workers))
 
-        async def worker_fn(chunk: list[Any]) -> list[Point]:
-            """Collect ping, SNMP probe, and SNMP query points for one chunk.
+        def split_even(items: list[CachedIPAddress]) -> list[list[CachedIPAddress]]:
+            """Split items across up to max_workers chunks (round-robin) for balance."""
+            if not items:
+                return []
+            n = min(max_workers, len(items))
+            chunks: list[list[CachedIPAddress]] = [[] for _ in range(n)]
+            for i, item in enumerate(items):
+                chunks[i % n].append(item)
+            return [c for c in chunks if c]
 
-            Args:
-                chunk: Subset of cached devices to process.
+        # Phase 1: Ping
+        ping_chunks = split_even(devices)
 
-            Returns:
-                List of InfluxDB points produced for this chunk.
-            """
+        async def ping_worker(chunk: list[CachedIPAddress]):
             monitor = SNMPClient(targets=chunk)
-            pts: list[Point] = []
-            try:
-                ping_pts = await monitor.collect_ping()
-                pts.extend(ping_pts)
+            results, alive = await monitor.collect_ping()
+            self.logger.info(
+                "snmp_ping_task_done", devices=len(chunk), alive=len(alive)
+            )
+            return results, alive
 
-                ok_ips = {
-                    p["tags"]["ip"] for p in ping_pts if p["fields"].get("status") == 1
-                }
-                monitor.targets = [d for d in chunk if d.ip in ok_ips]
+        ping_done = await asyncio.gather(*(ping_worker(c) for c in ping_chunks))
+        ping_results: list[PingResult] = []
+        ping_alive: list[CachedIPAddress] = []
+        for res, alive in ping_done:
+            ping_results.extend(res)
+            ping_alive.extend(alive)
 
-                probe_pts, alive_devices = await monitor.collect_snmp_probe()
-                pts.extend(probe_pts)
-                monitor.targets = alive_devices
+        self.logger.info(
+            "snmp_ping_phase_done",
+            devices=total,
+            alive=len(ping_alive),
+            tasks=len(ping_chunks),
+        )
 
-                query_pts = await monitor.collect_snmp_query(alive_devices)
-                pts.extend(query_pts)
+        # Phase 2: SNMP probe (probe ALL targets; ICMP may be blocked even when SNMP works)
+        probe_targets = devices
+        probe_chunks = split_even(probe_targets)
 
-                self.logger.info(
-                    "snmp_task_done",
-                    devices=len(chunk),
-                    ping_points=len(ping_pts),
-                    probe_points=len(probe_pts),
-                    query_points=len(query_pts),
-                )
-            except Exception:
-                self.logger.exception("snmp_worker_failed")
-            return pts
+        async def probe_worker(chunk: list[CachedIPAddress]):
+            monitor = SNMPClient(targets=chunk)
+            results, alive = await monitor.collect_snmp_probe(chunk)
+            self.logger.info(
+                "snmp_probe_task_done", devices=len(chunk), alive=len(alive)
+            )
+            return results, alive
 
-        tasks = []
-        async with TaskGroup() as tg:
-            for chunk in device_chunks:
-                tasks.append(tg.create_task(worker_fn(chunk)))
+        probe_done = await asyncio.gather(*(probe_worker(c) for c in probe_chunks))
+        probe_results: list[ProbeResult] = []
+        snmp_alive: list[CachedIPAddress] = []
+        for res, alive in probe_done:
+            probe_results.extend(res)
+            snmp_alive.extend(alive)
 
-        all_points: list[Point] = []
-        for task in tasks:
-            all_points.extend(task.result())
-        return all_points
+        self.logger.info(
+            "snmp_probe_phase_done",
+            devices=len(ping_alive),
+            alive=len(snmp_alive),
+            tasks=len(probe_chunks),
+        )
 
-    def _publish_snmp(
-        self,
-        points: list[Point],
-        influx_host: str,
-        influx_port: int,
-        influx_user: str,
-        influx_password: str,
-        influx_db: str,
-    ) -> None:
-        """Write SNMP points to InfluxDB.
+        # Phase 3: Queries (redistribute SNMP-alive devices)
+        query_chunks = split_even(snmp_alive)
 
-        Creates an InfluxClient and writes the provided points in one batch.
+        async def query_worker(chunk: list[CachedIPAddress]):
+            monitor = SNMPClient(targets=chunk)
+            results = await monitor.collect_snmp_queries(chunk)
+            self.logger.info(
+                "snmp_query_task_done", devices=len(chunk), results=len(results)
+            )
+            return results
 
-        Args:
-            points: Influx line protocol dicts (measurement/tags/fields).
-            influx_host: InfluxDB host.
-            influx_port: InfluxDB port.
-            influx_user: InfluxDB username.
-            influx_password: InfluxDB password.
-            influx_db: InfluxDB database name.
+        query_done = await asyncio.gather(*(query_worker(c) for c in query_chunks))
+        query_results: list[QueryResult] = []
+        for res in query_done:
+            query_results.extend(res)
 
-        Returns:
-            None.
+        self.logger.info(
+            "snmp_query_phase_done",
+            devices=len(snmp_alive),
+            results=len(query_results),
+            tasks=len(query_chunks),
+        )
+
+        return (ping_results, probe_results, query_results)
+
+    async def _get_snmp_samples(
+        self, devices: list[CachedIPAddress], max_workers: int
+    ) -> list[MetricSample]:
+        """Backwards-compatible wrapper: encode numeric results to MetricSample.
+
+        Text/identity-like fields (e.g. firmware) are intentionally excluded.
         """
-        if not points:
-            self.logger.info("No metrics collected; skipping write")
+        from avtools.timeseries.encoder import encode_all
+
+        ping_results, probe_results, query_results = await self._get_snmp_raw(
+            devices, max_workers
+        )
+        return encode_all(ping=ping_results, probe=probe_results, queries=query_results)
+
+    def _publish_timeseries(
+        self,
+        samples: list[MetricSample],
+        *,
+        otlp_endpoint: str,
+        monit_tenant: str,
+        monit_password: str,
+        service_name: str,
+        otlp_ca_file: str | None = None,
+        otlp_insecure: bool = False,
+    ) -> None:
+        """Publish samples to Prometheus via MONIT OTLP (gRPC)."""
+        if not samples:
+            self.logger.info("No metrics collected; skipping publish")
             return
 
         try:
-            publisher = InfluxClient(
-                host=influx_host,
-                port=influx_port,
-                username=influx_user,
-                password=influx_password,
-                database=influx_db,
-                ssl=True,
-                verify_ssl=True,
+            publisher = OTLPMetricsPublisher(
+                endpoint=otlp_endpoint,
+                tenant=monit_tenant,
+                password=monit_password,
+                service_name=service_name,
+                ca_file=otlp_ca_file,
+                insecure=otlp_insecure,
             )
-            publisher.write_points(points)
-            self.logger.info("influx_write_ok", points=len(points))
-        except InfluxError as e:
-            self.logger.exception("influx_write_failed", error=str(e))
+            publisher.publish(samples)
+            self.logger.info("otlp_publish_ok", samples=len(samples))
+        except OTLPPublishError as e:
+            self.logger.exception("otlp_publish_failed", error=str(e))
             raise
         except Exception as e:
-            self.logger.exception("influx_write_failed_unexpected", error=str(e))
+            self.logger.exception("otlp_publish_failed_unexpected", error=str(e))
             raise
 
     # ---------------------------------------------------------------------

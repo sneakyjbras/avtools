@@ -1,13 +1,21 @@
-"""Postgres cache layer for AVTools."""
+"""Postgres persistence layer for AVTools.
 
-from __future__ import annotations
+Subpackages:
+- :mod:`avtools.postgres.inventory`  (EAM + LanDB snapshot caches)
+- :mod:`avtools.postgres.monitoring` (monitoring/text snapshots derived from SNMP)
+"""
 
-from avtools.postgres.client import PostgresClient
-from avtools.postgres.orm.eam_device import EAMDeviceORM
-from avtools.postgres.orm.landb_ipaddress import LanDBIPAddressORM
+from avtools.postgres.client import PostgresClient, PostgresMonitoringClient
+from avtools.postgres.inventory.orm import (
+    CachedIPAddress,
+    EAMDeviceORM,
+    LanDBIPAddressORM,
+)
 
 __all__ = [
+    "CachedIPAddress",
     "EAMDeviceORM",
     "LanDBIPAddressORM",
     "PostgresClient",
+    "PostgresMonitoringClient",
 ]

@@ -4,7 +4,10 @@ import datetime
 
 import pytest
 
-from avtools.postgres.orm.eam_position import EAMPositionORM, EAMPositionORMError
+from avtools.postgres.inventory.orm.eam_position import (
+    EAMPositionORM,
+    EAMPositionORMError,
+)
 
 
 class DummyEq:
