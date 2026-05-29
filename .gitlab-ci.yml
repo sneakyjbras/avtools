@@ -22,8 +22,6 @@ cache:
     - .venv
 
 # Keep the rpm-ci stage names so inherited jobs validate cleanly.
-# The local visible flow remains centered on explicit lint/test jobs,
-# while PyPI publishing is disabled below.
 stages:
   - prebuild
   - srpm
@@ -47,47 +45,118 @@ stages:
   - postdeploy
 
 # --------------------------------------------------
-# Neutralize inherited PyPI-oriented jobs
+# Neutralize inherited template jobs not used here
+# (koji/rpm pipeline and generic python-tests)
 # --------------------------------------------------
 python-tests:
   rules:
     - when: never
 
-python-publish-qa:
-  rules:
-    - when: never
-
-python-publish-stable:
-  rules:
-    - when: never
-
+# --------------------------------------------------
+# Shared Python base (extends the template's .python-base)
+# --------------------------------------------------
 .python-test-base:
   extends: .python-base
   before_script:
     - pip install "poetry==$POETRY_VERSION"
     - poetry install --with dev,lint
 
+# ==================================================
+# EVERY COMMIT — check + lint + grafana JSON
+# Runs on all branch pushes, MR events, tags, and
+# scheduled/manual pipelines alike.
+# ==================================================
+
+# Secret scanning: detect-secrets against the committed baseline.
+# Any new (file, line, type) tuple not already reviewed fails the job.
+# To accept a new finding locally:
+#   1. poetry run detect-secrets scan > .secrets.baseline
+#   2. poetry run detect-secrets audit .secrets.baseline
+#   3. Commit the updated baseline.
+check:
+  extends: .python-test-base
+  stage: lint
+  rules:
+    - when: always
+  script:
+    - poetry run detect-secrets scan > /tmp/secrets-current.json
+    - |
+      python3 - <<'PYEOF'
+      import json, sys
+
+      curr = json.load(open('/tmp/secrets-current.json')).get('results', {})
+      base = json.load(open('.secrets.baseline')).get('results', {})
+
+      new_findings = []
+      for filepath, secrets in curr.items():
+          known = {(s['line_number'], s['type']) for s in base.get(filepath, [])}
+          for s in secrets:
+              if (s['line_number'], s['type']) not in known:
+                  new_findings.append(f"  {filepath}:{s['line_number']} [{s['type']}]")
+
+      if new_findings:
+          print("FAIL – unreviewed secret(s) found:", file=sys.stderr)
+          for item in new_findings:
+              print(item, file=sys.stderr)
+          print(
+              "\nRun locally:\n"
+              "  poetry run detect-secrets scan > .secrets.baseline\n"
+              "  poetry run detect-secrets audit .secrets.baseline\n"
+              "then commit the updated baseline.",
+              file=sys.stderr,
+          )
+          sys.exit(1)
+
+      reviewed = sum(len(v) for v in base.values())
+      print(f"OK – no unreviewed secrets ({reviewed} reviewed entries in baseline)")
+      PYEOF
+
+# Python formatting (Black) + linting (Ruff) — both tools, every commit.
 lint:
   extends: .python-test-base
   stage: lint
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_BRANCH == "development"'
-    - if: '$CI_COMMIT_TAG'
+    - when: always
   script:
-    - poetry run black --check .
+    - poetry run black --check src tests scripts
+    - poetry run ruff check src tests scripts
 
+# Structural JSON validation for all Grafana dashboard and alert files.
+grafana_validate_json:
+  stage: lint
+  image: python:3.11-slim
+  rules:
+    - when: always
+  script:
+    - |
+      set -eu
+      fail=0
+      for f in grafana/alerts/*.json grafana/dashboard/prod/*.json grafana/dashboard/qa/*.json; do
+        [ -e "$f" ] || continue
+        if python -m json.tool "$f" >/dev/null 2>&1; then
+          echo "OK  $f"
+        else
+          echo "FAIL $f"
+          fail=1
+        fi
+      done
+      exit $fail
+
+# ==================================================
+# FEATURE BRANCHES (MR) + MASTER — unit tests
+#
+# Triggered by:
+#   • Any merge request event (feature branch → master)
+#   • Every direct push to master
+# ==================================================
 unit_tests:
   extends: .python-test-base
   stage: test
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_BRANCH == "development"'
-    - if: '$CI_COMMIT_TAG'
   script:
-    - poetry run pytest --disable-warnings --junitxml=pytest-unit.xml --cov=avtools --cov-report=xml:coverage.xml
+    - poetry run pytest tests/unit tests/cli --disable-warnings --junitxml=pytest-unit.xml --cov=avtools --cov-report=xml:coverage.xml
   artifacts:
     when: always
     reports:
@@ -96,16 +165,20 @@ unit_tests:
         coverage_format: cobertura
         path: coverage.xml
 
+# ==================================================
+# MASTER ONLY — integration → e2e  (manual triggers)
+#
+# Integration and e2e tests are master-only.
+# They are manual so the pipeline does not block on
+# slow/environment-dependent tests, but allow_failure
+# keeps visibility without blocking downstream stages.
+# ==================================================
 integration_tests:
   extends: .python-test-base
   stage: integration
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_BRANCH == "development"'
-    - if: '$CI_COMMIT_TAG'
-  when: manual
-  allow_failure: true
+      when: on_success
   script:
     - poetry run pytest tests/integration --disable-warnings --junitxml=pytest-integration.xml
   artifacts:
@@ -118,9 +191,9 @@ e2e_tests:
   stage: e2e
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
+      when: on_success
     - if: '$CI_COMMIT_TAG'
-  when: manual
-  allow_failure: true
+      when: on_success
   script:
     - poetry run pytest tests/system --disable-warnings --junitxml=pytest-e2e.xml
   artifacts:
@@ -128,31 +201,23 @@ e2e_tests:
     reports:
       junit: pytest-e2e.xml
 
-# ----------------------------
-# Grafana GitOps validation
-# ----------------------------
-grafana_validate_json:
-  stage: lint
-  image: python:3.11-slim
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_BRANCH == "development"'
-    - if: '$CI_COMMIT_TAG'
-  script:
-    - |
-      set -eu
-      for f in grafana/alerts/*.json grafana/dashboard/prod/*.json grafana/dashboard/qa/*.json; do
-        [ -e "$f" ] || continue
-        python -m json.tool "$f" >/dev/null
-      done
-
-# ----------------------------
-# Deploy dashboards + alerts to QA on EVERY push to "development"
-# QA folder UID: 7BZSQJX4z (playground)
-# QA Postgres datasource UID: dfaue906qonpcf  (AV Stats QA)
-# QA Contact point: "AV Test"
-# ----------------------------
+# ==================================================
+# GRAFANA GITOPS
+#
+# Required CI/CD variables — set in:
+#   GitLab → Settings → CI/CD → Variables
+#
+#   GRAFANA_API_TOKEN_QA   – service account token for the QA Grafana org
+#   GRAFANA_API_TOKEN_PROD – service account token for the PROD Grafana org
+#
+# ⚠  COMMON CAUSE OF "Missing required CI/CD variable GRAFANA_API_TOKEN_PROD":
+#     The variable exists in GitLab but is flagged as "Protected".
+#     Protected variables are only injected into protected branches/tags.
+#     Fix (choose one):
+#       A) Uncheck "Protected" on the variable in GitLab → Settings → CI/CD → Variables
+#       B) Protect the tag that triggers this job:
+#          GitLab → Settings → Repository → Protected Tags → add your tag pattern (e.g. v*)
+# ==================================================
 deploy_grafana_qa:
   stage: deploy_qa
   image: python:3.11-slim
@@ -164,21 +229,19 @@ deploy_grafana_qa:
     name: grafana/qa
     url: https://monit-grafana.cern.ch/dashboards/f/7BZSQJX4z/?orgId=12
   before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends curl ca-certificates
+    - apt-get update -qq && apt-get install -y --no-install-recommends curl ca-certificates
     - chmod +x scripts/sync_grafana_dashboards.sh scripts/sync_grafana_rulegroup.sh scripts/sync_grafana_rulegroup_qa.sh
-    - ': "${GRAFANA_API_TOKEN_QA:?Missing required CI/CD variable GRAFANA_API_TOKEN_QA}"'
+    - |
+      : "${GRAFANA_API_TOKEN_QA:?
+      GRAFANA_API_TOKEN_QA is not set or not visible to this pipeline.
+      → Go to GitLab → Settings → CI/CD → Variables and add GRAFANA_API_TOKEN_QA.
+      → If it is already there and marked Protected, either uncheck Protected
+        or protect the 'development' branch (Settings → Repository → Protected Branches).}"
     - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_QA"
   script:
     - ./scripts/sync_grafana_dashboards.sh put qa
     - ./scripts/sync_grafana_rulegroup_qa.sh put
 
-# ----------------------------
-# Deploy dashboards + alerts to PROD ONLY on tags
-# PROD folder UID: beuar1of5bo5cf (av-dashboard)
-# PROD Postgres datasource UID: ed690575-af6b-41b8-a72d-81f47592f349 (AV Stats / prod)
-# PROD Contact point: "AV Tools"
-# ----------------------------
 deploy_grafana_prod:
   stage: deploy_stable
   image: python:3.11-slim
@@ -190,14 +253,67 @@ deploy_grafana_prod:
     name: grafana/prod
     url: https://monit-grafana.cern.ch/dashboards/f/beuar1of5bo5cf/?orgId=12
   before_script:
-    - apt-get update
-    - apt-get install -y --no-install-recommends curl ca-certificates
+    - apt-get update -qq && apt-get install -y --no-install-recommends curl ca-certificates
     - chmod +x scripts/sync_grafana_dashboards.sh scripts/sync_grafana_rulegroup.sh scripts/sync_grafana_rulegroup_qa.sh
-    - ': "${GRAFANA_API_TOKEN_PROD:?Missing required CI/CD variable GRAFANA_API_TOKEN_PROD}"'
+    - |
+      : "${GRAFANA_API_TOKEN_PROD:?
+      GRAFANA_API_TOKEN_PROD is not set or not visible to this pipeline.
+      → Go to GitLab → Settings → CI/CD → Variables and add GRAFANA_API_TOKEN_PROD.
+      → If it is already there and marked Protected, either uncheck Protected
+        or protect the tag that triggered this job
+        (Settings → Repository → Protected Tags → add your tag pattern, e.g. v*).}"
     - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_PROD"
   script:
     - ./scripts/sync_grafana_dashboards.sh put prod
     - ./scripts/sync_grafana_rulegroup.sh prod
 
+# ==================================================
+# PYPI PUBLISHING
+#
+# Publishes the avtools package to the internal CERN PyPI servers.
+#
+#   python-publish-qa     → QA PyPI   (https://qa-pypi-itdcim.cern.ch)
+#                           triggers on every push to the 'development' branch
+#   python-publish-stable → PROD PyPI (https://pypi-itdcim.cern.ch)
+#                           triggers on every Git tag
+#
+# Required CI/CD variables — set in GitLab → Settings → CI/CD → Variables.
+# Poetry reads these automatically based on the repository name:
+#
+#   QA   (repository name: pypiserver_qa):
+#     POETRY_HTTP_BASIC_PYPISERVER_QA_USERNAME
+#     POETRY_HTTP_BASIC_PYPISERVER_QA_PASSWORD
+#
+#   PROD (repository name: pypiserver):
+#     POETRY_HTTP_BASIC_PYPISERVER_USERNAME
+#     POETRY_HTTP_BASIC_PYPISERVER_PASSWORD
+#
+# If your private PyPI uses token auth instead of basic auth, set:
+#   POETRY_PYPI_TOKEN_PYPISERVER_QA   (QA)
+#   POETRY_PYPI_TOKEN_PYPISERVER      (PROD)
+# ==================================================
+python-publish-qa:
+  extends: .python-test-base
+  stage: deploy_qa
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+/'
+      when: on_success
+    - when: never
+  script:
+    # Register the QA upload endpoint (upload URL differs from /simple install URL)
+    - poetry config repositories.pypiserver_qa https://qa-pypi-itdcim.cern.ch
+    - poetry build
+    - poetry publish -r pypiserver_qa
 
-
+python-publish-stable:
+  extends: .python-test-base
+  stage: deploy_stable
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+/'
+      when: on_success
+    - when: never
+  script:
+    # Register the PROD upload endpoint
+    - poetry config repositories.pypiserver https://pypi-itdcim.cern.ch
+    - poetry build
+    - poetry publish -r pypiserver
