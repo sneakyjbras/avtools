@@ -80,7 +80,7 @@ check:
   rules:
     - when: always
   script:
-    - poetry run detect-secrets scan > /tmp/secrets-current.json
+    - poetry run detect-secrets scan --exclude-files '\.secrets\.baseline' > /tmp/secrets-current.json
     - |
       python3 - <<'PYEOF'
       import json, sys
