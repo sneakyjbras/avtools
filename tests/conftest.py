@@ -102,6 +102,4 @@ def _mock_otlp_metric_exporter(monkeypatch):
         def shutdown(self, *args, **kwargs):
             return True
 
-    monkeypatch.setattr(
-        otlp_mod, "OTLPMetricExporter", _DummyOTLPMetricExporter, raising=True
-    )
+    monkeypatch.setattr(otlp_mod, "OTLPMetricExporter", _DummyOTLPMetricExporter, raising=True)

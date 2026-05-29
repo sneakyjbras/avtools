@@ -105,9 +105,7 @@ def test_collect_snmp_probe_fetches_sysdescr_when_probe_ok(monkeypatch):
     def fake_get_handlers(self):
         return {"10.0.0.10": handler}
 
-    monkeypatch.setattr(
-        snmp_mod.DeviceHandlerFactory, "get_handlers", fake_get_handlers
-    )
+    monkeypatch.setattr(snmp_mod.DeviceHandlerFactory, "get_handlers", fake_get_handlers)
 
     targets = [
         _dev(equipment_no="EQ10", ip="10.0.0.10", eq_class="AVD", category="AV-PRO"),
@@ -141,9 +139,7 @@ def test_collect_snmp_queries_routes_projector_and_skips_unmatched(monkeypatch):
     def fake_get_handlers(self):
         return {"10.0.0.20": handler}
 
-    monkeypatch.setattr(
-        snmp_mod.DeviceHandlerFactory, "get_handlers", fake_get_handlers
-    )
+    monkeypatch.setattr(snmp_mod.DeviceHandlerFactory, "get_handlers", fake_get_handlers)
 
     # One matches projector spec; one doesn't.
     d_ok = _dev(equipment_no="EQ20", ip="10.0.0.20", eq_class="AVD", category="AV-PRO")

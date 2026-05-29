@@ -20,9 +20,7 @@ From 10.0.0.254 icmp_seq=1 Destination Host Unreachable
 
 
 def test_ping_failure_reason_classifies_common_cases():
-    reason, _ = snmp_mod.SNMPClient._ping_failure_reason(
-        returncode=1, timed_out=True, text=""
-    )
+    reason, _ = snmp_mod.SNMPClient._ping_failure_reason(returncode=1, timed_out=True, text="")
     assert reason == "process_timeout"
 
     reason, _ = snmp_mod.SNMPClient._ping_failure_reason(

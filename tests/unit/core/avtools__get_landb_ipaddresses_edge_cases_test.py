@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import pytest
-
 
 class DummyLogger:
     def __init__(self) -> None:
@@ -101,9 +99,7 @@ def test_get_landb_ipaddresses_warns_when_device_fetch_by_name_raises(
         (),
         {
             "objects": _Manager(
-                on_filter={
-                    core_ip_key: [DummyIPAddress(device="DEV1", ipv4="192.0.2.1")]
-                }
+                on_filter={core_ip_key: [DummyIPAddress(device="DEV1", ipv4="192.0.2.1")]}
             )
         },
     )
@@ -118,9 +114,7 @@ def test_get_landb_ipaddresses_warns_when_device_fetch_by_name_raises(
             self.ip = ip
 
     def enrich(ip_rec: Any, eam_rec: Any, *, landb_device: Any = None) -> CachedOut:
-        return CachedOut(
-            ip=getattr(ip_rec, "ipv4", None) or getattr(ip_rec, "ipv6", None)
-        )
+        return CachedOut(ip=getattr(ip_rec, "ipv4", None) or getattr(ip_rec, "ipv6", None))
 
     av._enrich_ipaddress_with_eam_keys = enrich  # type: ignore[assignment]
 
@@ -199,11 +193,7 @@ def test_get_landb_ipaddresses_skips_devices_without_target_ip(
         (),
         {
             "objects": _Manager(
-                on_filter={
-                    ip_by_serial_key: [
-                        DummyIPAddress(device="DEV1", ipv4=None, ipv6=None)
-                    ]
-                }
+                on_filter={ip_by_serial_key: [DummyIPAddress(device="DEV1", ipv4=None, ipv6=None)]}
             )
         },
     )
@@ -252,9 +242,7 @@ def test_get_landb_ipaddresses_warns_when_device_fetch_by_serial_raises(
         (),
         {
             "objects": _Manager(
-                on_filter={
-                    ip_by_serial_key: [DummyIPAddress(device="DEV1", ipv4="192.0.2.9")]
-                }
+                on_filter={ip_by_serial_key: [DummyIPAddress(device="DEV1", ipv4="192.0.2.9")]}
             )
         },
     )

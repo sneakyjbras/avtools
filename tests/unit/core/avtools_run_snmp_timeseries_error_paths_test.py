@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import pytest
 
 import avtools.core.av_tools as av_mod
 from avtools.core.av_tools import AVTools
@@ -37,9 +36,7 @@ def _make_av() -> AVTools:
 
 
 def _end_status(av: AVTools) -> str:
-    ends = [
-        kw for (ev, kw) in av.logger.infos if ev == "avtools_run_snmp_timeseries_end"
-    ]
+    ends = [kw for (ev, kw) in av.logger.infos if ev == "avtools_run_snmp_timeseries_end"]
     assert ends
     return str(ends[-1]["status"])
 

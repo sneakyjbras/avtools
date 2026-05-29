@@ -14,6 +14,11 @@ from typing import Mapping, Sequence
 import structlog
 
 from avtools.snmp.factories.device_factory import DeviceHandlerFactory
+from avtools.snmp.queries import (
+    SNMPQuerySpec,
+    default_query_specs,
+    get_eqclass_category,
+)
 from avtools.postgres.inventory.orm.landb_ipaddress import CachedIPAddress
 from avtools.exception.errors import SNMPQueryExecutionError
 
@@ -73,13 +78,6 @@ class QueryResult:
     eqclass: str | None
     category: str | None
     stats: Mapping[str, object]
-
-
-from avtools.snmp.queries import (
-    SNMPQuerySpec,
-    default_query_specs,
-    get_eqclass_category,
-)
 
 
 class SNMPClient:
@@ -212,16 +210,16 @@ class SNMPClient:
             "timed out",
         )
         for line in text.splitlines():
-            l = line.strip()
-            if not l:
+            stripped = line.strip()
+            if not stripped:
                 continue
-            ll = l.lower()
-            if any(n in ll for n in needles):
-                return l[: cls._PING_FAIL_SNIPPET_MAX]
+            lower = stripped.lower()
+            if any(n in lower for n in needles):
+                return stripped[: cls._PING_FAIL_SNIPPET_MAX]
         for line in text.splitlines():
-            l = line.strip()
-            if l:
-                return l[: cls._PING_FAIL_SNIPPET_MAX]
+            stripped = line.strip()
+            if stripped:
+                return stripped[: cls._PING_FAIL_SNIPPET_MAX]
         return None
 
     @classmethod
@@ -232,10 +230,7 @@ class SNMPClient:
         if timed_out:
             return ("process_timeout", None)
         t = (text or "").lower()
-        if (
-            "name or service not known" in t
-            or "temporary failure in name resolution" in t
-        ):
+        if "name or service not known" in t or "temporary failure in name resolution" in t:
             return ("dns_resolution_failed", cls._ping_hint(text))
         if "network is unreachable" in t:
             return ("network_unreachable", cls._ping_hint(text))
@@ -513,9 +508,7 @@ class SNMPClient:
             ip = dev.ip
             eq = dev.equipment_no
             if not eq:
-                return ProbeResult(
-                    dev, str(ip) if ip else None, None, 0, None, None, None
-                )
+                return ProbeResult(dev, str(ip) if ip else None, None, 0, None, None, None)
             if not ip:
                 return ProbeResult(dev, None, eq, 0, None, None, None)
             handler = self.handlers.get(str(ip))
@@ -532,9 +525,7 @@ class SNMPClient:
                     if callable(fetch):
                         sysdescr = await asyncio.to_thread(fetch)
 
-            return ProbeResult(
-                dev, str(ip), eq, 1 if ok else 0, eqclass, category, sysdescr
-            )
+            return ProbeResult(dev, str(ip), eq, 1 if ok else 0, eqclass, category, sysdescr)
 
         results = await asyncio.gather(*(probe_one(d) for d in devices))
 
@@ -636,9 +627,7 @@ class SNMPClient:
         )
         return out
 
-    async def collect_projector_query(
-        self, devices: list[CachedIPAddress]
-    ) -> list[QueryResult]:
+    async def collect_projector_query(self, devices: list[CachedIPAddress]) -> list[QueryResult]:
         """Backwards-compatible projector-only query.
 
         This now routes strictly to the projector query spec (and will skip

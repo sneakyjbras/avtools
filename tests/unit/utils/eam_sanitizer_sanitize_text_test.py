@@ -11,9 +11,7 @@ def test_sanitize_text_none_and_empty_return_none() -> None:
     assert s.sanitize_text("   ") is None
 
 
-def test_sanitize_text_trims_unicode_whitespace_and_preserves_internal_spacing() -> (
-    None
-):
+def test_sanitize_text_trims_unicode_whitespace_and_preserves_internal_spacing() -> None:
     s = EAMTextSanitizer()
 
     # NBSP around the string

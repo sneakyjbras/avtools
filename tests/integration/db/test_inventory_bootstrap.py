@@ -21,9 +21,7 @@ def test_inventory_boot_creates_tables(pg_engine: Engine, postgres_url: str) -> 
 
 
 @pytest.mark.postgres
-def test_inventory_schema_has_expected_columns(
-    pg_engine: Engine, postgres_url: str
-) -> None:
+def test_inventory_schema_has_expected_columns(pg_engine: Engine, postgres_url: str) -> None:
     _ = PostgresClient(postgres_url)
 
     inspector = inspect(pg_engine)

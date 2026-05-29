@@ -25,12 +25,8 @@ def test_postgres_client_drops_legacy_tables_and_recreates_with_expected_columns
         conn.execute("CREATE TABLE landb_location (dummy TEXT)")
 
         # Legacy EAM tables missing 'location'
-        conn.execute(
-            "CREATE TABLE eam_devices (equipmentno TEXT PRIMARY KEY, serialnumber TEXT)"
-        )
-        conn.execute(
-            "CREATE TABLE eam_positions (equipmentno TEXT PRIMARY KEY, serialnumber TEXT)"
-        )
+        conn.execute("CREATE TABLE eam_devices (equipmentno TEXT PRIMARY KEY, serialnumber TEXT)")
+        conn.execute("CREATE TABLE eam_positions (equipmentno TEXT PRIMARY KEY, serialnumber TEXT)")
         conn.commit()
     finally:
         conn.close()
@@ -43,9 +39,7 @@ def test_postgres_client_drops_legacy_tables_and_recreates_with_expected_columns
     try:
         tables = {
             r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }
 
         assert "landb_location" not in tables

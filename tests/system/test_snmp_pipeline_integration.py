@@ -207,9 +207,7 @@ def test_c1_pipeline_happy_path_real_postgres(monkeypatch, avtools: AVTools, row
     targets = [
         _cached(equipment_no="EQ1", ip="10.0.0.1", eq_class="AVD", category="AV-PRO"),
         _cached(equipment_no="EQ2", ip="10.0.0.2", eq_class="AVD", category="AV-PRO"),
-        _cached(
-            equipment_no="EQ3", ip="10.0.0.3/32", eq_class="AVD", category="AV-PRO"
-        ),
+        _cached(equipment_no="EQ3", ip="10.0.0.3/32", eq_class="AVD", category="AV-PRO"),
         _cached(equipment_no="EQ4", ip="10.0.0.4", eq_class="AVD", category="AV-PRO"),
         _cached(equipment_no="EQ5", ip="10.0.0.5", eq_class="AVD", category="AV-PRO"),
     ]
@@ -226,9 +224,7 @@ def test_c1_pipeline_happy_path_real_postgres(monkeypatch, avtools: AVTools, row
 
     # Capture OTLP publishes (no real gRPC).
     CapturingPublisher.instances.clear()
-    monkeypatch.setattr(
-        av_mod, "OTLPMetricsPublisher", CapturingPublisher, raising=True
-    )
+    monkeypatch.setattr(av_mod, "OTLPMetricsPublisher", CapturingPublisher, raising=True)
 
     avtools.run_snmp_timeseries(
         otlp_endpoint="dummy:4316",
@@ -255,9 +251,7 @@ def test_c1_pipeline_happy_path_real_postgres(monkeypatch, avtools: AVTools, row
     assert row_count("avtools_device_sysdescr_monitoring") == 2
 
 
-def test_c2_partial_device_results_do_not_break_pipeline(
-    monkeypatch, avtools: AVTools, row_count
-):
+def test_c2_partial_device_results_do_not_break_pipeline(monkeypatch, avtools: AVTools, row_count):
     """C2: Some devices yield empty query stats; others still publish/persist."""
 
     targets = [
@@ -271,18 +265,14 @@ def test_c2_partial_device_results_do_not_break_pipeline(
         ping_up={"EQ1", "EQ2", "EQ3"},
         snmp_up={"EQ1", "EQ2", "EQ3"},
         query_ok={"EQ1", "EQ2", "EQ3"},
-        query_empty={
-            "EQ3"
-        },  # queried but produces no stats -> omitted from QueryResult
+        query_empty={"EQ3"},  # queried but produces no stats -> omitted from QueryResult
     )
 
     FakeSNMPClient = make_fake_snmp_client(scenario)
     monkeypatch.setattr(av_mod, "SNMPClient", FakeSNMPClient, raising=True)
 
     CapturingPublisher.instances.clear()
-    monkeypatch.setattr(
-        av_mod, "OTLPMetricsPublisher", CapturingPublisher, raising=True
-    )
+    monkeypatch.setattr(av_mod, "OTLPMetricsPublisher", CapturingPublisher, raising=True)
 
     avtools.run_snmp_timeseries(
         otlp_endpoint="dummy:4316",
@@ -361,9 +351,7 @@ def test_c4_data_quality_category_optional_eqclass_required_for_queries(
 
     targets = [
         # Category missing (allowed) -> should still be probed, but no projector query match.
-        _cached(
-            equipment_no="EQ_CAT_NONE", ip="10.3.0.1", eq_class="AVD", category=None
-        ),
+        _cached(equipment_no="EQ_CAT_NONE", ip="10.3.0.1", eq_class="AVD", category=None),
         # eq_class missing (not OK for query routing) -> no projector query match.
         _cached(
             equipment_no="EQ_CLASS_NONE",
@@ -386,9 +374,7 @@ def test_c4_data_quality_category_optional_eqclass_required_for_queries(
     monkeypatch.setattr(av_mod, "SNMPClient", FakeSNMPClient, raising=True)
 
     CapturingPublisher.instances.clear()
-    monkeypatch.setattr(
-        av_mod, "OTLPMetricsPublisher", CapturingPublisher, raising=True
-    )
+    monkeypatch.setattr(av_mod, "OTLPMetricsPublisher", CapturingPublisher, raising=True)
 
     avtools.run_snmp_timeseries(
         otlp_endpoint="dummy:4316",

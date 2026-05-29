@@ -124,26 +124,18 @@ class EAMPositionORM(Base):
         Index("ix_eam_positions_eqclass_category", "eqclass", "category"),
     )
 
-    equipment_no: Mapped[str] = mapped_column(
-        "equipmentno", String(64), primary_key=True
-    )
+    equipment_no: Mapped[str] = mapped_column("equipmentno", String(64), primary_key=True)
     eq_class: Mapped[str | None] = mapped_column("eqclass", String(64), nullable=True)
 
     # Stores EAM `category .
     category: Mapped[str | None] = mapped_column("category", String(64), nullable=True)
 
-    equipment_desc: Mapped[str | None] = mapped_column(
-        "equipmentdesc", Text, nullable=True
-    )
+    equipment_desc: Mapped[str | None] = mapped_column("equipmentdesc", Text, nullable=True)
     sponsor: Mapped[str | None] = mapped_column("sponsor", String(64), nullable=True)
-    parent_asset: Mapped[str | None] = mapped_column(
-        "parentasset", String(64), nullable=True
-    )
+    parent_asset: Mapped[str | None] = mapped_column("parentasset", String(64), nullable=True)
 
     # Internal spelling is correct.
-    commission_date: Mapped[date | None] = mapped_column(
-        "commissiondate", Date, nullable=True
-    )
+    commission_date: Mapped[date | None] = mapped_column("commissiondate", Date, nullable=True)
 
     asset_status_display: Mapped[str | None] = mapped_column(
         "assetstatus_display", String(64), nullable=True

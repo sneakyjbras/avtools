@@ -19,13 +19,9 @@ class DeviceSysDescrMonitoringORM(Base):
     eqclass: Mapped[str | None] = mapped_column(String(64), nullable=True)
     category: Mapped[str | None] = mapped_column(String(128), nullable=True)
     sysdescr: Mapped[str | None] = mapped_column(Text, nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
-    __table_args__ = (
-        Index("ix_avtools_device_sysdescr_monitoring_equipment_no", "equipment_no"),
-    )
+    __table_args__ = (Index("ix_avtools_device_sysdescr_monitoring_equipment_no", "equipment_no"),)
 
     @classmethod
     def from_model(cls, m: DeviceSysDescrMonitoring) -> "DeviceSysDescrMonitoringORM":

@@ -59,9 +59,7 @@ def test_module_parse_location_accepts_dict_object_and_list() -> None:
     assert mod._parse_location(["B", "F", "R"]) == ("B", "F", "R")
 
 
-def test_cached_ip_from_equipment_and_ipaddress_prefers_landb_name_and_selects_ipv4() -> (
-    None
-):
+def test_cached_ip_from_equipment_and_ipaddress_prefers_landb_name_and_selects_ipv4() -> None:
     eq = DummyEquipment(
         code="EQ-1",
         serial_number="EAM-SN",
