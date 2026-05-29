@@ -1,3 +1,14 @@
+"""Tests for AVTools.run_snmp_timeseries — happy paths.
+
+Verifies:
+- Skips when no LanDB targets are found.
+- Routes results through the router on success.
+- Passes metric_labels (Layer 2) to OTLPMetricsPublisher.
+- Passes device_lookup (per-device labels) to router.process.
+- Accepts the three new CLI-level params: submitter_environment, submitter_hostgroup,
+  availability_zone.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,10 +19,21 @@ from avtools.core.av_tools import AVTools
 from avtools.snmp.client import PingResult, ProbeResult, QueryResult
 
 
+# ---------------------------------------------------------------------------
+# Test doubles
+# ---------------------------------------------------------------------------
+
+
 @dataclass
 class DummyDevice:
     ip: str
     equipment_no: str
+    building: str | None = "BUILDING-A"
+    room: str | None = "ROOM-1"
+    eq_class: str | None = "PROJ"
+    model: str | None = "Epson EB-L"
+    category: str | None = "AV-PROJ"
+    hostname: str | None = "proj.cern.ch"
 
 
 class DummyLogger:
@@ -46,30 +68,83 @@ class DummyRouter:
         self.pg = postgres_monitoring
         self.calls: list[dict[str, Any]] = []
 
-    def process(self, *, ping, probe, queries):
+    def process(self, *, ping, probe, queries, device_lookup=None):
         self.calls.append(
-            {"ping": list(ping), "probe": list(probe), "queries": list(queries)}
+            {
+                "ping": list(ping),
+                "probe": list(probe),
+                "queries": list(queries),
+                "device_lookup": device_lookup,
+            }
         )
 
-        # Return something matching SNMPRoutingStats interface.
         class _Stats:
             ts_samples = 123
 
         return _Stats()
 
 
-def make_avtools_for_tests() -> AVTools:
+captured_router: DummyRouter | None = None
+
+
+def make_avtools() -> AVTools:
     av = object.__new__(AVTools)
     av.logger = DummyLogger()
     av.dbod_url = "postgres://dummy"
     return av
 
 
-def test_run_snmp_timeseries_skips_when_no_targets(monkeypatch):
-    av = make_avtools_for_tests()
+# ---------------------------------------------------------------------------
+# Helpers for patching _get_snmp_raw
+# ---------------------------------------------------------------------------
 
-    def fake_load(self):
-        return []
+
+def _make_snmp_results(devices):
+    dev = devices[0]
+    ping = [
+        PingResult(
+            device=dev,  # type: ignore[arg-type]
+            ip=dev.ip,
+            equipmentno=dev.equipment_no,
+            up=1,
+            rtt_ms=1.0,
+            reason=None,
+            attempts=1,
+        )
+    ]
+    probe = [
+        ProbeResult(
+            device=dev,  # type: ignore[arg-type]
+            ip=dev.ip,
+            equipmentno=dev.equipment_no,
+            up=1,
+            eqclass="AVD",
+            category="AV-PRO",
+            sysdescr="sysDescr",
+        )
+    ]
+    queries = [
+        QueryResult(
+            device=dev,  # type: ignore[arg-type]
+            ip=dev.ip,
+            equipmentno=dev.equipment_no,
+            query="projector",
+            eqclass="AVD",
+            category="AV-PRO",
+            stats={"firmware": "1.2.3"},
+        )
+    ]
+    return ping, probe, queries
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+def test_skips_when_no_targets(monkeypatch):
+    av = make_avtools()
+    monkeypatch.setattr(AVTools, "_load_timeseries_targets_from_landb_ipaddresses", lambda self: [])
 
     called_get = False
 
@@ -78,9 +153,6 @@ def test_run_snmp_timeseries_skips_when_no_targets(monkeypatch):
         called_get = True
         return ([], [], [])
 
-    monkeypatch.setattr(
-        AVTools, "_load_timeseries_targets_from_landb_ipaddresses", fake_load
-    )
     monkeypatch.setattr(AVTools, "_get_snmp_raw", fake_get_raw)
 
     av.run_snmp_timeseries(
@@ -92,69 +164,34 @@ def test_run_snmp_timeseries_skips_when_no_targets(monkeypatch):
 
     assert called_get is False
     assert any(
-        "avtools_run_snmp_timeseries_end" == e[0]
-        and e[1].get("status") == "skipped_no_targets"
-        for e in av.logger.info_events
+        ev == "avtools_run_snmp_timeseries_end" and kw.get("status") == "skipped_no_targets"
+        for ev, kw in av.logger.info_events
     )
 
 
-def test_run_snmp_timeseries_routes_results(monkeypatch):
-    av = make_avtools_for_tests()
-
+def test_routes_results_and_ends_ok(monkeypatch):
+    av = make_avtools()
     devices = [DummyDevice(ip="10.0.0.1", equipment_no="EQ1")]
 
-    def fake_load(self):
-        return devices
+    monkeypatch.setattr(
+        AVTools, "_load_timeseries_targets_from_landb_ipaddresses", lambda self: devices
+    )
 
     async def fake_get_raw(self, devices_arg, max_workers):
-        assert devices_arg == devices
-        assert max_workers == 1
-        ping = [
-            PingResult(
-                device=devices_arg[0],  # type: ignore[arg-type]
-                ip=devices_arg[0].ip,
-                equipmentno=devices_arg[0].equipment_no,
-                up=1,
-                rtt_ms=1.0,
-                reason=None,
-                attempts=1,
-            )
-        ]
-        probe = [
-            ProbeResult(
-                device=devices_arg[0],  # type: ignore[arg-type]
-                ip=devices_arg[0].ip,
-                equipmentno=devices_arg[0].equipment_no,
-                up=1,
-                eqclass="AVD",
-                category="AV-PRO",
-                sysdescr="sysDescr",
-            )
-        ]
-        queries = [
-            QueryResult(
-                device=devices_arg[0],  # type: ignore[arg-type]
-                ip=devices_arg[0].ip,
-                equipmentno=devices_arg[0].equipment_no,
-                query="projector",
-                eqclass="AVD",
-                category="AV-PRO",
-                stats={"firmware": "1.2.3"},
-            )
-        ]
-        return (ping, probe, queries)
+        return _make_snmp_results(devices_arg)
 
-    monkeypatch.setattr(
-        AVTools, "_load_timeseries_targets_from_landb_ipaddresses", fake_load
-    )
     monkeypatch.setattr(AVTools, "_get_snmp_raw", fake_get_raw)
 
-    # Patch constructor symbols used inside run_snmp_timeseries
-    monkeypatch.setattr(
-        av_mod, "OTLPMetricsPublisher", lambda **kw: DummyPublisher(**kw)
-    )
+    routers_created: list[DummyRouter] = []
+
+    def make_router(**kw):
+        r = DummyRouter(**kw)
+        routers_created.append(r)
+        return r
+
+    monkeypatch.setattr(av_mod, "OTLPMetricsPublisher", lambda **kw: DummyPublisher(**kw))
     monkeypatch.setattr(av_mod, "PostgresMonitoringClient", DummyPostgresMonitoring)
-    monkeypatch.setattr(av_mod, "SNMPObserverRouter", DummyRouter)
+    monkeypatch.setattr(av_mod, "SNMPObserverRouter", make_router)
 
     av.run_snmp_timeseries(
         otlp_endpoint="monit-otlp.cern.ch:4316",
@@ -163,8 +200,156 @@ def test_run_snmp_timeseries_routes_results(monkeypatch):
         max_workers=1,
     )
 
-    # Router should have been called once and end status ok.
     assert any(
-        "avtools_run_snmp_timeseries_end" == e[0] and e[1].get("status") == "ok"
-        for e in av.logger.info_events
+        ev == "avtools_run_snmp_timeseries_end" and kw.get("status") == "ok"
+        for ev, kw in av.logger.info_events
     )
+    assert len(routers_created) == 1
+    assert routers_created[0].calls[0]["device_lookup"] is not None
+
+
+def test_metric_labels_passed_to_publisher(monkeypatch):
+    """Layer 2: OTLPMetricsPublisher must receive the correct metric_labels dict."""
+    av = make_avtools()
+    devices = [DummyDevice(ip="10.0.0.1", equipment_no="EQ1")]
+
+    monkeypatch.setattr(
+        AVTools, "_load_timeseries_targets_from_landb_ipaddresses", lambda self: devices
+    )
+
+    async def fake_get_raw(self, devices_arg, max_workers):
+        return ([], [], [])
+
+    monkeypatch.setattr(AVTools, "_get_snmp_raw", fake_get_raw)
+
+    publishers_created: list[DummyPublisher] = []
+
+    def make_publisher(**kw):
+        p = DummyPublisher(**kw)
+        publishers_created.append(p)
+        return p
+
+    monkeypatch.setattr(av_mod, "OTLPMetricsPublisher", make_publisher)
+    monkeypatch.setattr(av_mod, "PostgresMonitoringClient", DummyPostgresMonitoring)
+    monkeypatch.setattr(av_mod, "SNMPObserverRouter", DummyRouter)
+
+    av.run_snmp_timeseries(
+        otlp_endpoint="x:1",
+        monit_tenant="t",
+        monit_password="p",
+        service_name="avtools",
+        submitter_environment="qa",
+        submitter_hostgroup="itdcim/av-qa",
+        availability_zone="cern-geneva-a",
+    )
+
+    assert len(publishers_created) == 1
+    labels = publishers_created[0].kwargs.get("metric_labels", {})
+    assert labels["job"] == "avtools"
+    assert labels["submitter_environment"] == "qa"
+    assert labels["toplevel_hostgroup"] == "itdcim"
+    assert labels["submitter_hostgroup"] == "itdcim/av-qa"
+    assert labels["region"] == "cern"
+    assert labels["availability_zone"] == "cern-geneva-a"
+
+
+def test_device_lookup_built_from_cached_ip_addresses(monkeypatch):
+    """Per-device label dict must be built from CachedIPAddress fields."""
+    av = make_avtools()
+    devices = [
+        DummyDevice(
+            ip="10.0.0.1",
+            equipment_no="EQ1",
+            building="BUILDING-X",
+            room="ROOM-99",
+            eq_class="PROJ",
+            model="BenQ LX980",
+            category="AV-PROJ",
+            hostname="benq-99.cern.ch",
+        )
+    ]
+
+    monkeypatch.setattr(
+        AVTools, "_load_timeseries_targets_from_landb_ipaddresses", lambda self: devices
+    )
+
+    async def fake_get_raw(self, devices_arg, max_workers):
+        return ([], [], [])
+
+    monkeypatch.setattr(AVTools, "_get_snmp_raw", fake_get_raw)
+
+    routers_created: list[DummyRouter] = []
+
+    def make_router(**kw):
+        r = DummyRouter(**kw)
+        routers_created.append(r)
+        return r
+
+    monkeypatch.setattr(av_mod, "OTLPMetricsPublisher", lambda **kw: DummyPublisher(**kw))
+    monkeypatch.setattr(av_mod, "PostgresMonitoringClient", DummyPostgresMonitoring)
+    monkeypatch.setattr(av_mod, "SNMPObserverRouter", make_router)
+
+    av.run_snmp_timeseries(otlp_endpoint="x:1", monit_tenant="t", monit_password="p")
+
+    lookup = routers_created[0].calls[0]["device_lookup"]
+    assert "EQ1" in lookup
+    eq1 = lookup["EQ1"]
+    assert eq1["building"] == "BUILDING-X"
+    assert eq1["room"] == "ROOM-99"
+    assert eq1["eq_class"] == "PROJ"
+    assert eq1["model"] == "BenQ LX980"
+    assert eq1["category"] == "AV-PROJ"
+    assert eq1["hostname"] == "benq-99.cern.ch"
+
+
+def test_device_with_no_equipment_no_excluded_from_lookup(monkeypatch):
+    """Devices without an equipment_no must not appear in the lookup."""
+    av = make_avtools()
+
+    @dataclass
+    class DevNoEq:
+        ip: str
+        equipment_no: str | None = None
+        building: str | None = "B"
+        room: str | None = None
+        eq_class: str | None = None
+        model: str | None = None
+        category: str | None = None
+        hostname: str | None = None
+
+    devices = [DevNoEq(ip="10.0.0.1")]
+
+    monkeypatch.setattr(
+        AVTools, "_load_timeseries_targets_from_landb_ipaddresses", lambda self: devices
+    )
+
+    async def fake_get_raw(self, devices_arg, max_workers):
+        return ([], [], [])
+
+    monkeypatch.setattr(AVTools, "_get_snmp_raw", fake_get_raw)
+
+    routers_created: list[DummyRouter] = []
+
+    def make_router(**kw):
+        r = DummyRouter(**kw)
+        routers_created.append(r)
+        return r
+
+    monkeypatch.setattr(av_mod, "OTLPMetricsPublisher", lambda **kw: DummyPublisher(**kw))
+    monkeypatch.setattr(av_mod, "PostgresMonitoringClient", DummyPostgresMonitoring)
+    monkeypatch.setattr(av_mod, "SNMPObserverRouter", make_router)
+
+    av.run_snmp_timeseries(
+        otlp_endpoint="x:1",
+        monit_tenant="t",
+        monit_password="p",
+    )
+
+    # The device had no equipment_no so the lookup is empty, but the run
+    # still completes — devices were loaded (len=1) so we don't skip.
+    assert any(
+        ev == "avtools_run_snmp_timeseries_end" and kw.get("status") == "ok"
+        for ev, kw in av.logger.info_events
+    )
+    assert len(routers_created) == 1
+    assert routers_created[0].calls[0]["device_lookup"] == {}

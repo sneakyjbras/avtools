@@ -243,9 +243,7 @@ def test_sync_eam_positions_happy_path(monkeypatch):
     assert captured["api_items"] == eam_positions
     assert captured["cached_items"] == cached_positions
     assert captured["name"] == "EAM Positions"
-    assert [captured["get_id"](p) for p in eam_positions] == [
-        p.code for p in eam_positions
-    ]
+    assert [captured["get_id"](p) for p in eam_positions] == [p.code for p in eam_positions]
     sync_func = captured["sync_func"]
     # Bound method identity is not stable across attribute access;
     # compare underlying function + bound instance instead.

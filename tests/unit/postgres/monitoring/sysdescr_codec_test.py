@@ -15,9 +15,7 @@ class DummyDevice:
 
 
 def test_device_sysdescr_records_only_from_up_results_with_text():
-    dev_ok = DummyDevice(
-        ip="10.0.0.1", equipment_no="EQ1", eq_class="AVD", category="AV-PRO"
-    )
+    dev_ok = DummyDevice(ip="10.0.0.1", equipment_no="EQ1", eq_class="AVD", category="AV-PRO")
     dev_down = DummyDevice(ip="10.0.0.2", equipment_no="EQ2")
 
     results = [

@@ -3,9 +3,7 @@ from __future__ import annotations
 from avtools.utils.eam_sanitizer import EAMTextSanitizer
 
 
-def test_sanitize_dict_in_place_filters_by_compare_fields_and_skips_non_strings() -> (
-    None
-):
+def test_sanitize_dict_in_place_filters_by_compare_fields_and_skips_non_strings() -> None:
     s = EAMTextSanitizer()
 
     data = {

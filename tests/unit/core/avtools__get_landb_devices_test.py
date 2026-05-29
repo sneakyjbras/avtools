@@ -131,9 +131,7 @@ class DummyObjects:
         # IPAddress queries (nested selectors in LanDB REST client)
         if "device__serial_number__in" in kwargs:
             wanted = set(kwargs["device__serial_number__in"] or [])
-            out = [
-                ip for ip in out if getattr(ip, "device_serial_number", None) in wanted
-            ]
+            out = [ip for ip in out if getattr(ip, "device_serial_number", None) in wanted]
 
         if "device__name__in" in kwargs:
             wanted = set(kwargs["device__name__in"] or [])
@@ -186,12 +184,8 @@ def test_get_landb_ipaddresses_matches_by_serial_and_name_and_enriches(monkeypat
 
     eam_records = [
         DummyEAM(code="DEV-34", serial_number="SN-34", description="DESC-34"),
-        DummyEAM(
-            code="DEV-38", serial_number="SN-38", description="DESC-38"
-        ),  # no device in LanDB
-        DummyEAM(
-            code="DEV-39", serial_number=None, description="NAME-39"
-        ),  # match by name
+        DummyEAM(code="DEV-38", serial_number="SN-38", description="DESC-38"),  # no device in LanDB
+        DummyEAM(code="DEV-39", serial_number=None, description="NAME-39"),  # match by name
         DummyEAM(
             code="DEV-404", serial_number="SN-404", description="DESC-404"
         ),  # device exists but no IP

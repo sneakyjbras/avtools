@@ -60,12 +60,14 @@ from    = "src"
 
 
 [tool.poetry.scripts]
-avtools   = "avtools.main:cli"
-get-token = "avtools.main:get_token"
+avtools          = "avtools.main:cli"
+get-token        = "avtools.main:get_token"
+precommit-checks = "avtools.devtools:precommit_checks"
 
 
 [tool.poetry.group.lint.dependencies]
 black          = "^25.1.0"
+ruff           = "^0.11.7"
 detect-secrets = "^1.5.0"
 
 
@@ -76,6 +78,20 @@ pre-commit   = "^4.1.0"
 pytest       = "^9.0.1"
 pytest-cov   = "^7.0.0"
 pytest-mock  = "^3.15.1"
+
+
+[tool.black]
+line-length    = 100
+target-version = ["py311"]
+include        = '\.pyi?$'
+
+
+[tool.ruff]
+line-length    = 100
+target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/conftest.py" = ["E402"]
 
 
 [build-system]

@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable
-
-import pytest
+from typing import Any
 
 
 class DummyLogger:

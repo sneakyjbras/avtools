@@ -60,8 +60,7 @@ class AbstractDeviceHandler(ABC):
         and so we can reuse a shared engine when provided via `set_engine()`.
         """
         obj_types = [
-            ObjectType(ObjectIdentity(oid) if isinstance(oid, str) else oid)
-            for oid in oids
+            ObjectType(ObjectIdentity(oid) if isinstance(oid, str) else oid) for oid in oids
         ]
 
         iterator = getCmd(

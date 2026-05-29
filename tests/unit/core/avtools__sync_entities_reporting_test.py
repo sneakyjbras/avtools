@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-import pytest
-
 
 class DummyLogger:
     def __init__(self) -> None:

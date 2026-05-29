@@ -247,9 +247,7 @@ def test_sync_landb_ipaddresses_insert_update_delete_roundtrip(
 
 
 @pytest.mark.postgres
-def test_sync_update_nonexistent_pk_is_noop(
-    pg_engine: Engine, postgres_url: str
-) -> None:
+def test_sync_update_nonexistent_pk_is_noop(pg_engine: Engine, postgres_url: str) -> None:
     client = PostgresClient(postgres_url)
 
     client.sync_landb_devices(
@@ -260,9 +258,7 @@ def test_sync_update_nonexistent_pk_is_noop(
 
     client.sync_landb_devices(
         to_insert=[],
-        to_update=[
-            (_mk_cached_ip(equipment_no="DOES_NOT_EXIST", name="x"), {"name": "x"})
-        ],
+        to_update=[(_mk_cached_ip(equipment_no="DOES_NOT_EXIST", name="x"), {"name": "x"})],
         to_delete=[],
     )
 

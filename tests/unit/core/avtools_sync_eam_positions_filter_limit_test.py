@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import pytest
-
 
 class DummyLogger:
     def __init__(self) -> None:
@@ -32,9 +30,7 @@ class PosRec:
 
 
 class DummyGridQuery:
-    def __init__(
-        self, *, raise_on_filter: bool = False, raise_on_limit: bool = False
-    ) -> None:
+    def __init__(self, *, raise_on_filter: bool = False, raise_on_limit: bool = False) -> None:
         self.raise_on_filter = raise_on_filter
         self.raise_on_limit = raise_on_limit
 

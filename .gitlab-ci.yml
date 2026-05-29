@@ -1,9 +1,10 @@
 include:
   - project: "itdcim/itdcim-ci-templates"
     ref: master
-    file: "templates/python/poetry-test-and-publish.yaml"
+    file: "templates/python/poetry-test-and-publish-with-koji.yaml"
 
 variables:
+  # Shared Python template variables
   PYPI_BUILD_IMAGE: "python:3.11-slim"
   POETRY_VERSION: "2.1.1"
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
@@ -20,16 +21,43 @@ cache:
     - .cache/pypoetry
     - .venv
 
+# Keep the rpm-ci stage names so inherited jobs validate cleanly.
+# The local visible flow remains centered on explicit lint/test jobs,
+# while PyPI publishing is disabled below.
 stages:
   - prebuild
+  - srpm
+  - rpm
   - lint
+  - prekoji
+  - koji_scratch
+  - pretest
   - test
   - integration
   - e2e
+  - posttest
+  - koji_build
+  - postkoji
+  - docker_prepare
+  - docker_build
+  - docker_test
   - deploy_qa
+  - postqa
   - deploy_stable
+  - postdeploy
 
+# --------------------------------------------------
+# Neutralize inherited PyPI-oriented jobs
+# --------------------------------------------------
 python-tests:
+  rules:
+    - when: never
+
+python-publish-qa:
+  rules:
+    - when: never
+
+python-publish-stable:
   rules:
     - when: never
 
@@ -94,7 +122,7 @@ e2e_tests:
   when: manual
   allow_failure: true
   script:
-    - poetry run pytest tests/e2e --disable-warnings --junitxml=pytest-e2e.xml
+    - poetry run pytest tests/system --disable-warnings --junitxml=pytest-e2e.xml
   artifacts:
     when: always
     reports:

@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import pytest
 
 from avtools.core.av_tools import AVTools
 
@@ -42,9 +41,7 @@ class DummySanitizer:
     def sanitize_text(self, v: Any) -> Any:
         return v
 
-    def sanitize_dict_in_place(
-        self, data: dict[str, Any], *, compare_fields=None
-    ) -> None:
+    def sanitize_dict_in_place(self, data: dict[str, Any], *, compare_fields=None) -> None:
         return
 
 
@@ -147,9 +144,7 @@ def make_avtools_for_tests(
     """
     av = object.__new__(AVTools)
     logger = DummyLogger()
-    helper = DummyDBODHelper(
-        eam_devices=eam_devices or [], landb_cache=landb_cache or []
-    )
+    helper = DummyDBODHelper(eam_devices=eam_devices or [], landb_cache=landb_cache or [])
 
     av.logger = logger
     av.dbod_helper = helper
@@ -227,9 +222,7 @@ def test_run_landb_normal_flow_calls_all_steps(monkeypatch):
         DummyCachedLanDBRow(equipmentno="EQ-99", ip="10.0.0.99"),
     ]
 
-    av, logger, dbod = make_avtools_for_tests(
-        eam_devices=eam_devices, landb_cache=landb_cache
-    )
+    av, logger, dbod = make_avtools_for_tests(eam_devices=eam_devices, landb_cache=landb_cache)
 
     init_calls: list[dict[str, Any]] = []
     fetch_calls: list[list[DummyEAMDevice]] = []
@@ -256,9 +249,7 @@ def test_run_landb_normal_flow_calls_all_steps(monkeypatch):
         ]
 
     def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
-        sync_calls.append(
-            (list(api_items), list(cached_items), get_id, sync_func, name)
-        )
+        sync_calls.append((list(api_items), list(cached_items), get_id, sync_func, name))
 
     av._init_landb_rest_client = fake_init_landb_rest_client.__get__(av, AVTools)
     av._get_landb_ipaddresses = fake_get_landb_ipaddresses.__get__(av, AVTools)
@@ -318,9 +309,7 @@ def test_run_landb_landb_list_empty_still_calls_sync(monkeypatch):
     ]
     landb_cache = [DummyCachedLanDBRow(equipmentno="EQ-34", ip="10.0.0.34")]
 
-    av, logger, dbod = make_avtools_for_tests(
-        eam_devices=eam_devices, landb_cache=landb_cache
-    )
+    av, logger, dbod = make_avtools_for_tests(eam_devices=eam_devices, landb_cache=landb_cache)
 
     av._init_landb_rest_client = (lambda self, **kw: None).__get__(av, AVTools)
     av._get_landb_ipaddresses = (lambda self, eam_records: []).__get__(av, AVTools)
@@ -328,9 +317,7 @@ def test_run_landb_landb_list_empty_still_calls_sync(monkeypatch):
     sync_calls: list[tuple] = []
 
     def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
-        sync_calls.append(
-            (list(api_items), list(cached_items), get_id, sync_func, name)
-        )
+        sync_calls.append((list(api_items), list(cached_items), get_id, sync_func, name))
 
     av._sync_entities = fake_sync_entities.__get__(av, AVTools)
 
@@ -425,9 +412,7 @@ def test_run_landb_duplicate_landb_ids_passed_to_sync(monkeypatch):
     sync_calls: list[tuple] = []
 
     def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
-        sync_calls.append(
-            (list(api_items), list(cached_items), get_id, sync_func, name)
-        )
+        sync_calls.append((list(api_items), list(cached_items), get_id, sync_func, name))
 
     av._get_landb_ipaddresses = fake_get_landb_ipaddresses.__get__(av, AVTools)
     av._sync_entities = fake_sync_entities.__get__(av, AVTools)
@@ -460,16 +445,12 @@ def test_run_landb_preserves_unordered_landb_results(monkeypatch):
         DummyCachedIPAddress(equipmentno="EQ-38", ip="10.0.0.38"),
     ]
 
-    av._get_landb_ipaddresses = (lambda self, eam_records: list(unordered)).__get__(
-        av, AVTools
-    )
+    av._get_landb_ipaddresses = (lambda self, eam_records: list(unordered)).__get__(av, AVTools)
 
     sync_calls: list[tuple] = []
 
     def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
-        sync_calls.append(
-            (list(api_items), list(cached_items), get_id, sync_func, name)
-        )
+        sync_calls.append((list(api_items), list(cached_items), get_id, sync_func, name))
 
     av._sync_entities = fake_sync_entities.__get__(av, AVTools)
 
@@ -493,23 +474,17 @@ def test_run_landb_handles_malformed_landb_cache_entries(monkeypatch):
         DummyCachedLanDBRow(equipmentno="EQ-38", ip="10.0.0.38", serialnumber=None),
     ]
 
-    av, logger, dbod = make_avtools_for_tests(
-        eam_devices=eam_devices, landb_cache=landb_cache
-    )
+    av, logger, dbod = make_avtools_for_tests(eam_devices=eam_devices, landb_cache=landb_cache)
 
     av._init_landb_rest_client = (lambda self, **kw: None).__get__(av, AVTools)
     av._get_landb_ipaddresses = (
-        lambda self, eam_records: [
-            DummyCachedIPAddress(equipmentno="EQ-34", ip="10.0.0.34")
-        ]
+        lambda self, eam_records: [DummyCachedIPAddress(equipmentno="EQ-34", ip="10.0.0.34")]
     ).__get__(av, AVTools)
 
     sync_calls: list[tuple] = []
 
     def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
-        sync_calls.append(
-            (list(api_items), list(cached_items), get_id, sync_func, name)
-        )
+        sync_calls.append((list(api_items), list(cached_items), get_id, sync_func, name))
 
     av._sync_entities = fake_sync_entities.__get__(av, AVTools)
 

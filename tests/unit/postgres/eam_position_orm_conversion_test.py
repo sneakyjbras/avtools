@@ -83,9 +83,7 @@ def test_to_equipment_sets_expected_keys_and_compare_fields() -> None:
     elif isinstance(raw_commission, datetime.date):
         assert raw_commission == datetime.date(2025, 1, 2)
     else:  # pragma: no cover
-        raise AssertionError(
-            f"Unexpected comission_date type: {type(raw_commission)!r}"
-        )
+        raise AssertionError(f"Unexpected comission_date type: {type(raw_commission)!r}")
 
     compare = eq.avtools_compare_fields()  # type: ignore[attr-defined]
     assert "code" in compare

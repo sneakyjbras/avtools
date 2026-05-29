@@ -191,9 +191,7 @@ def test_sync_entities_multiple_updates_only():
     assert captured["delete"] == []
 
     assert len(captured["update"]) == 2
-    changes_by_id = {
-        model.equipment_no: changes for model, changes in captured["update"]
-    }
+    changes_by_id = {model.equipment_no: changes for model, changes in captured["update"]}
 
     assert changes_by_id["DEV-34"] == {"value": 404, "note": "new-34"}
     assert changes_by_id["DEV-39"] == {"note": "new-39"}
@@ -206,9 +204,7 @@ def test_sync_entities_multiple_updates_only():
 
 def test_sync_entities_optional_field_unset_does_not_trigger_update():
     """Omitting an optional field should not trigger an update (exclude_unset=True)."""
-    cached_items = [
-        DummyModel(equipment_no="DEV-34", value=34, year=2025, note="keep-me")
-    ]
+    cached_items = [DummyModel(equipment_no="DEV-34", value=34, year=2025, note="keep-me")]
 
     # note is omitted (not explicitly set to None)
     api_items = [
@@ -228,9 +224,7 @@ def test_sync_entities_optional_field_unset_does_not_trigger_update():
 
 def test_sync_entities_optional_field_set_to_none_triggers_update():
     """Explicitly setting an optional field to None should trigger an update."""
-    cached_items = [
-        DummyModel(equipment_no="DEV-34", value=34, year=2025, note="keep-me")
-    ]
+    cached_items = [DummyModel(equipment_no="DEV-34", value=34, year=2025, note="keep-me")]
     api_items = [DummyModel(equipment_no="DEV-34", value=34, year=2025, note=None)]
 
     captured = run_sync(api_items, cached_items)
@@ -269,9 +263,7 @@ def test_sync_entities_duplicate_ids_in_cache_last_cached_wins():
         DummyModel(equipment_no="DEV-34", value=34, year=2025, note="first-version"),
         DummyModel(equipment_no="DEV-34", value=34, year=2025, note="second-version"),
     ]
-    api_items = [
-        DummyModel(equipment_no="DEV-34", value=34, year=2025, note="second-version")
-    ]
+    api_items = [DummyModel(equipment_no="DEV-34", value=34, year=2025, note="second-version")]
 
     captured = run_sync(api_items, cached_items)
 

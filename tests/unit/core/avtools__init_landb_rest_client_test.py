@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
-
 
 class DummyLogger:
     def __init__(self) -> None:

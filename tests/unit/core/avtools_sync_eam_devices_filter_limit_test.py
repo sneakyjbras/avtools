@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import pytest
-
 
 class DummyLogger:
     def __init__(self) -> None:
@@ -32,9 +30,7 @@ class EAMRec:
 
 
 class DummyQuery:
-    def __init__(
-        self, *, raise_on_filter: bool = False, raise_on_limit: bool = False
-    ) -> None:
+    def __init__(self, *, raise_on_filter: bool = False, raise_on_limit: bool = False) -> None:
         self.raise_on_filter = raise_on_filter
         self.raise_on_limit = raise_on_limit
         self.filtered_prefix: str | None = None
@@ -92,9 +88,7 @@ def test_sync_eam_devices_warns_when_department_filter_fails(monkeypatch: Any) -
     import avtools.core.av_tools as av_mod
 
     q = DummyQuery(raise_on_filter=True)
-    monkeypatch.setattr(
-        DummyEquipment.objects, "use_grid", staticmethod(lambda name: q)
-    )
+    monkeypatch.setattr(DummyEquipment.objects, "use_grid", staticmethod(lambda name: q))
     monkeypatch.setattr(av_mod, "Equipment", DummyEquipment)
 
     av = _make_avtools()
@@ -122,9 +116,7 @@ def test_sync_eam_devices_warns_when_limit_fails(monkeypatch: Any) -> None:
     import avtools.core.av_tools as av_mod
 
     q = DummyQuery(raise_on_limit=True)
-    monkeypatch.setattr(
-        DummyEquipment.objects, "use_grid", staticmethod(lambda name: q)
-    )
+    monkeypatch.setattr(DummyEquipment.objects, "use_grid", staticmethod(lambda name: q))
     monkeypatch.setattr(av_mod, "Equipment", DummyEquipment)
 
     av = _make_avtools()

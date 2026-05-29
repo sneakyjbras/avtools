@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
 from pydantic import BaseModel
 
 
@@ -39,9 +38,7 @@ def test_diff_models_sanitizes_equipment_dict_before_comparing(
     calls: dict[str, Any] = {}
 
     class DummySanitizer:
-        def sanitize_dict_in_place(
-            self, d: dict[str, Any], *, compare_fields: Any = None
-        ) -> None:
+        def sanitize_dict_in_place(self, d: dict[str, Any], *, compare_fields: Any = None) -> None:
             calls["called"] = True
             calls["compare_fields"] = compare_fields
             # Emulate the real sanitizer cleaning dirty EAM values.

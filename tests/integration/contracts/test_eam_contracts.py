@@ -151,9 +151,7 @@ def test_sync_eam_positions_gridquery_field_map_contract(
     # Stub _sync_entities.
     avtools_no_db._sync_entities = lambda **kwargs: None  # type: ignore[attr-defined]
 
-    avtools_no_db.sync_eam_positions(
-        position_grid="OSOBJP", department_code="AV", limit=5
-    )
+    avtools_no_db.sync_eam_positions(position_grid="OSOBJP", department_code="AV", limit=5)
 
     assert captured["name"] == "OSOBJP"
     assert captured["grid_type"] == "LIST"

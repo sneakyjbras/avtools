@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session, sessionmaker
 
-from avtools.exception.errors import NoRecordsFound, PostgresInventoryClientError
+from avtools.exception.errors import PostgresInventoryClientError
 from avtools.postgres.inventory.orm.eam_device import EAMDeviceORM
 from avtools.postgres.inventory.orm.eam_position import EAMPositionORM
 from avtools.postgres.inventory.orm.landb_ipaddress import (
@@ -61,9 +61,7 @@ class PostgresClient:
         try:
             self.engine: Engine = create_engine(connection_string, echo=False)
         except Exception as exc:
-            raise PostgresInventoryClientError(
-                "Failed to create SQLAlchemy engine"
-            ) from exc
+            raise PostgresInventoryClientError("Failed to create SQLAlchemy engine") from exc
 
         # NOTE:
         # SQLAlchemy's `create_all()` does not migrate existing tables.
@@ -149,9 +147,7 @@ class PostgresClient:
 
     # --- Generic helpers -----------------------------------------------------
 
-    def _get_all(
-        self, orm_cls: type, converter: Callable[[Any], Any], error_msg: str
-    ) -> list[Any]:
+    def _get_all(self, orm_cls: type, converter: Callable[[Any], Any], error_msg: str) -> list[Any]:
         """Fetch all rows from a cache table and convert them to domain objects.
 
         Args:
