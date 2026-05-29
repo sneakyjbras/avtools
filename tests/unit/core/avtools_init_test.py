@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
-
 
 def test_init_sets_expected_fields(monkeypatch: Any) -> None:
     """AVTools.__init__ wires up helper objects and internal flags."""

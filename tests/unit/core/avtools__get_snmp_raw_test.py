@@ -141,15 +141,9 @@ def test_get_snmp_raw_probe_runs_on_all_targets_even_if_ping_none_alive(monkeypa
     """Policy: SNMP probe runs on ALL targets (ICMP may be blocked)."""
 
     devices = [
-        DummyDevice(
-            ip="10.0.0.1", equipment_no="EQ1", eq_class="AVD", category="AV-PRO"
-        ),
-        DummyDevice(
-            ip="10.0.0.2", equipment_no="EQ2", eq_class="AVD", category="AV-PRO"
-        ),
-        DummyDevice(
-            ip="10.0.0.3", equipment_no="EQ3", eq_class="AVD", category="AV-PRO"
-        ),
+        DummyDevice(ip="10.0.0.1", equipment_no="EQ1", eq_class="AVD", category="AV-PRO"),
+        DummyDevice(ip="10.0.0.2", equipment_no="EQ2", eq_class="AVD", category="AV-PRO"),
+        DummyDevice(ip="10.0.0.3", equipment_no="EQ3", eq_class="AVD", category="AV-PRO"),
     ]
 
     scenario = SNMPScenario(

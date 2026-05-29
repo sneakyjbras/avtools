@@ -218,9 +218,7 @@ def test_sync_eam_devices_happy_path(monkeypatch):
 
     captured: dict[str, Any] = {}
 
-    def fake_sync_entities(
-        self, api_items, cached_items, get_id, sync_func, name: str
-    ) -> None:
+    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name: str) -> None:
         captured["api_items"] = api_items
         captured["cached_items"] = cached_items
         captured["get_id"] = get_id
@@ -241,9 +239,7 @@ def test_sync_eam_devices_happy_path(monkeypatch):
     assert captured["api_items"] == eam_devices
     assert captured["cached_items"] == cached_devices
     assert captured["name"] == "EAM Devices"
-    assert [captured["get_id"](d) for d in eam_devices] == [
-        str(d.code) for d in eam_devices
-    ]
+    assert [captured["get_id"](d) for d in eam_devices] == [str(d.code) for d in eam_devices]
 
     sync_func = captured["sync_func"]
     assert getattr(sync_func, "__self__", None) is dbod
@@ -280,9 +276,7 @@ def test_sync_eam_devices_zero_total_calls_sync_entities(monkeypatch):
 
     captured: dict[str, Any] = {}
 
-    def fake_sync_entities(
-        self, api_items, cached_items, get_id, sync_func, name: str
-    ) -> None:
+    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name: str) -> None:
         captured["api_items"] = api_items
         captured["cached_items"] = cached_items
         captured["name"] = name
@@ -388,9 +382,7 @@ def test_sync_eam_devices_cache_error_propagates(monkeypatch):
 
     def query_factory(grid_name: str) -> DummyQuery:
         assert grid_name == "OSOBJA"
-        return DummyQuery(
-            all_return=[DummyEAMDevice(code="EQ-34", serial_number="SN34")]
-        )
+        return DummyQuery(all_return=[DummyEAMDevice(code="EQ-34", serial_number="SN34")])
 
     objects_mgr._query_factory = query_factory
 

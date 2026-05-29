@@ -52,6 +52,9 @@ class DummyAVTools:
         service_name: str = "avtools",
         otlp_ca_file: str | None = None,
         otlp_insecure: bool = False,
+        submitter_environment: str = "prod",
+        submitter_hostgroup: str = "itdcim/av",
+        availability_zone: str = "cern-geneva-b",
     ) -> None:
         type(self).calls.append(
             (
@@ -65,6 +68,9 @@ class DummyAVTools:
                     "service_name": service_name,
                     "otlp_ca_file": otlp_ca_file,
                     "otlp_insecure": otlp_insecure,
+                    "submitter_environment": submitter_environment,
+                    "submitter_hostgroup": submitter_hostgroup,
+                    "availability_zone": availability_zone,
                 },
             )
         )
@@ -151,6 +157,9 @@ def test_snmp_timeseries_uses_envvars_for_required_and_optional_flags() -> None:
                 "service_name": "svc",
                 "otlp_ca_file": "/etc/ssl/certs/ca.pem",
                 "otlp_insecure": True,
+                "submitter_environment": "prod",
+                "submitter_hostgroup": "itdcim/av",
+                "availability_zone": "cern-geneva-b",
             },
         )
     ]

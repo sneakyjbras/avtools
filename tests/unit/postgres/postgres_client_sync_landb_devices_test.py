@@ -90,9 +90,7 @@ def test_sync_landb_devices_inserts_updates_and_deletes(tmp_path) -> None:
         )
     ]
 
-    client.sync_landb_devices(
-        to_insert=to_insert, to_update=to_update, to_delete=["EQ2"]
-    )
+    client.sync_landb_devices(to_insert=to_insert, to_update=to_update, to_delete=["EQ2"])
 
     with client.Session() as session:
         stmt = select(LanDBIPAddressORM)

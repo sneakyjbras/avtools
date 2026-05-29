@@ -118,9 +118,7 @@ class SyncReportLogger:
         self._updated.append(
             _Row(
                 id=id,
-                serial_number=self._sanitize_text(
-                    getattr(new_item, "serial_number", None)
-                ),
+                serial_number=self._sanitize_text(getattr(new_item, "serial_number", None)),
                 changed_fields=sorted(changed_fields),
             )
         )

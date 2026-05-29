@@ -60,9 +60,7 @@ class DummyEqNoSetattr:
         }
 
 
-def test_clean_items_uses_model_copy_when_available_and_does_not_mutate_original() -> (
-    None
-):
+def test_clean_items_uses_model_copy_when_available_and_does_not_mutate_original() -> None:
     s = EAMTextSanitizer()
 
     original = DummyEqWithModelCopy(serial_number=123, description="  hello  ")

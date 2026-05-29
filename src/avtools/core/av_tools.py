@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import math
-import os
-import re
-from asyncio import TaskGroup
 from asyncio import run as asyncio_run
 from collections.abc import Callable, Sequence
 from time import time
 from typing import Any, TypeVar
 
 import structlog
-from sqlalchemy import create_engine, inspect, text
 from eam_rest_client import Equipment
 from eam_rest_client.credentials import register_credentials
 from eam_rest_client.grid_query import GridQuery
@@ -202,9 +197,7 @@ class AVTools:
         try:
             # --- Auth / client configuration ---------------------------------
             try:
-                register_credentials(
-                    base_url=base_url, user=username, password=password
-                )
+                register_credentials(base_url=base_url, user=username, password=password)
             except EamClientRetryableHTTPError as e:
                 status = "failed_register_credentials_retryable_http_error"
                 self.logger.error(
@@ -567,9 +560,7 @@ class AVTools:
                 eam_count = len(eam_list)
             except PostgresError as e:
                 status = "failed_load_eam_devices_postgres_error"
-                self.logger.exception(
-                    "landb_load_eam_devices_postgres_error", error=str(e)
-                )
+                self.logger.exception("landb_load_eam_devices_postgres_error", error=str(e))
                 return
             except Exception:
                 status = "failed_load_eam_devices"
@@ -643,9 +634,7 @@ class AVTools:
                 cached_count = len(cache_list)
             except PostgresError as e:
                 status = "failed_load_cached_devices_postgres_error"
-                self.logger.exception(
-                    "landb_load_cached_devices_postgres_error", error=str(e)
-                )
+                self.logger.exception("landb_load_cached_devices_postgres_error", error=str(e))
                 return
             except Exception:
                 status = "failed_load_cached_devices"
@@ -746,9 +735,7 @@ class AVTools:
 
         self._landb_initialized = True
 
-    def _get_landb_ipaddresses(
-        self, eam_records: list[Equipment]
-    ) -> list[CachedIPAddress]:
+    def _get_landb_ipaddresses(self, eam_records: list[Equipment]) -> list[CachedIPAddress]:
         """Bulk LanDB lookup in <=4 API calls.
 
         Strategy:
@@ -907,9 +894,7 @@ class AVTools:
 
         try:
             if device_serials:
-                ips = IPAddress.objects.filter(
-                    device__serial_number__in=device_serials
-                ).all()
+                ips = IPAddress.objects.filter(device__serial_number__in=device_serials).all()
                 for ip in ips:
                     k = norm(getattr(ip, "device", None))
                     if k and k not in ips_by_device:
@@ -1066,24 +1051,39 @@ class AVTools:
         service_name: str = "avtools",
         otlp_ca_file: str | None = None,
         otlp_insecure: bool = False,
+        submitter_environment: str = "prod",
+        submitter_hostgroup: str = "itdcim/av",
+        availability_zone: str = "cern-geneva-b",
     ) -> None:
         """Collect ping/SNMP metrics and publish to Prometheus via MONIT OTLP.
 
         This replaces the old InfluxDB sink. Metrics are exported as Prometheus
         gauges through MONIT's OTLP endpoint (stored in Mimir).
 
-        Labels:
-          - `equipmentno` is the only mandatory label and is used as the join key
-            between Prometheus and Postgres.
+        Metadata strategy (mirrors timeseries-dip):
+          Layer 1 — OTel resource attributes on every ResourceMetrics envelope:
+            service.name, service.instance.id, service.version, service.namespace.
+          Layer 2 — global metric labels merged into every sample before export:
+            job, submitter_environment, toplevel_hostgroup, submitter_hostgroup,
+            region, availability_zone.
+          Per-device labels on each MetricSample:
+            equipmentno (mandatory join key), building, room, eq_class, model,
+            category, hostname (all sourced from CachedIPAddress / EAM / LanDB).
 
         Args:
-            otlp_endpoint: OTLP gRPC endpoint in 'host:port' form (e.g. monit-otlp.cern.ch:4316).
-            monit_tenant: MONIT tenant name (Basic auth username).
-            monit_password: MONIT tenant password (Basic auth password).
-            max_workers: Number of concurrent worker tasks.
-            service_name: OTel resource service.name (default: avtools).
-            otlp_ca_file: Optional CA bundle path for gRPC when using TLS.
-            otlp_insecure: If True, use plaintext OTLP/gRPC (no TLS). Required for endpoints that do not speak TLS.
+            otlp_endpoint:          OTLP gRPC endpoint in 'host:port' form.
+            monit_tenant:           MONIT tenant name (Basic auth username).
+            monit_password:         MONIT tenant password (Basic auth password).
+            max_workers:            Number of concurrent worker tasks.
+            service_name:           OTel resource service.name (default: avtools).
+            otlp_ca_file:           Optional CA bundle path for gRPC TLS.
+            otlp_insecure:          If True, use plaintext OTLP/gRPC (no TLS).
+            submitter_environment:  Deployment environment ("prod" or "qa").
+                                    Exposed as the ``submitter_environment`` label.
+            submitter_hostgroup:    Full Puppet hostgroup path (e.g. "itdcim/av").
+                                    Exposed as the ``submitter_hostgroup`` label.
+            availability_zone:      CERN compute zone (e.g. "cern-geneva-b").
+                                    Exposed as the ``availability_zone`` label.
 
         Returns:
             None.
@@ -1102,20 +1102,46 @@ class AVTools:
         )
 
         try:
+            # Layer 2: global deployment labels merged into every MetricSample.
+            metric_labels: dict[str, str] = {
+                "job": service_name,
+                "submitter_environment": submitter_environment,
+                "toplevel_hostgroup": "itdcim",
+                "submitter_hostgroup": submitter_hostgroup,
+                "region": "cern",
+                "availability_zone": availability_zone,
+            }
+
             try:
                 devices = self._load_timeseries_targets_from_landb_ipaddresses()
                 devices_total = len(devices)
+
+                # Pre-compute per-device label dicts from EAM/LanDB metadata.
+                # Keys are equipment_no strings; values are the enrichment labels
+                # added on top of the mandatory 'equipmentno' label in encoder.py.
+                device_lookup: dict[str, dict[str, str]] = {}
+                for _d in devices:
+                    if not _d.equipment_no:
+                        continue
+                    _extra: dict[str, str] = {}
+                    for _k, _v in (
+                        ("building", getattr(_d, "building", None)),
+                        ("room", getattr(_d, "room", None)),
+                        ("eq_class", getattr(_d, "eq_class", None)),
+                        ("model", getattr(_d, "model", None)),
+                        ("category", getattr(_d, "category", None)),
+                        ("hostname", getattr(_d, "hostname", None)),
+                    ):
+                        if _v:
+                            _extra[_k] = _v
+                    device_lookup[_d.equipment_no] = _extra
             except PostgresInventoryClientError as e:
                 status = "failed_load_landb_ipaddresses_postgres_error"
-                self.logger.exception(
-                    "snmp_load_landb_ipaddresses_postgres_error", error=str(e)
-                )
+                self.logger.exception("snmp_load_landb_ipaddresses_postgres_error", error=str(e))
                 return
             except PostgresError as e:
                 status = "failed_load_landb_ipaddresses_postgres_error"
-                self.logger.exception(
-                    "snmp_load_landb_ipaddresses_postgres_error", error=str(e)
-                )
+                self.logger.exception("snmp_load_landb_ipaddresses_postgres_error", error=str(e))
                 return
             except Exception:
                 status = "failed_load_landb_ipaddresses"
@@ -1127,9 +1153,7 @@ class AVTools:
                 self.logger.info("No LanDB IP targets to monitor")
                 return
 
-            self.logger.info(
-                "Fetching LanDB IP targets", total=devices_total, tasks=max_workers
-            )
+            self.logger.info("Fetching LanDB IP targets", total=devices_total, tasks=max_workers)
 
             try:
                 ping_results, probe_results, query_results = asyncio_run(
@@ -1160,6 +1184,7 @@ class AVTools:
                     service_name=service_name,
                     ca_file=otlp_ca_file,
                     insecure=otlp_insecure,
+                    metric_labels=metric_labels,
                 )
 
                 pg_monitoring = PostgresMonitoringClient(self.dbod_url)
@@ -1173,6 +1198,7 @@ class AVTools:
                     ping=ping_results,
                     probe=probe_results,
                     queries=query_results,
+                    device_lookup=device_lookup,
                 )
 
                 samples_total = routing_stats.ts_samples
@@ -1252,9 +1278,7 @@ class AVTools:
         async def ping_worker(chunk: list[CachedIPAddress]):
             monitor = SNMPClient(targets=chunk)
             results, alive = await monitor.collect_ping()
-            self.logger.info(
-                "snmp_ping_task_done", devices=len(chunk), alive=len(alive)
-            )
+            self.logger.info("snmp_ping_task_done", devices=len(chunk), alive=len(alive))
             return results, alive
 
         ping_done = await asyncio.gather(*(ping_worker(c) for c in ping_chunks))
@@ -1278,9 +1302,7 @@ class AVTools:
         async def probe_worker(chunk: list[CachedIPAddress]):
             monitor = SNMPClient(targets=chunk)
             results, alive = await monitor.collect_snmp_probe(chunk)
-            self.logger.info(
-                "snmp_probe_task_done", devices=len(chunk), alive=len(alive)
-            )
+            self.logger.info("snmp_probe_task_done", devices=len(chunk), alive=len(alive))
             return results, alive
 
         probe_done = await asyncio.gather(*(probe_worker(c) for c in probe_chunks))
@@ -1303,9 +1325,7 @@ class AVTools:
         async def query_worker(chunk: list[CachedIPAddress]):
             monitor = SNMPClient(targets=chunk)
             results = await monitor.collect_snmp_queries(chunk)
-            self.logger.info(
-                "snmp_query_task_done", devices=len(chunk), results=len(results)
-            )
+            self.logger.info("snmp_query_task_done", devices=len(chunk), results=len(results))
             return results
 
         query_done = await asyncio.gather(*(query_worker(c) for c in query_chunks))
@@ -1331,9 +1351,7 @@ class AVTools:
         """
         from avtools.timeseries.encoder import encode_all
 
-        ping_results, probe_results, query_results = await self._get_snmp_raw(
-            devices, max_workers
-        )
+        ping_results, probe_results, query_results = await self._get_snmp_raw(devices, max_workers)
         return encode_all(ping=ping_results, probe=probe_results, queries=query_results)
 
     def _publish_timeseries(

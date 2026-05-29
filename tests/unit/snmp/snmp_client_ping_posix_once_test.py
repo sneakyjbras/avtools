@@ -6,9 +6,7 @@ import avtools.snmp.client as snmp_mod
 
 
 class _Proc:
-    def __init__(
-        self, *, returncode: int, stdout: bytes = b"", stderr: bytes = b""
-    ) -> None:
+    def __init__(self, *, returncode: int, stdout: bytes = b"", stderr: bytes = b"") -> None:
         self.returncode = returncode
         self._stdout = stdout
         self._stderr = stderr

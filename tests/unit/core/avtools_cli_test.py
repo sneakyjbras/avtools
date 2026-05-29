@@ -29,9 +29,7 @@ class DummyAVTools:
         type(self).instances.append(self)
 
     def run_eam(self, *, username: str, password: str) -> None:
-        type(self).calls.append(
-            ("run_eam", (), {"username": username, "password": password})
-        )
+        type(self).calls.append(("run_eam", (), {"username": username, "password": password}))
         if type(self).raise_no_records_run_eam:
             raise NoRecordsFound("no EAM records")
 
@@ -66,6 +64,9 @@ class DummyAVTools:
         service_name: str = "avtools",
         otlp_ca_file: str | None = None,
         otlp_insecure: bool = False,
+        submitter_environment: str = "prod",
+        submitter_hostgroup: str = "itdcim/av",
+        availability_zone: str = "cern-geneva-b",
     ) -> None:
         type(self).calls.append(
             (
@@ -79,6 +80,9 @@ class DummyAVTools:
                     "service_name": service_name,
                     "otlp_ca_file": otlp_ca_file,
                     "otlp_insecure": otlp_insecure,
+                    "submitter_environment": submitter_environment,
+                    "submitter_hostgroup": submitter_hostgroup,
+                    "availability_zone": availability_zone,
                 },
             )
         )
@@ -124,9 +128,7 @@ def test_root_help_and_subcommand_help(
     assert res.exit_code == 0
 
     # snmp-timeseries
-    res = runner.invoke(
-        cli, ["--dbod-url", "postgres://dummy", "snmp-timeseries", "--help"]
-    )
+    res = runner.invoke(cli, ["--dbod-url", "postgres://dummy", "snmp-timeseries", "--help"])
     assert res.exit_code == 0
 
 
@@ -363,4 +365,7 @@ def test_run_snmp_timeseries_passes_all_cli_flags_through(
         "service_name": "svc",
         "otlp_ca_file": "/tmp/ca.pem",
         "otlp_insecure": True,
+        "submitter_environment": "prod",
+        "submitter_hostgroup": "itdcim/av",
+        "availability_zone": "cern-geneva-b",
     }

@@ -166,37 +166,22 @@ class CachedIPAddress(BaseModel):
             landb_description = _none_if_blank(getattr(landb_device, "name", None))
 
         # LanDB hostname (from IPAddress.name).
-        hostname = (
-            _none_if_blank(getattr(ipaddr, "name", None))
-            if ipaddr is not None
-            else None
-        )
+        hostname = _none_if_blank(getattr(ipaddr, "name", None)) if ipaddr is not None else None
 
         # Best-effort display name (legacy).
         # Prefer LanDB device name; fallback to EAM description; then LanDB hostname.
         name = (
-            landb_description
-            or _none_if_blank(getattr(equipment, "description", None))
-            or hostname
+            landb_description or _none_if_blank(getattr(equipment, "description", None)) or hostname
         )
 
         # Normalise SNMP target IP.
-        ipv4 = (
-            _none_if_blank(getattr(ipaddr, "ipv4", None))
-            if ipaddr is not None
-            else None
-        )
-        ipv6 = (
-            _none_if_blank(getattr(ipaddr, "ipv6", None))
-            if ipaddr is not None
-            else None
-        )
+        ipv4 = _none_if_blank(getattr(ipaddr, "ipv4", None)) if ipaddr is not None else None
+        ipv6 = _none_if_blank(getattr(ipaddr, "ipv6", None)) if ipaddr is not None else None
         ip = ipv4 or ipv6
 
         # EAM metadata.
         eq_class = _none_if_blank(
-            getattr(equipment, "class_code", None)
-            or getattr(equipment, "class_desc", None)
+            getattr(equipment, "class_code", None) or getattr(equipment, "class_desc", None)
         )
         category = _none_if_blank(
             getattr(equipment, "category_code", None)
@@ -212,9 +197,7 @@ class CachedIPAddress(BaseModel):
 
         building = floor = room = None
         if landb_device is not None:
-            building, floor, room = _parse_location(
-                getattr(landb_device, "location", None)
-            )
+            building, floor, room = _parse_location(getattr(landb_device, "location", None))
 
         out = cls(
             equipment_no=equipment_no,
@@ -254,13 +237,9 @@ class LanDBIPAddressORM(Base):
     )
 
     # Primary key is the EAM equipment number so we can join back to EAM.
-    equipment_no: Mapped[str] = mapped_column(
-        "equipmentno", String(64), primary_key=True
-    )
+    equipment_no: Mapped[str] = mapped_column("equipmentno", String(64), primary_key=True)
 
-    serial_number: Mapped[str | None] = mapped_column(
-        "serialnumber", String(128), nullable=True
-    )
+    serial_number: Mapped[str | None] = mapped_column("serialnumber", String(128), nullable=True)
 
     # Store as string for portability (IPv4 or IPv6). If Postgres-only, INET is nicer.
     ip: Mapped[str | None] = mapped_column("ip", String(45), nullable=True)
@@ -271,9 +250,7 @@ class LanDBIPAddressORM(Base):
     # New: dedicated LanDB fields used for comparisons/alerts.
     hostname: Mapped[str | None] = mapped_column("hostname", String(255), nullable=True)
 
-    landb_serial: Mapped[str | None] = mapped_column(
-        "landb_serial", String(128), nullable=True
-    )
+    landb_serial: Mapped[str | None] = mapped_column("landb_serial", String(128), nullable=True)
 
     landb_description: Mapped[str | None] = mapped_column(
         "landb_description", String(255), nullable=True
@@ -286,9 +263,7 @@ class LanDBIPAddressORM(Base):
     # Cached metadata (DB column names are fixed: eqclass/manufacturer/model)
     eq_class: Mapped[str | None] = mapped_column("eqclass", String(128), nullable=True)
     category: Mapped[str | None] = mapped_column("category", String(128), nullable=True)
-    manufacturer: Mapped[str | None] = mapped_column(
-        "manufacturer", String(255), nullable=True
-    )
+    manufacturer: Mapped[str | None] = mapped_column("manufacturer", String(255), nullable=True)
     model: Mapped[str | None] = mapped_column("model", String(255), nullable=True)
 
     # Fields we consider when diffing against the DB row.
@@ -337,9 +312,7 @@ class LanDBIPAddressORM(Base):
             name=_none_if_blank(getattr(ipaddr, "name", None)),
             hostname=_none_if_blank(getattr(ipaddr, "hostname", None)),
             landb_serial=_none_if_blank(getattr(ipaddr, "landb_serial", None)),
-            landb_description=_none_if_blank(
-                getattr(ipaddr, "landb_description", None)
-            ),
+            landb_description=_none_if_blank(getattr(ipaddr, "landb_description", None)),
             building=_none_if_blank(getattr(ipaddr, "building", None)),
             floor=_none_if_blank(getattr(ipaddr, "floor", None)),
             room=_none_if_blank(getattr(ipaddr, "room", None)),

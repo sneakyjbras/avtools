@@ -60,9 +60,7 @@ def postgres_url() -> str:
     """
     url = os.environ.get("AVTOOLS_TEST_POSTGRES_URL") or os.environ.get("POSTGRES_URL")
     if not url:
-        pytest.skip(
-            "Postgres integration tests require AVTOOLS_TEST_POSTGRES_URL or POSTGRES_URL"
-        )
+        pytest.skip("Postgres integration tests require AVTOOLS_TEST_POSTGRES_URL or POSTGRES_URL")
     return url
 
 

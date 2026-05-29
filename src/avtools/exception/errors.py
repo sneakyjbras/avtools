@@ -12,10 +12,6 @@ Design goals:
 
 from __future__ import annotations  # Enable postponed evaluation of annotations
 
-from collections.abc import Callable
-from re import Pattern
-from typing import Any
-
 
 class EAMError(ValueError):  # type: ignore[misc]
     """
@@ -83,9 +79,7 @@ class MoreThanOneDeviceFound(EAMError):  # type: ignore[misc]
         message (str): Description of the error.
     """
 
-    def __init__(
-        self, message: str = "Multiple devices found, expected unique result."
-    ) -> None:
+    def __init__(self, message: str = "Multiple devices found, expected unique result.") -> None:
         """
         Initialize MoreThanOneDeviceFound with an optional error message.
 

@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import json
-
-import click
-import pytest
 
 import avtools.main as main
 

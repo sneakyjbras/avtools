@@ -107,9 +107,7 @@ def test_sync_devices_applies_delete_update_insert_paths() -> None:
     )
     session.rows["P1"] = existing
 
-    to_update = [
-        (DummyDomain(code="P1", class_code="NEW", category_code="CAT"), {"x": 1})
-    ]
+    to_update = [(DummyDomain(code="P1", class_code="NEW", category_code="CAT"), {"x": 1})]
     to_insert = [DummyDomain(code="P2", class_code="AVD", category_code="AV-PRO")]
     to_delete = ["P9"]
 

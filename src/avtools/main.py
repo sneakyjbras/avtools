@@ -172,6 +172,30 @@ def run_landb(
         "Required for endpoints that do not speak TLS (e.g. monit-otlp.cern.ch:4316)."
     ),
 )
+@click.option(
+    "--environment",
+    envvar="AVTOOLS_ENVIRONMENT",
+    default="prod",
+    show_default=True,
+    help=(
+        "Deployment environment label attached to every Prometheus metric. "
+        "Use 'qa' for the QA pipeline and 'prod' for production."
+    ),
+)
+@click.option(
+    "--hostgroup",
+    envvar="AVTOOLS_HOSTGROUP",
+    default="itdcim/av",
+    show_default=True,
+    help="Full Puppet hostgroup path (submitter_hostgroup label, e.g. 'itdcim/av').",
+)
+@click.option(
+    "--availability-zone",
+    envvar="AVTOOLS_AVAILABILITY_ZONE",
+    default="cern-geneva-b",
+    show_default=True,
+    help="CERN compute availability zone (availability_zone label).",
+)
 @click.pass_context
 def snmp_timeseries(
     ctx: click.Context,
@@ -182,6 +206,9 @@ def snmp_timeseries(
     service_name: str,
     otlp_ca_file: str | None,
     otlp_insecure: bool,
+    environment: str,
+    hostgroup: str,
+    availability_zone: str,
 ) -> None:
     dbod_url = ctx.obj["dbod_url"]
     tools = AVTools(dbod_url)
@@ -193,6 +220,9 @@ def snmp_timeseries(
         service_name=service_name,
         otlp_ca_file=otlp_ca_file,
         otlp_insecure=otlp_insecure,
+        submitter_environment=environment,
+        submitter_hostgroup=hostgroup,
+        availability_zone=availability_zone,
     )
 
 

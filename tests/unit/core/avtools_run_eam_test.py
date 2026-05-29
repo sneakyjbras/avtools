@@ -54,9 +54,7 @@ def attach_sync_stubs(
     av.sync_eam_positions = MethodType(positions_fn, av)  # type: ignore[attr-defined]
 
 
-def patch_register_credentials(
-    monkeypatch: Any, calls: list[tuple[str, dict[str, Any]]]
-) -> None:
+def patch_register_credentials(monkeypatch: Any, calls: list[tuple[str, dict[str, Any]]]) -> None:
     """
     Patch the register_credentials symbol *as used* by avtools.core.av_tools.run_eam.
     """
@@ -65,9 +63,7 @@ def patch_register_credentials(
     def fake_register_credentials(**kwargs: Any) -> None:
         calls.append(("register_credentials", dict(kwargs)))
 
-    monkeypatch.setattr(
-        av_mod, "register_credentials", fake_register_credentials, raising=True
-    )
+    monkeypatch.setattr(av_mod, "register_credentials", fake_register_credentials, raising=True)
 
 
 def patch_eam_exceptions(monkeypatch: Any) -> None:
@@ -107,15 +103,11 @@ def patch_eam_exceptions(monkeypatch: Any) -> None:
             request_id: str | None = None,
             retry_after: int | None = None,
         ) -> None:
-            super().__init__(
-                message, status_code=status_code, url=url, request_id=request_id
-            )
+            super().__init__(message, status_code=status_code, url=url, request_id=request_id)
             self.retry_after = retry_after
 
     class EamClientTimeoutError(EamRestClientError):
-        def __init__(
-            self, message: str = "timeout", *, retry_after_s: int | None = None
-        ) -> None:
+        def __init__(self, message: str = "timeout", *, retry_after_s: int | None = None) -> None:
             super().__init__(message)
             self._retry_after_s = retry_after_s
 
@@ -140,12 +132,8 @@ def patch_eam_exceptions(monkeypatch: Any) -> None:
         EamClientRetryableHTTPError,
         raising=False,
     )
-    monkeypatch.setattr(
-        av_mod, "EamClientTimeoutError", EamClientTimeoutError, raising=False
-    )
-    monkeypatch.setattr(
-        av_mod, "EamClientTransportError", EamClientTransportError, raising=False
-    )
+    monkeypatch.setattr(av_mod, "EamClientTimeoutError", EamClientTimeoutError, raising=False)
+    monkeypatch.setattr(av_mod, "EamClientTransportError", EamClientTransportError, raising=False)
     monkeypatch.setattr(av_mod, "EamQueryError", EamQueryError, raising=False)
 
 

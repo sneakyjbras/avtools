@@ -48,9 +48,7 @@ def test_inventory_drops_legacy_landb_ipaddresses_table(
 
 
 @pytest.mark.postgres
-def test_inventory_drops_legacy_landb_location_table(
-    pg_engine: Engine, postgres_url: str
-) -> None:
+def test_inventory_drops_legacy_landb_location_table(pg_engine: Engine, postgres_url: str) -> None:
     with pg_engine.begin() as conn:
         conn.exec_driver_sql(
             """

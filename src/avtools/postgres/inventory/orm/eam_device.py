@@ -130,33 +130,21 @@ class EAMDeviceORM(Base):
         Index("ix_eam_devices_position", "position"),
     )
 
-    equipment_no: Mapped[str] = mapped_column(
-        "equipmentno", String(64), primary_key=True
-    )
+    equipment_no: Mapped[str] = mapped_column("equipmentno", String(64), primary_key=True)
 
-    serial_number: Mapped[str | None] = mapped_column(
-        "serialnumber", String(128), nullable=True
-    )
+    serial_number: Mapped[str | None] = mapped_column("serialnumber", String(128), nullable=True)
     eq_class: Mapped[str | None] = mapped_column("eqclass", String(64), nullable=True)
     category: Mapped[str | None] = mapped_column("category", String(64), nullable=True)
-    equipment_desc: Mapped[str | None] = mapped_column(
-        "equipmentdesc", Text, nullable=True
-    )
+    equipment_desc: Mapped[str | None] = mapped_column("equipmentdesc", Text, nullable=True)
 
     model: Mapped[str | None] = mapped_column("model", String(128), nullable=True)
-    manufacturer: Mapped[str | None] = mapped_column(
-        "manufacturer", String(128), nullable=True
-    )
+    manufacturer: Mapped[str | None] = mapped_column("manufacturer", String(128), nullable=True)
 
     position: Mapped[str | None] = mapped_column("position", String(64), nullable=True)
-    parent_asset: Mapped[str | None] = mapped_column(
-        "parentasset", String(64), nullable=True
-    )
+    parent_asset: Mapped[str | None] = mapped_column("parentasset", String(64), nullable=True)
 
     # INTERNAL: spelled correctly
-    commission_date: Mapped[date | None] = mapped_column(
-        "commissiondate", Date, nullable=True
-    )
+    commission_date: Mapped[date | None] = mapped_column("commissiondate", Date, nullable=True)
 
     asset_status_display: Mapped[str | None] = mapped_column(
         "assetstatus_display", String(64), nullable=True
