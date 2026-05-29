@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — Prometheus metadata enrichment
+## [1.4.0] — 2026-05-29 — codename: arthas
 
 ### Added
 
