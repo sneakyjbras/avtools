@@ -58,6 +58,7 @@ python-tests:
 .python-test-base:
   extends: .python-base
   before_script:
+    - apt-get update -qq && apt-get install -y --no-install-recommends git
     - pip install "poetry==$POETRY_VERSION"
     - poetry install --with dev,lint
 
