@@ -80,7 +80,7 @@ check:
   rules:
     - when: always
   script:
-    - poetry run detect-secrets scan --exclude-files '\.secrets\.baseline' > /tmp/secrets-current.json
+    - poetry run detect-secrets scan > /tmp/secrets-current.json
     - |
       python3 - <<'PYEOF'
       import json, sys
@@ -303,6 +303,7 @@ python-publish-qa:
   script:
     # Register the QA upload endpoint (upload URL differs from /simple install URL)
     - poetry config repositories.pypiserver_qa https://qa-pypi-itdcim.cern.ch
+    - poetry config http-basic.pypiserver_qa "$PYPISERVER_USER" "$PYPISERVER_PASS"
     - poetry build
     - poetry publish -r pypiserver_qa
 
@@ -316,5 +317,6 @@ python-publish-stable:
   script:
     # Register the PROD upload endpoint
     - poetry config repositories.pypiserver https://pypi-itdcim.cern.ch
+    - poetry config http-basic.pypiserver "$PYPISERVER_USER" "$PYPISERVER_PASS"
     - poetry build
     - poetry publish -r pypiserver
