@@ -299,6 +299,8 @@ python-publish-qa:
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+/'
       when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: on_success
     - when: never
   script:
     # Register the QA upload endpoint (upload URL differs from /simple install URL)
@@ -312,6 +314,8 @@ python-publish-stable:
   stage: deploy_stable
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+/'
+      when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "web"'
       when: on_success
     - when: never
   script:
