@@ -19,6 +19,7 @@ QA_GROUP="avtools-eam-dq-weekly-qa"
 
 usage() {
   echo "Usage: $0 {prod|qa|both}" >&2
+  echo "       $0 put {prod|qa|both}" >&2
   exit 2
 }
 
@@ -65,6 +66,19 @@ put_rulegroup() {
 }
 
 main() {
+  local arg1="${1:-}"
+  local arg2="${2:-}"
+
+  # Support both calling conventions:
+  #   sync_grafana_rulegroup.sh {prod|qa|both}          (direct CI call)
+  #   sync_grafana_rulegroup.sh put {prod|qa|both}      (called via QA wrapper)
+  local env
+  if [[ "$arg1" == "put" && -n "$arg2" ]]; then
+    env="$arg2"
+  else
+    env="$arg1"
+  fi
+
   if [[ ! -f "$PATCHER" ]]; then
     echo "ERROR: patcher not found: $PATCHER" >&2
     exit 1
@@ -74,7 +88,7 @@ main() {
     exit 1
   fi
 
-  case "${1:-}" in
+  case "$env" in
     prod) put_rulegroup prod ;;
     qa)   put_rulegroup qa ;;
     both) put_rulegroup qa; put_rulegroup prod ;;
