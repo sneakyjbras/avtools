@@ -163,7 +163,7 @@
         "type": "datasource",
         "uid": "-- Mixed --"
       },
-      "description": "This table summarizes each room’s availability and AV readiness, displaying building and site, capacity, whether it is in use right now, the next booking, aggregated AV health (online, degraded, offline), the most recent telemetry seen for devices in the room, and recent utilization within the dashboard’s time range. Start by filtering to a site or building, then sort by AV health or In use now to prioritize interventions. Clicking a room opens its room overview with device-level detail and booking context. “No AV data” or many devices marked unknown usually means missing telemetry or a network issue; verify cabling, power, or upstream monitoring before reassigning meetings. Use the time range to compare peak vs. quiet periods and to spot underused rooms. When capacity mismatches or frequent conflicts appear, coordinate with scheduling to adjust bookings or suggest alternative rooms.",
+      "description": "This table summarizes each room\u2019s availability and AV readiness, displaying building and site, capacity, whether it is in use right now, the next booking, aggregated AV health (online, degraded, offline), the most recent telemetry seen for devices in the room, and recent utilization within the dashboard\u2019s time range. Start by filtering to a site or building, then sort by AV health or In use now to prioritize interventions. Clicking a room opens its room overview with device-level detail and booking context. \u201cNo AV data\u201d or many devices marked unknown usually means missing telemetry or a network issue; verify cabling, power, or upstream monitoring before reassigning meetings. Use the time range to compare peak vs. quiet periods and to spot underused rooms. When capacity mismatches or frequent conflicts appear, coordinate with scheduling to adjust bookings or suggest alternative rooms.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -235,7 +235,7 @@
                 "value": [
                   {
                     "title": "Grafana",
-                    "url": "/d/av_devices_dashboard/av-devices-by-room?orgId=12&var-room=${__data.fields.conferenceroomno:raw}﻿&${status:param}﻿&var-device=All"
+                    "url": "/d/av_devices_dashboard/av-devices-by-room?orgId=12&var-room=${__data.fields.conferenceroomno:raw}\ufeff&${status:param}\ufeff&var-device=All"
                   }
                 ]
               },
@@ -441,6 +441,37 @@
               "options": ""
             },
             "properties": []
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last Checked"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 150
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "index": 0,
+                        "text": "\u2014"
+                      }
+                    },
+                    "type": "special"
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -527,69 +558,92 @@
           }
         },
         {
-          "alias": "Ping Check",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
-          "hide": false,
-          "query": "SELECT LAST(\"status\") AS ping_status\nFROM \"ping_check\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
-          "rawQuery": true,
           "refId": "C",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "max by(equipmentno) (last_over_time(avtools_ping_check_status{submitter_environment=\"prod\"}[30d]))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto"
         },
         {
-          "alias": "SNMP Monitoring",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
-          "hide": false,
-          "query": "SELECT LAST(\"status\") AS snmp_status\nFROM \"snmp_probe\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
-          "rawQuery": true,
           "refId": "D",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "max by(equipmentno) (last_over_time(avtools_snmp_probe_status{submitter_environment=\"prod\"}[30d]))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "E",
+          "editorMode": "code",
+          "hide": false,
+          "expr": "max by(equipmentno) (timestamp(last_over_time(avtools_ping_check_status{submitter_environment=\"prod\"}[30d]))) * 1000",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto"
         }
       ],
       "title": "Rooms Table",
       "transformations": [
         {
-          "filter": {
-            "id": "byRefId",
-            "options": "/^(?:C|D)$/"
-          },
           "id": "joinByField",
           "options": {
             "byField": "equipmentno",
             "mode": "outerTabular"
+          },
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:C|D|E)$/"
           }
         },
         {
-          "filter": {
-            "id": "byRefId",
-            "options": "/^(?:B|joinByField-C-D)$/"
-          },
           "id": "joinByField",
           "options": {
             "byField": "equipmentno",
             "mode": "outerTabular"
           },
-          "topic": "series"
-        },
-        {
           "filter": {
             "id": "byRefId",
-            "options": "/^(?:joinByField-joinByField-C-D-B)$/"
-          },
+            "options": "/^(?:B|joinByField-C-D-E)$/"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "ping_status",
+              "Value #C": "ping_status",
+              "Value 1": "snmp_status",
+              "Value #D": "snmp_status",
+              "Value 2": "last_ping_ts",
+              "Value #E": "last_ping_ts"
+            }
+          }
+        },
+        {
           "id": "groupBy",
           "options": {
             "fields": {
-              "Time ping_check": {
-                "aggregations": []
-              },
-              "Time snmp_probe": {
-                "aggregations": []
-              },
               "conferenceroomno": {
                 "aggregations": [
                   "count"
@@ -609,12 +663,6 @@
                 ],
                 "operation": "aggregate"
               },
-              "room_sort_rank": {
-                "aggregations": [
-                  "max"
-                ],
-                "operation": "aggregate"
-              },
               "snmp_status": {
                 "aggregations": [
                   "sum",
@@ -622,27 +670,35 @@
                 ],
                 "operation": "aggregate"
               },
-              "status": {
+              "room_sort_rank": {
                 "aggregations": [
-                  "sum"
+                  "max"
+                ],
+                "operation": "aggregate"
+              },
+              "last_ping_ts": {
+                "aggregations": [
+                  "max"
                 ],
                 "operation": "aggregate"
               }
             }
           },
-          "topic": "series"
-        },
-        {
           "filter": {
             "id": "byRefId",
-            "options": "/^(?:|A)$/"
-          },
+            "options": "/^(?:joinByField-joinByField-C-D-E-B)$/"
+          }
+        },
+        {
           "id": "joinByField",
           "options": {
             "byField": "conferenceroomno",
             "mode": "inner"
           },
-          "topic": "series"
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:joinByField-joinByField-C-D-E-B|A)$/"
+          }
         },
         {
           "id": "sortBy",
@@ -873,7 +929,15 @@
               "room_sort_rank (max)": true,
               "roomstatus": false,
               "snmp_status (count)": true,
-              "snmp_status (sum)": true
+              "snmp_status (sum)": true,
+              "last_ping_ts (max)": false,
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time #B": true,
+              "Time #C": true,
+              "Time #D": true,
+              "Time #E": true
             },
             "includeByName": {},
             "indexByName": {
@@ -898,7 +962,8 @@
               "roomcommissiondate": 7,
               "roomstatus": 6,
               "snmp_status (count)": 12,
-              "snmp_status (sum)": 13
+              "snmp_status (sum)": 13,
+              "last_ping_ts (max)": 22
             },
             "renameByName": {
               "Coverage %": "",
@@ -923,7 +988,8 @@
               "roomcommissiondate": "Commission",
               "roomstatus": "Status",
               "snmp_status (count)": "",
-              "snmp_status (sum)": ""
+              "snmp_status (sum)": "",
+              "last_ping_ts (max)": "Last Checked"
             }
           }
         },
@@ -1009,9 +1075,8 @@
     },
     {
       "datasource": {
-        "default": false,
-        "type": "influxdb",
-        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+        "type": "prometheus",
+        "uid": "afcql1n10tnggc"
       },
       "description": "",
       "fieldConfig": {
@@ -1092,31 +1157,59 @@
       "pluginVersion": "11.5.5",
       "targets": [
         {
-          "alias": "Ping Check",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
-          "hide": false,
-          "query": "SELECT COUNT(\"status\") AS Connected, SUM(\"status\") AS Online\nFROM \"ping_check\"\nWHERE $timeFilter\nGROUP BY time(5m) fill(null)",
-          "rawQuery": true,
           "refId": "A",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "count(last_over_time(avtools_ping_check_status{submitter_environment=\"prod\"}[$__rate_interval]))",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Connected"
         },
         {
-          "alias": "SNMP Monitoring",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
+          "refId": "A1",
+          "editorMode": "code",
           "hide": false,
-          "query": "SELECT COUNT(\"status\") AS Monitorable, SUM(\"status\") AS Snmp\nFROM \"snmp_probe\"\nWHERE $timeFilter\nGROUP BY time(5m) fill(null)",
-          "rawQuery": true,
+          "expr": "sum(last_over_time(avtools_ping_check_status{submitter_environment=\"prod\"}[$__rate_interval]))",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Online"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
           "refId": "B",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "count(last_over_time(avtools_snmp_probe_status{submitter_environment=\"prod\"}[$__rate_interval]))",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Monitorable"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "B1",
+          "editorMode": "code",
+          "hide": false,
+          "expr": "sum(last_over_time(avtools_snmp_probe_status{submitter_environment=\"prod\"}[$__rate_interval]))",
+          "instant": false,
+          "range": true,
+          "legendFormat": "Snmp"
         }
       ],
-      "title": "Fleet Connectivity — Over Time",
+      "title": "Fleet Connectivity \u2014 Over Time",
       "type": "timeseries"
     },
     {
@@ -1186,7 +1279,7 @@
           "format": "table",
           "hide": false,
           "rawQuery": true,
-          "rawSql": "-- PG_DEVICES (room ↔ device equipmentno) with stable room_sort_rank + No Room buckets\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position::varchar(64) AS position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\npos_joinable AS (\n  -- only positions that exist in eam_positions (so recursion can start)\n  SELECT dp.position\n  FROM device_positions dp\n  JOIN eam_positions p\n    ON p.equipmentno::varchar(64) = dp.position\n),\nclimb_up AS (\n  SELECT\n    pj.position                                           AS start_pos,\n    p.equipmentno::varchar(64)                             AS cur_pos,\n    p.parentasset::varchar(64)                             AS parent_pos,\n    0                                                     AS depth,\n    ARRAY[p.equipmentno::varchar(64)]::varchar(64)[]      AS visited\n  FROM pos_joinable pj\n  JOIN eam_positions p ON p.equipmentno::varchar(64) = pj.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno::varchar(64),\n    p.parentasset::varchar(64),\n    c.depth + 1,\n    (c.visited || p.equipmentno::varchar(64))::varchar(64)[] AS visited\n  FROM climb_up c\n  JOIN eam_positions p ON p.equipmentno::varchar(64) = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND p.equipmentno::varchar(64) <> ALL (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb_up c\n  JOIN eam_positions rp ON rp.equipmentno::varchar(64) = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nroot_per_pos AS (\n  -- deepest reachable node per start_pos (even if never hits AVR)\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos    AS root_pos,\n    c.parent_pos AS root_parent\n  FROM climb_up c\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nno_parent_positions AS (\n  -- joinable position that never resolves to a valid AVR room\n  SELECT r.start_pos\n  FROM root_per_pos r\n  JOIN eam_positions rp ON rp.equipmentno::varchar(64) = r.root_pos\n  LEFT JOIN pos_to_room pr ON pr.start_pos = r.start_pos\n  WHERE pr.start_pos IS NULL\n    AND (\n      -- chain ended (no parent) at a non-room root\n      (r.root_parent IS NULL AND NOT (rp.eqclass = 'AVR' AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')))\n      -- or chain stopped because parent reference is broken\n      OR (r.root_parent IS NOT NULL AND NOT EXISTS (\n            SELECT 1 FROM eam_positions p2\n            WHERE p2.equipmentno::varchar(64) = r.root_parent\n          ))\n    )\n),\nno_position_devices AS (\n  -- devices with NULL position OR position not found in eam_positions\n  SELECT d.equipmentno\n  FROM eam_devices d\n  LEFT JOIN eam_positions p\n    ON p.equipmentno::varchar(64) = d.position::varchar(64)\n  WHERE d.position IS NULL\n     OR p.equipmentno IS NULL\n),\nstatus_input AS (\n  SELECT string_to_array('${status:csv}', ',')::varchar[] AS status_arr\n),\nstatus_filter AS (\n  SELECT\n    ('${status:raw}' = '__all') AS is_all,\n    ('__none__' = ANY(status_arr) OR '${status:raw}' = '__none__') AS want_none,\n    ('__NO_ROOM_STATUS__' = ANY(status_arr)) AS want_no_room,\n    array_remove(array_remove(status_arr, '__NO_ROOM_STATUS__'), '__none__') AS real_statuses\n  FROM status_input\n),\nrooms AS (\n  -- real rooms filtered by status\n  SELECT DISTINCT room.equipmentno::varchar(64) AS ConferenceRoomNo\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno::varchar(64) = pr.room_no\n  CROSS JOIN status_filter sf\n  WHERE\n    sf.is_all\n    OR (sf.want_none AND room.assetstatus_display IS NULL)\n    OR (cardinality(sf.real_statuses) > 0 AND TRIM(room.assetstatus_display) = ANY(sf.real_statuses))\n\n  UNION ALL\n  -- pseudo room: No Position\n  SELECT '__NO_ROOM_NO_POSITION__'::varchar(64)\n  FROM status_filter sf\n  WHERE (sf.is_all OR sf.want_no_room)\n    AND EXISTS (SELECT 1 FROM no_position_devices)\n\n  UNION ALL\n  -- pseudo room: No Parent\n  SELECT '__NO_ROOM_NO_PARENT__'::varchar(64)\n  FROM status_filter sf\n  WHERE (sf.is_all OR sf.want_no_room)\n    AND EXISTS (SELECT 1 FROM no_parent_positions)\n),\n-- build natural-sort keys (with labels for pseudo rooms)\nroom_keys AS (\n  SELECT\n    r.ConferenceRoomNo,\n    CASE\n      WHEN r.ConferenceRoomNo = '__NO_ROOM_NO_POSITION__' THEN 'No position'\n      WHEN r.ConferenceRoomNo = '__NO_ROOM_NO_PARENT__'   THEN 'No parent position'\n      ELSE (\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1) || '/' ||\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2) || '-' ||\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3)\n      )\n    END AS ConferenceRoomNoFMT,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1) END AS part1_txt,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2) END AS part2_txt,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3) END AS part3_txt\n  FROM rooms r\n),\nranked AS (\n  SELECT\n    ConferenceRoomNo,\n    ConferenceRoomNoFMT,\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM room_keys\n),\nroom_order AS (\n  SELECT\n    ConferenceRoomNo,\n    ConferenceRoomNoFMT,\n    DENSE_RANK() OVER (\n      ORDER BY\n        part1_num NULLS LAST, part1_suf,\n        part2_num NULLS LAST, part2_suf,\n        part3_num NULLS LAST, part3_suf,\n        ConferenceRoomNo\n    ) AS room_sort_rank\n  FROM ranked\n),\n-- walk down from rooms to leaf positions (ONLY real rooms)\ndown AS (\n  SELECT\n    r.ConferenceRoomNo,\n    p.equipmentno::varchar(64)                               AS equipmentno,\n    1                                                       AS depth,\n    ARRAY[p.equipmentno::varchar(64)]::varchar(64)[]        AS visited\n  FROM rooms r\n  JOIN eam_positions p ON p.parentasset::varchar(64) = r.ConferenceRoomNo\n  WHERE r.ConferenceRoomNo NOT LIKE '__NO_ROOM_%'\n\n  UNION ALL\n\n  SELECT\n    d.ConferenceRoomNo,\n    p.equipmentno::varchar(64),\n    d.depth + 1,\n    (d.visited || p.equipmentno::varchar(64))::varchar(64)[] AS visited\n  FROM down d\n  JOIN eam_positions p ON p.parentasset::varchar(64) = d.equipmentno\n  WHERE d.depth < 100\n    AND p.equipmentno::varchar(64) <> ALL (d.visited)\n),\nleafs AS (\n  SELECT d.ConferenceRoomNo, d.equipmentno AS leaf_position\n  FROM down d\n  LEFT JOIN eam_positions ch ON ch.parentasset::varchar(64) = d.equipmentno\n  WHERE ch.equipmentno IS NULL\n),\nfinal_rows AS (\n  -- real-room devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    dev.equipmentno AS eameqno\n  FROM leafs l\n  JOIN room_order  ro  ON ro.ConferenceRoomNo = l.ConferenceRoomNo\n  JOIN eam_devices dev ON dev.position::varchar(64) = l.leaf_position\n\n  UNION ALL\n\n  -- pseudo-room: No parent position devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    dev.equipmentno AS eameqno\n  FROM room_order ro\n  JOIN no_parent_positions np ON true\n  JOIN eam_devices dev ON dev.position::varchar(64) = np.start_pos\n  WHERE ro.ConferenceRoomNo = '__NO_ROOM_NO_PARENT__'\n\n  UNION ALL\n\n  -- pseudo-room: No position devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    d.equipmentno AS eameqno\n  FROM room_order ro\n  JOIN no_position_devices d ON true\n  WHERE ro.ConferenceRoomNo = '__NO_ROOM_NO_POSITION__'\n)\nSELECT\n  eameqno\nFROM final_rows\nORDER BY room_sort_rank, ConferenceRoomNoFMT, eameqno;\n",
+          "rawSql": "-- PG_DEVICES (room \u2194 device equipmentno) with stable room_sort_rank + No Room buckets\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position::varchar(64) AS position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\npos_joinable AS (\n  -- only positions that exist in eam_positions (so recursion can start)\n  SELECT dp.position\n  FROM device_positions dp\n  JOIN eam_positions p\n    ON p.equipmentno::varchar(64) = dp.position\n),\nclimb_up AS (\n  SELECT\n    pj.position                                           AS start_pos,\n    p.equipmentno::varchar(64)                             AS cur_pos,\n    p.parentasset::varchar(64)                             AS parent_pos,\n    0                                                     AS depth,\n    ARRAY[p.equipmentno::varchar(64)]::varchar(64)[]      AS visited\n  FROM pos_joinable pj\n  JOIN eam_positions p ON p.equipmentno::varchar(64) = pj.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno::varchar(64),\n    p.parentasset::varchar(64),\n    c.depth + 1,\n    (c.visited || p.equipmentno::varchar(64))::varchar(64)[] AS visited\n  FROM climb_up c\n  JOIN eam_positions p ON p.equipmentno::varchar(64) = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND p.equipmentno::varchar(64) <> ALL (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb_up c\n  JOIN eam_positions rp ON rp.equipmentno::varchar(64) = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nroot_per_pos AS (\n  -- deepest reachable node per start_pos (even if never hits AVR)\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos    AS root_pos,\n    c.parent_pos AS root_parent\n  FROM climb_up c\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nno_parent_positions AS (\n  -- joinable position that never resolves to a valid AVR room\n  SELECT r.start_pos\n  FROM root_per_pos r\n  JOIN eam_positions rp ON rp.equipmentno::varchar(64) = r.root_pos\n  LEFT JOIN pos_to_room pr ON pr.start_pos = r.start_pos\n  WHERE pr.start_pos IS NULL\n    AND (\n      -- chain ended (no parent) at a non-room root\n      (r.root_parent IS NULL AND NOT (rp.eqclass = 'AVR' AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')))\n      -- or chain stopped because parent reference is broken\n      OR (r.root_parent IS NOT NULL AND NOT EXISTS (\n            SELECT 1 FROM eam_positions p2\n            WHERE p2.equipmentno::varchar(64) = r.root_parent\n          ))\n    )\n),\nno_position_devices AS (\n  -- devices with NULL position OR position not found in eam_positions\n  SELECT d.equipmentno\n  FROM eam_devices d\n  LEFT JOIN eam_positions p\n    ON p.equipmentno::varchar(64) = d.position::varchar(64)\n  WHERE d.position IS NULL\n     OR p.equipmentno IS NULL\n),\nstatus_input AS (\n  SELECT string_to_array('${status:csv}', ',')::varchar[] AS status_arr\n),\nstatus_filter AS (\n  SELECT\n    ('${status:raw}' = '__all') AS is_all,\n    ('__none__' = ANY(status_arr) OR '${status:raw}' = '__none__') AS want_none,\n    ('__NO_ROOM_STATUS__' = ANY(status_arr)) AS want_no_room,\n    array_remove(array_remove(status_arr, '__NO_ROOM_STATUS__'), '__none__') AS real_statuses\n  FROM status_input\n),\nrooms AS (\n  -- real rooms filtered by status\n  SELECT DISTINCT room.equipmentno::varchar(64) AS ConferenceRoomNo\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno::varchar(64) = pr.room_no\n  CROSS JOIN status_filter sf\n  WHERE\n    sf.is_all\n    OR (sf.want_none AND room.assetstatus_display IS NULL)\n    OR (cardinality(sf.real_statuses) > 0 AND TRIM(room.assetstatus_display) = ANY(sf.real_statuses))\n\n  UNION ALL\n  -- pseudo room: No Position\n  SELECT '__NO_ROOM_NO_POSITION__'::varchar(64)\n  FROM status_filter sf\n  WHERE (sf.is_all OR sf.want_no_room)\n    AND EXISTS (SELECT 1 FROM no_position_devices)\n\n  UNION ALL\n  -- pseudo room: No Parent\n  SELECT '__NO_ROOM_NO_PARENT__'::varchar(64)\n  FROM status_filter sf\n  WHERE (sf.is_all OR sf.want_no_room)\n    AND EXISTS (SELECT 1 FROM no_parent_positions)\n),\n-- build natural-sort keys (with labels for pseudo rooms)\nroom_keys AS (\n  SELECT\n    r.ConferenceRoomNo,\n    CASE\n      WHEN r.ConferenceRoomNo = '__NO_ROOM_NO_POSITION__' THEN 'No position'\n      WHEN r.ConferenceRoomNo = '__NO_ROOM_NO_PARENT__'   THEN 'No parent position'\n      ELSE (\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1) || '/' ||\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2) || '-' ||\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3)\n      )\n    END AS ConferenceRoomNoFMT,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1) END AS part1_txt,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2) END AS part2_txt,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3) END AS part3_txt\n  FROM rooms r\n),\nranked AS (\n  SELECT\n    ConferenceRoomNo,\n    ConferenceRoomNoFMT,\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM room_keys\n),\nroom_order AS (\n  SELECT\n    ConferenceRoomNo,\n    ConferenceRoomNoFMT,\n    DENSE_RANK() OVER (\n      ORDER BY\n        part1_num NULLS LAST, part1_suf,\n        part2_num NULLS LAST, part2_suf,\n        part3_num NULLS LAST, part3_suf,\n        ConferenceRoomNo\n    ) AS room_sort_rank\n  FROM ranked\n),\n-- walk down from rooms to leaf positions (ONLY real rooms)\ndown AS (\n  SELECT\n    r.ConferenceRoomNo,\n    p.equipmentno::varchar(64)                               AS equipmentno,\n    1                                                       AS depth,\n    ARRAY[p.equipmentno::varchar(64)]::varchar(64)[]        AS visited\n  FROM rooms r\n  JOIN eam_positions p ON p.parentasset::varchar(64) = r.ConferenceRoomNo\n  WHERE r.ConferenceRoomNo NOT LIKE '__NO_ROOM_%'\n\n  UNION ALL\n\n  SELECT\n    d.ConferenceRoomNo,\n    p.equipmentno::varchar(64),\n    d.depth + 1,\n    (d.visited || p.equipmentno::varchar(64))::varchar(64)[] AS visited\n  FROM down d\n  JOIN eam_positions p ON p.parentasset::varchar(64) = d.equipmentno\n  WHERE d.depth < 100\n    AND p.equipmentno::varchar(64) <> ALL (d.visited)\n),\nleafs AS (\n  SELECT d.ConferenceRoomNo, d.equipmentno AS leaf_position\n  FROM down d\n  LEFT JOIN eam_positions ch ON ch.parentasset::varchar(64) = d.equipmentno\n  WHERE ch.equipmentno IS NULL\n),\nfinal_rows AS (\n  -- real-room devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    dev.equipmentno AS eameqno\n  FROM leafs l\n  JOIN room_order  ro  ON ro.ConferenceRoomNo = l.ConferenceRoomNo\n  JOIN eam_devices dev ON dev.position::varchar(64) = l.leaf_position\n\n  UNION ALL\n\n  -- pseudo-room: No parent position devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    dev.equipmentno AS eameqno\n  FROM room_order ro\n  JOIN no_parent_positions np ON true\n  JOIN eam_devices dev ON dev.position::varchar(64) = np.start_pos\n  WHERE ro.ConferenceRoomNo = '__NO_ROOM_NO_PARENT__'\n\n  UNION ALL\n\n  -- pseudo-room: No position devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    d.equipmentno AS eameqno\n  FROM room_order ro\n  JOIN no_position_devices d ON true\n  WHERE ro.ConferenceRoomNo = '__NO_ROOM_NO_POSITION__'\n)\nSELECT\n  eameqno\nFROM final_rows\nORDER BY room_sort_rank, ConferenceRoomNoFMT, eameqno;\n",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1207,31 +1300,59 @@
           }
         },
         {
-          "alias": "Ping Check",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
-          "hide": false,
-          "query": "SELECT LAST(\"status\") AS ping_status\nFROM \"ping_check\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
-          "rawQuery": true,
           "refId": "B",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "count(last_over_time(avtools_ping_check_status{submitter_environment=\"prod\"}[30d]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "equipmentno"
         },
         {
-          "alias": "SNMP Monitoring",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
+          "refId": "B2",
+          "editorMode": "code",
           "hide": false,
-          "query": "SELECT LAST(\"status\") AS snmp_status\nFROM \"snmp_probe\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
-          "rawQuery": true,
+          "expr": "sum(last_over_time(avtools_ping_check_status{submitter_environment=\"prod\"}[30d]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "ping_status"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
           "refId": "C",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "sum(last_over_time(avtools_snmp_probe_status{submitter_environment=\"prod\"}[30d]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "snmp_status"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "C2",
+          "editorMode": "code",
+          "hide": false,
+          "expr": "count(last_over_time(avtools_snmp_probe_status{submitter_environment=\"prod\"}[30d]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "snmp_status_count"
         }
       ],
-      "title": "Connectivity Breakdown — %",
+      "title": "Connectivity Breakdown \u2014 %",
       "transformations": [
         {
           "id": "reduce",
@@ -1300,7 +1421,7 @@
             "mode": "reduceRow",
             "reduce": {
               "include": [
-                "snmp_status"
+                "snmp_status_count"
               ],
               "reducer": "max"
             }
@@ -1382,7 +1503,10 @@
               "eameqno Total": true,
               "equipmentno": true,
               "ping_status": true,
-              "snmp_status": true
+              "snmp_status": true,
+              "snmp_status_count": true,
+              "snmp_status_count Count": true,
+              "snmp_status_count Total": true
             },
             "includeByName": {},
             "indexByName": {
@@ -1474,7 +1598,7 @@
           "format": "table",
           "hide": false,
           "rawQuery": true,
-          "rawSql": "-- PG_DEVICES (room ↔ device equipmentno) with stable room_sort_rank + No Room buckets\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position::varchar(64) AS position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\npos_joinable AS (\n  -- only positions that exist in eam_positions (so recursion can start)\n  SELECT dp.position\n  FROM device_positions dp\n  JOIN eam_positions p\n    ON p.equipmentno::varchar(64) = dp.position\n),\nclimb_up AS (\n  SELECT\n    pj.position                                           AS start_pos,\n    p.equipmentno::varchar(64)                             AS cur_pos,\n    p.parentasset::varchar(64)                             AS parent_pos,\n    0                                                     AS depth,\n    ARRAY[p.equipmentno::varchar(64)]::varchar(64)[]      AS visited\n  FROM pos_joinable pj\n  JOIN eam_positions p ON p.equipmentno::varchar(64) = pj.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno::varchar(64),\n    p.parentasset::varchar(64),\n    c.depth + 1,\n    (c.visited || p.equipmentno::varchar(64))::varchar(64)[] AS visited\n  FROM climb_up c\n  JOIN eam_positions p ON p.equipmentno::varchar(64) = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND p.equipmentno::varchar(64) <> ALL (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb_up c\n  JOIN eam_positions rp ON rp.equipmentno::varchar(64) = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nroot_per_pos AS (\n  -- deepest reachable node per start_pos (even if never hits AVR)\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos    AS root_pos,\n    c.parent_pos AS root_parent\n  FROM climb_up c\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nno_parent_positions AS (\n  -- joinable position that never resolves to a valid AVR room\n  SELECT r.start_pos\n  FROM root_per_pos r\n  JOIN eam_positions rp ON rp.equipmentno::varchar(64) = r.root_pos\n  LEFT JOIN pos_to_room pr ON pr.start_pos = r.start_pos\n  WHERE pr.start_pos IS NULL\n    AND (\n      -- chain ended (no parent) at a non-room root\n      (r.root_parent IS NULL AND NOT (rp.eqclass = 'AVR' AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')))\n      -- or chain stopped because parent reference is broken\n      OR (r.root_parent IS NOT NULL AND NOT EXISTS (\n            SELECT 1 FROM eam_positions p2\n            WHERE p2.equipmentno::varchar(64) = r.root_parent\n          ))\n    )\n),\nno_position_devices AS (\n  -- devices with NULL position OR position not found in eam_positions\n  SELECT d.equipmentno\n  FROM eam_devices d\n  LEFT JOIN eam_positions p\n    ON p.equipmentno::varchar(64) = d.position::varchar(64)\n  WHERE d.position IS NULL\n     OR p.equipmentno IS NULL\n),\nstatus_input AS (\n  SELECT string_to_array('${status:csv}', ',')::varchar[] AS status_arr\n),\nstatus_filter AS (\n  SELECT\n    ('${status:raw}' = '__all') AS is_all,\n    ('__none__' = ANY(status_arr) OR '${status:raw}' = '__none__') AS want_none,\n    ('__NO_ROOM_STATUS__' = ANY(status_arr)) AS want_no_room,\n    array_remove(array_remove(status_arr, '__NO_ROOM_STATUS__'), '__none__') AS real_statuses\n  FROM status_input\n),\nrooms AS (\n  -- real rooms filtered by status\n  SELECT DISTINCT room.equipmentno::varchar(64) AS ConferenceRoomNo\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno::varchar(64) = pr.room_no\n  CROSS JOIN status_filter sf\n  WHERE\n    sf.is_all\n    OR (sf.want_none AND room.assetstatus_display IS NULL)\n    OR (cardinality(sf.real_statuses) > 0 AND TRIM(room.assetstatus_display) = ANY(sf.real_statuses))\n\n  UNION ALL\n  -- pseudo room: No Position\n  SELECT '__NO_ROOM_NO_POSITION__'::varchar(64)\n  FROM status_filter sf\n  WHERE (sf.is_all OR sf.want_no_room)\n    AND EXISTS (SELECT 1 FROM no_position_devices)\n\n  UNION ALL\n  -- pseudo room: No Parent\n  SELECT '__NO_ROOM_NO_PARENT__'::varchar(64)\n  FROM status_filter sf\n  WHERE (sf.is_all OR sf.want_no_room)\n    AND EXISTS (SELECT 1 FROM no_parent_positions)\n),\n-- build natural-sort keys (with labels for pseudo rooms)\nroom_keys AS (\n  SELECT\n    r.ConferenceRoomNo,\n    CASE\n      WHEN r.ConferenceRoomNo = '__NO_ROOM_NO_POSITION__' THEN 'No position'\n      WHEN r.ConferenceRoomNo = '__NO_ROOM_NO_PARENT__'   THEN 'No parent position'\n      ELSE (\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1) || '/' ||\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2) || '-' ||\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3)\n      )\n    END AS ConferenceRoomNoFMT,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1) END AS part1_txt,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2) END AS part2_txt,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3) END AS part3_txt\n  FROM rooms r\n),\nranked AS (\n  SELECT\n    ConferenceRoomNo,\n    ConferenceRoomNoFMT,\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM room_keys\n),\nroom_order AS (\n  SELECT\n    ConferenceRoomNo,\n    ConferenceRoomNoFMT,\n    DENSE_RANK() OVER (\n      ORDER BY\n        part1_num NULLS LAST, part1_suf,\n        part2_num NULLS LAST, part2_suf,\n        part3_num NULLS LAST, part3_suf,\n        ConferenceRoomNo\n    ) AS room_sort_rank\n  FROM ranked\n),\n-- walk down from rooms to leaf positions (ONLY real rooms)\ndown AS (\n  SELECT\n    r.ConferenceRoomNo,\n    p.equipmentno::varchar(64)                               AS equipmentno,\n    1                                                       AS depth,\n    ARRAY[p.equipmentno::varchar(64)]::varchar(64)[]        AS visited\n  FROM rooms r\n  JOIN eam_positions p ON p.parentasset::varchar(64) = r.ConferenceRoomNo\n  WHERE r.ConferenceRoomNo NOT LIKE '__NO_ROOM_%'\n\n  UNION ALL\n\n  SELECT\n    d.ConferenceRoomNo,\n    p.equipmentno::varchar(64),\n    d.depth + 1,\n    (d.visited || p.equipmentno::varchar(64))::varchar(64)[] AS visited\n  FROM down d\n  JOIN eam_positions p ON p.parentasset::varchar(64) = d.equipmentno\n  WHERE d.depth < 100\n    AND p.equipmentno::varchar(64) <> ALL (d.visited)\n),\nleafs AS (\n  SELECT d.ConferenceRoomNo, d.equipmentno AS leaf_position\n  FROM down d\n  LEFT JOIN eam_positions ch ON ch.parentasset::varchar(64) = d.equipmentno\n  WHERE ch.equipmentno IS NULL\n),\nfinal_rows AS (\n  -- real-room devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    dev.equipmentno AS eameqno\n  FROM leafs l\n  JOIN room_order  ro  ON ro.ConferenceRoomNo = l.ConferenceRoomNo\n  JOIN eam_devices dev ON dev.position::varchar(64) = l.leaf_position\n\n  UNION ALL\n\n  -- pseudo-room: No parent position devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    dev.equipmentno AS eameqno\n  FROM room_order ro\n  JOIN no_parent_positions np ON true\n  JOIN eam_devices dev ON dev.position::varchar(64) = np.start_pos\n  WHERE ro.ConferenceRoomNo = '__NO_ROOM_NO_PARENT__'\n\n  UNION ALL\n\n  -- pseudo-room: No position devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    d.equipmentno AS eameqno\n  FROM room_order ro\n  JOIN no_position_devices d ON true\n  WHERE ro.ConferenceRoomNo = '__NO_ROOM_NO_POSITION__'\n)\nSELECT\n  eameqno\nFROM final_rows\nORDER BY room_sort_rank, ConferenceRoomNoFMT, eameqno;\n",
+          "rawSql": "-- PG_DEVICES (room \u2194 device equipmentno) with stable room_sort_rank + No Room buckets\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position::varchar(64) AS position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\npos_joinable AS (\n  -- only positions that exist in eam_positions (so recursion can start)\n  SELECT dp.position\n  FROM device_positions dp\n  JOIN eam_positions p\n    ON p.equipmentno::varchar(64) = dp.position\n),\nclimb_up AS (\n  SELECT\n    pj.position                                           AS start_pos,\n    p.equipmentno::varchar(64)                             AS cur_pos,\n    p.parentasset::varchar(64)                             AS parent_pos,\n    0                                                     AS depth,\n    ARRAY[p.equipmentno::varchar(64)]::varchar(64)[]      AS visited\n  FROM pos_joinable pj\n  JOIN eam_positions p ON p.equipmentno::varchar(64) = pj.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno::varchar(64),\n    p.parentasset::varchar(64),\n    c.depth + 1,\n    (c.visited || p.equipmentno::varchar(64))::varchar(64)[] AS visited\n  FROM climb_up c\n  JOIN eam_positions p ON p.equipmentno::varchar(64) = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND p.equipmentno::varchar(64) <> ALL (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no\n  FROM climb_up c\n  JOIN eam_positions rp ON rp.equipmentno::varchar(64) = c.cur_pos\n  WHERE rp.eqclass = 'AVR'\n    AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nroot_per_pos AS (\n  -- deepest reachable node per start_pos (even if never hits AVR)\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos    AS root_pos,\n    c.parent_pos AS root_parent\n  FROM climb_up c\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nno_parent_positions AS (\n  -- joinable position that never resolves to a valid AVR room\n  SELECT r.start_pos\n  FROM root_per_pos r\n  JOIN eam_positions rp ON rp.equipmentno::varchar(64) = r.root_pos\n  LEFT JOIN pos_to_room pr ON pr.start_pos = r.start_pos\n  WHERE pr.start_pos IS NULL\n    AND (\n      -- chain ended (no parent) at a non-room root\n      (r.root_parent IS NULL AND NOT (rp.eqclass = 'AVR' AND rp.category IN ('AV-VCR','AV-VIS','AV-MRO')))\n      -- or chain stopped because parent reference is broken\n      OR (r.root_parent IS NOT NULL AND NOT EXISTS (\n            SELECT 1 FROM eam_positions p2\n            WHERE p2.equipmentno::varchar(64) = r.root_parent\n          ))\n    )\n),\nno_position_devices AS (\n  -- devices with NULL position OR position not found in eam_positions\n  SELECT d.equipmentno\n  FROM eam_devices d\n  LEFT JOIN eam_positions p\n    ON p.equipmentno::varchar(64) = d.position::varchar(64)\n  WHERE d.position IS NULL\n     OR p.equipmentno IS NULL\n),\nstatus_input AS (\n  SELECT string_to_array('${status:csv}', ',')::varchar[] AS status_arr\n),\nstatus_filter AS (\n  SELECT\n    ('${status:raw}' = '__all') AS is_all,\n    ('__none__' = ANY(status_arr) OR '${status:raw}' = '__none__') AS want_none,\n    ('__NO_ROOM_STATUS__' = ANY(status_arr)) AS want_no_room,\n    array_remove(array_remove(status_arr, '__NO_ROOM_STATUS__'), '__none__') AS real_statuses\n  FROM status_input\n),\nrooms AS (\n  -- real rooms filtered by status\n  SELECT DISTINCT room.equipmentno::varchar(64) AS ConferenceRoomNo\n  FROM pos_to_room pr\n  JOIN eam_positions room ON room.equipmentno::varchar(64) = pr.room_no\n  CROSS JOIN status_filter sf\n  WHERE\n    sf.is_all\n    OR (sf.want_none AND room.assetstatus_display IS NULL)\n    OR (cardinality(sf.real_statuses) > 0 AND TRIM(room.assetstatus_display) = ANY(sf.real_statuses))\n\n  UNION ALL\n  -- pseudo room: No Position\n  SELECT '__NO_ROOM_NO_POSITION__'::varchar(64)\n  FROM status_filter sf\n  WHERE (sf.is_all OR sf.want_no_room)\n    AND EXISTS (SELECT 1 FROM no_position_devices)\n\n  UNION ALL\n  -- pseudo room: No Parent\n  SELECT '__NO_ROOM_NO_PARENT__'::varchar(64)\n  FROM status_filter sf\n  WHERE (sf.is_all OR sf.want_no_room)\n    AND EXISTS (SELECT 1 FROM no_parent_positions)\n),\n-- build natural-sort keys (with labels for pseudo rooms)\nroom_keys AS (\n  SELECT\n    r.ConferenceRoomNo,\n    CASE\n      WHEN r.ConferenceRoomNo = '__NO_ROOM_NO_POSITION__' THEN 'No position'\n      WHEN r.ConferenceRoomNo = '__NO_ROOM_NO_PARENT__'   THEN 'No parent position'\n      ELSE (\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1) || '/' ||\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2) || '-' ||\n        split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3)\n      )\n    END AS ConferenceRoomNoFMT,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',1) END AS part1_txt,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',2) END AS part2_txt,\n    CASE WHEN r.ConferenceRoomNo LIKE '__NO_ROOM_%' THEN NULL ELSE split_part(split_part(r.ConferenceRoomNo,'-',2),'.',3) END AS part3_txt\n  FROM rooms r\n),\nranked AS (\n  SELECT\n    ConferenceRoomNo,\n    ConferenceRoomNoFMT,\n    NULLIF(regexp_replace(part1_txt, '\\D.*$', ''), '')::int AS part1_num,\n    regexp_replace(part1_txt, '^\\d+', '')                    AS part1_suf,\n    NULLIF(regexp_replace(part2_txt, '\\D.*$', ''), '')::int AS part2_num,\n    regexp_replace(part2_txt, '^\\d+', '')                    AS part2_suf,\n    NULLIF(regexp_replace(part3_txt, '\\D.*$', ''), '')::int AS part3_num,\n    regexp_replace(part3_txt, '^\\d+', '')                    AS part3_suf\n  FROM room_keys\n),\nroom_order AS (\n  SELECT\n    ConferenceRoomNo,\n    ConferenceRoomNoFMT,\n    DENSE_RANK() OVER (\n      ORDER BY\n        part1_num NULLS LAST, part1_suf,\n        part2_num NULLS LAST, part2_suf,\n        part3_num NULLS LAST, part3_suf,\n        ConferenceRoomNo\n    ) AS room_sort_rank\n  FROM ranked\n),\n-- walk down from rooms to leaf positions (ONLY real rooms)\ndown AS (\n  SELECT\n    r.ConferenceRoomNo,\n    p.equipmentno::varchar(64)                               AS equipmentno,\n    1                                                       AS depth,\n    ARRAY[p.equipmentno::varchar(64)]::varchar(64)[]        AS visited\n  FROM rooms r\n  JOIN eam_positions p ON p.parentasset::varchar(64) = r.ConferenceRoomNo\n  WHERE r.ConferenceRoomNo NOT LIKE '__NO_ROOM_%'\n\n  UNION ALL\n\n  SELECT\n    d.ConferenceRoomNo,\n    p.equipmentno::varchar(64),\n    d.depth + 1,\n    (d.visited || p.equipmentno::varchar(64))::varchar(64)[] AS visited\n  FROM down d\n  JOIN eam_positions p ON p.parentasset::varchar(64) = d.equipmentno\n  WHERE d.depth < 100\n    AND p.equipmentno::varchar(64) <> ALL (d.visited)\n),\nleafs AS (\n  SELECT d.ConferenceRoomNo, d.equipmentno AS leaf_position\n  FROM down d\n  LEFT JOIN eam_positions ch ON ch.parentasset::varchar(64) = d.equipmentno\n  WHERE ch.equipmentno IS NULL\n),\nfinal_rows AS (\n  -- real-room devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    dev.equipmentno AS eameqno\n  FROM leafs l\n  JOIN room_order  ro  ON ro.ConferenceRoomNo = l.ConferenceRoomNo\n  JOIN eam_devices dev ON dev.position::varchar(64) = l.leaf_position\n\n  UNION ALL\n\n  -- pseudo-room: No parent position devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    dev.equipmentno AS eameqno\n  FROM room_order ro\n  JOIN no_parent_positions np ON true\n  JOIN eam_devices dev ON dev.position::varchar(64) = np.start_pos\n  WHERE ro.ConferenceRoomNo = '__NO_ROOM_NO_PARENT__'\n\n  UNION ALL\n\n  -- pseudo-room: No position devices\n  SELECT DISTINCT\n    ro.room_sort_rank,\n    ro.ConferenceRoomNoFMT,\n    d.equipmentno AS eameqno\n  FROM room_order ro\n  JOIN no_position_devices d ON true\n  WHERE ro.ConferenceRoomNo = '__NO_ROOM_NO_POSITION__'\n)\nSELECT\n  eameqno\nFROM final_rows\nORDER BY room_sort_rank, ConferenceRoomNoFMT, eameqno;\n",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1495,31 +1619,59 @@
           }
         },
         {
-          "alias": "Ping Check",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
-          "hide": false,
-          "query": "SELECT LAST(\"status\") AS ping_status\nFROM \"ping_check\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
-          "rawQuery": true,
           "refId": "B",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "count(last_over_time(avtools_ping_check_status{submitter_environment=\"prod\"}[30d]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "equipmentno"
         },
         {
-          "alias": "SNMP Monitoring",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
+          "refId": "B2",
+          "editorMode": "code",
           "hide": false,
-          "query": "SELECT LAST(\"status\") AS snmp_status\nFROM \"snmp_probe\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
-          "rawQuery": true,
+          "expr": "sum(last_over_time(avtools_ping_check_status{submitter_environment=\"prod\"}[30d]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "ping_status"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
           "refId": "C",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "sum(last_over_time(avtools_snmp_probe_status{submitter_environment=\"prod\"}[30d]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "snmp_status"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "C2",
+          "editorMode": "code",
+          "hide": false,
+          "expr": "count(last_over_time(avtools_snmp_probe_status{submitter_environment=\"prod\"}[30d]))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "snmp_status_count"
         }
       ],
-      "title": "Connectivity Breakdown — Count",
+      "title": "Connectivity Breakdown \u2014 Count",
       "transformations": [
         {
           "id": "reduce",
@@ -1588,7 +1740,7 @@
             "mode": "reduceRow",
             "reduce": {
               "include": [
-                "snmp_status"
+                "snmp_status_count"
               ],
               "reducer": "max"
             }
@@ -1670,7 +1822,10 @@
               "eameqno Total": true,
               "equipmentno": true,
               "ping_status": true,
-              "snmp_status": true
+              "snmp_status": true,
+              "snmp_status_count": true,
+              "snmp_status_count Count": true,
+              "snmp_status_count Total": true
             },
             "includeByName": {},
             "indexByName": {
@@ -1783,7 +1938,7 @@
           }
         }
       ],
-      "title": "Status of Lifecycle — %",
+      "title": "Status of Lifecycle \u2014 %",
       "transformations": [
         {
           "id": "groupBy",
@@ -1916,7 +2071,7 @@
           }
         }
       ],
-      "title": "Status of Lifecycle — Count",
+      "title": "Status of Lifecycle \u2014 Count",
       "transformations": [
         {
           "id": "groupBy",
@@ -2098,7 +2253,7 @@
           }
         }
       ],
-      "title": "Room Category — %",
+      "title": "Room Category \u2014 %",
       "transformations": [
         {
           "id": "groupBy",
@@ -2269,7 +2424,7 @@
           }
         }
       ],
-      "title": "Usage Category — Count",
+      "title": "Usage Category \u2014 Count",
       "transformations": [
         {
           "id": "groupBy",
@@ -2462,31 +2617,35 @@
           }
         },
         {
-          "alias": "Ping Check",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
-          "hide": false,
-          "query": "SELECT LAST(\"status\") AS ping_status\nFROM \"ping_check\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
-          "rawQuery": true,
           "refId": "C",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "max by(equipmentno) (last_over_time(avtools_ping_check_status{submitter_environment=\"prod\"}[30d]))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto"
         },
         {
-          "alias": "SNMP Monitoring",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
-          "hide": false,
-          "query": "SELECT LAST(\"status\") AS snmp_status\nFROM \"snmp_probe\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
-          "rawQuery": true,
           "refId": "D",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "max by(equipmentno) (last_over_time(avtools_snmp_probe_status{submitter_environment=\"prod\"}[30d]))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto"
         }
       ],
-      "title": "Devices per Room — Inventory & Network State",
+      "title": "Devices per Room \u2014 Inventory & Network State",
       "transformations": [
         {
           "filter": {
@@ -2497,6 +2656,20 @@
           "options": {
             "byField": "equipmentno",
             "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "ping_status",
+              "Value #C": "ping_status",
+              "Value 1": "snmp_status",
+              "Value #D": "snmp_status"
+            }
           }
         },
         {
@@ -2570,7 +2743,7 @@
         {
           "filter": {
             "id": "byRefId",
-            "options": "/^(?:|A)$/"
+            "options": "/^(?:joinByField-joinByField-C-D-B|A)$/"
           },
           "id": "joinByField",
           "options": {
@@ -2668,7 +2841,14 @@
               "roomrank": true,
               "roomstatus": true,
               "snmp_status (count)": false,
-              "snmp_status (sum)": false
+              "snmp_status (sum)": false,
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time #B": true,
+              "Time #C": true,
+              "Time #D": true,
+              "Time #E": true
             },
             "includeByName": {},
             "indexByName": {
@@ -2878,31 +3058,35 @@
           }
         },
         {
-          "alias": "Ping Check",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
-          "hide": false,
-          "query": "SELECT LAST(\"status\") AS ping_status\nFROM \"ping_check\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
-          "rawQuery": true,
           "refId": "C",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "max by(equipmentno) (last_over_time(avtools_ping_check_status{submitter_environment=\"prod\"}[30d]))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto"
         },
         {
-          "alias": "SNMP Monitoring",
           "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
           },
-          "hide": false,
-          "query": "SELECT LAST(\"status\") AS snmp_status\nFROM \"snmp_probe\"\nWHERE $timeFilter\nGROUP BY \"equipmentno\"\n",
-          "rawQuery": true,
           "refId": "D",
-          "resultFormat": "table"
+          "editorMode": "code",
+          "hide": false,
+          "expr": "max by(equipmentno) (last_over_time(avtools_snmp_probe_status{submitter_environment=\"prod\"}[30d]))",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "legendFormat": "__auto"
         }
       ],
-      "title": "Coverage & Monitoring Ratios by Room — %",
+      "title": "Coverage & Monitoring Ratios by Room \u2014 %",
       "transformations": [
         {
           "filter": {
@@ -2913,6 +3097,20 @@
           "options": {
             "byField": "equipmentno",
             "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value": "ping_status",
+              "Value #C": "ping_status",
+              "Value 1": "snmp_status",
+              "Value #D": "snmp_status"
+            }
           }
         },
         {
@@ -2986,7 +3184,7 @@
         {
           "filter": {
             "id": "byRefId",
-            "options": "/^(?:|A)$/"
+            "options": "/^(?:joinByField-joinByField-C-D-B|A)$/"
           },
           "id": "joinByField",
           "options": {
@@ -3162,7 +3360,14 @@
               "roomrank": true,
               "roomstatus": false,
               "snmp_status (count)": true,
-              "snmp_status (sum)": true
+              "snmp_status (sum)": true,
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time #B": true,
+              "Time #C": true,
+              "Time #D": true,
+              "Time #E": true
             },
             "includeByName": {},
             "indexByName": {
@@ -3398,7 +3603,7 @@
           }
         }
       ],
-      "title": "Devices per Room — Count",
+      "title": "Devices per Room \u2014 Count",
       "transformations": [
         {
           "filter": {
@@ -3634,7 +3839,7 @@
           }
         }
       ],
-      "title": "Commission Date — Count",
+      "title": "Commission Date \u2014 Count",
       "transformations": [
         {
           "id": "convertFieldType",
