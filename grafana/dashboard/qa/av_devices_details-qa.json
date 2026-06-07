@@ -83,1682 +83,6 @@
     }
   ],
   "liveNow": true,
-  "panels": [
-    {
-      "datasource": {
-        "type": "datasource",
-        "uid": "grafana"
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
-      "id": 22,
-      "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        },
-        "content": "<div style=\"text-align:center\">\n  <h1 style=\"margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji;font-size:clamp(28px,6vw,52px);font-weight:700;letter-spacing:.5px;line-height:1.1;color:inherit;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased\">\n    <span style=\"font-weight:600;opacity:.9\">${device:text}</span>\n  </h1>\n</div>",
-        "mode": "html"
-      },
-      "pluginVersion": "11.5.5",
-      "type": "text"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 3
-      },
-      "id": 47,
-      "panels": [],
-      "title": "General",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "grafana-postgresql-datasource",
-        "uid": "dfaue906qonpcf"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "options": {
-                "match": "null+nan",
-                "result": {
-                  "color": "red",
-                  "index": 0,
-                  "text": "Parent no defined in EAM Positions"
-                }
-              },
-              "type": "special"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 0,
-        "y": 4
-      },
-      "id": 45,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "dfaue906qonpcf"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "-- Panel query (Device → Room for Stat)\nWITH RECURSIVE\ndevice_positions AS (\n  SELECT DISTINCT d.position::varchar AS position\n  FROM eam_devices d\n  WHERE d.position IS NOT NULL\n),\nclimb AS (\n  SELECT\n    dp.position                                AS start_pos,\n    p.equipmentno::varchar                     AS cur_pos,\n    p.parentasset::varchar                     AS parent_pos,\n    0                                          AS depth,\n    ARRAY[p.equipmentno::varchar]::varchar[]   AS visited\n  FROM device_positions dp\n  JOIN eam_positions p\n    ON p.equipmentno::varchar = dp.position\n\n  UNION ALL\n\n  SELECT\n    c.start_pos,\n    p.equipmentno::varchar,\n    p.parentasset::varchar,\n    c.depth + 1,\n    (c.visited || p.equipmentno::varchar)::varchar[]\n  FROM climb c\n  JOIN eam_positions p\n    ON p.equipmentno::varchar = c.parent_pos\n  WHERE c.parent_pos IS NOT NULL\n    AND c.depth < 100\n    AND NOT p.equipmentno::varchar = ANY (c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON (c.start_pos)\n    c.start_pos,\n    c.cur_pos AS room_no,\n    c.depth\n  FROM climb c\n  JOIN eam_positions rp\n    ON rp.equipmentno::varchar = c.cur_pos\n  ORDER BY c.start_pos, c.depth DESC, c.cur_pos\n),\nlisted AS (\n  SELECT\n    room.equipmentno::varchar AS ConferenceRoomNo,\n    CONCAT(parts.part1_txt, '/', parts.part2_txt, '-', parts.part3_txt) AS ConferenceRoomNoFmt,\n    room.equipmentdesc       AS ConferenceRoom,\n    d.equipmentno            AS EquipmentNo\n  FROM eam_devices d\n  JOIN pos_to_room pr\n    ON pr.start_pos = d.position::varchar\n  JOIN eam_positions room\n    ON room.equipmentno::varchar = pr.room_no\n\n  -- natural-sort split for room code\n  CROSS JOIN LATERAL (\n    SELECT\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',1) AS part1_txt,\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',2) AS part2_txt,\n      split_part(split_part(room.equipmentno::varchar,'-',2),'.',3) AS part3_txt\n  ) AS parts\n)\nSELECT\n  ConferenceRoomNoFmt\nFROM listed\nWHERE EquipmentNo IN (${device:sqlstring})\nLIMIT 1;\n",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "Room ID",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "grafana-postgresql-datasource",
-        "uid": "dfaue906qonpcf"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "options": {
-                "AVA": {
-                  "color": "#f2495c",
-                  "index": 0,
-                  "text": "AVA: Audio"
-                },
-                "AVC": {
-                  "color": "#ff9830",
-                  "index": 1,
-                  "text": "AVC: Computing"
-                },
-                "AVD": {
-                  "color": "#56a64b",
-                  "index": 2,
-                  "text": "AVD: Display"
-                },
-                "AVO": {
-                  "color": "#07e1f3",
-                  "index": 3,
-                  "text": "AVO: Other"
-                },
-                "AVS": {
-                  "color": "#5794f2",
-                  "index": 4,
-                  "text": "AVS: Control Systems"
-                },
-                "AVV": {
-                  "color": "#e695dcc4",
-                  "index": 5,
-                  "text": "AVV: Videoconference"
-                },
-                "AVVS": {
-                  "color": "#8f3bb8",
-                  "index": 6,
-                  "text": "AVVS: Video Systems"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 3,
-        "y": 4
-      },
-      "id": 37,
-      "options": {
-        "colorMode": "background_solid",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "dfaue906qonpcf"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT eqclass FROM eam_devices WHERE equipmentno = ${device:sqlstring};",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "AV Class",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "grafana-postgresql-datasource",
-        "uid": "dfaue906qonpcf"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 6,
-        "y": 4
-      },
-      "id": 44,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "dfaue906qonpcf"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT manufacturer FROM eam_devices WHERE equipmentno = ${device:sqlstring};",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "Manufacturer",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "grafana-postgresql-datasource",
-        "uid": "dfaue906qonpcf"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 9,
-        "y": 4
-      },
-      "id": 49,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "dfaue906qonpcf"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT model FROM eam_devices WHERE equipmentno = ${device:sqlstring};",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "Model",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "grafana-postgresql-datasource",
-        "uid": "dfaue906qonpcf"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "options": {
-                "match": "null+nan",
-                "result": {
-                  "color": "red",
-                  "index": 0,
-                  "text": "No Serial Number on EAM Devices"
-                }
-              },
-              "type": "special"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 12,
-        "y": 4
-      },
-      "id": 35,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "dfaue906qonpcf"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT serialnumber FROM eam_devices WHERE equipmentno = ${device:sqlstring};",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "Serial No.",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "grafana-postgresql-datasource",
-        "uid": "dfaue906qonpcf"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 15,
-        "y": 4
-      },
-      "id": 40,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "dfaue906qonpcf"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT equipmentno FROM eam_devices WHERE equipmentno = ${device:sqlstring};",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "Asset ID",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "grafana-postgresql-datasource",
-        "uid": "dfaue906qonpcf"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "options": {
-                "match": "null+nan",
-                "result": {
-                  "color": "red",
-                  "index": 0,
-                  "text": "Position not defined in EAM Devices"
-                }
-              },
-              "type": "special"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 18,
-        "y": 4
-      },
-      "id": 39,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "dfaue906qonpcf"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT position FROM eam_devices WHERE equipmentno = ${device:sqlstring};",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "Position ID",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "grafana-postgresql-datasource",
-        "uid": "dfaue906qonpcf"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "time:YYYY-MM-DD"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 21,
-        "y": 4
-      },
-      "id": 41,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "dfaue906qonpcf"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT commissiondate FROM eam_devices WHERE equipmentno = ${device:sqlstring};",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "parameters": [],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          }
-        }
-      ],
-      "title": "Commission Date",
-      "type": "stat"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 8
-      },
-      "id": 48,
-      "panels": [],
-      "title": "Connectivity",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "influxdb",
-        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "percentage",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 70
-              },
-              {
-                "color": "red",
-                "value": 85
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 4,
-        "x": 0,
-        "y": 9
-      },
-      "id": 23,
-      "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "query": "SELECT mean(\"rtt_ms\") AS \"RTT (ms)\"\nFROM \"ping_check\"\nWHERE $timeFilter AND \"equipmentno\" = '$device'\nGROUP BY time($__interval) fill(null);",
-          "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series"
-        }
-      ],
-      "title": "RTT (ms)",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "influxdb",
-        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "red",
-                  "index": 1,
-                  "text": "OFF"
-                },
-                "1": {
-                  "color": "green",
-                  "index": 0,
-                  "text": "ON"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 4,
-        "x": 4,
-        "y": 9
-      },
-      "id": 24,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "alias": "Status",
-          "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "query": "SELECT last(\"status\") AS \"status\"\nFROM \"ping_check\"\nWHERE \"equipmentno\" = '$device' AND $timeFilter\nGROUP BY time($__interval) fill(previous)",
-          "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series"
-        }
-      ],
-      "title": "Monitoring Health",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "influxdb",
-        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "color": "yellow",
-                  "index": 1,
-                  "text": "OFF"
-                },
-                "1": {
-                  "color": "green",
-                  "index": 0,
-                  "text": "ON"
-                }
-              },
-              "type": "value"
-            },
-            {
-              "options": {
-                "match": "null+nan",
-                "result": {
-                  "color": "transparent",
-                  "index": 2,
-                  "text": "N/A"
-                }
-              },
-              "type": "special"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#00000087",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 4,
-        "x": 8,
-        "y": 9
-      },
-      "id": 43,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "alias": "Checked",
-          "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "query": "SELECT last(\"status\") AS \"Last snmp\"\nFROM \"snmp_probe\"\nWHERE \"equipmentno\" = '$device' AND $timeFilter\n",
-          "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series"
-        }
-      ],
-      "title": "Snmp Health",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "influxdb",
-        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "min": -1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "transparent",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 0
-              },
-              {
-                "color": "#EAB839",
-                "value": 70
-              },
-              {
-                "color": "green",
-                "value": 90
-              }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 5,
-        "x": 12,
-        "y": 9
-      },
-      "id": 25,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "query": "SELECT mean(\"status\") * 100 AS \"availability_%\"\nFROM \"ping_check\"\nWHERE \"equipmentno\" = '$device' AND $timeFilter\nGROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series"
-        }
-      ],
-      "title": "Availability (%)",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "influxdb",
-        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "custom": {
-            "axisBorderShow": true,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisGridShow": true,
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "scheme",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "smooth",
-            "lineStyle": {
-              "fill": "solid"
-            },
-            "lineWidth": 3,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 7,
-        "x": 17,
-        "y": 9
-      },
-      "id": 28,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "hidden",
-          "placement": "right",
-          "showLegend": false
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "query": "SELECT percentile(\"rtt_ms\", 95) AS \"p95 RTT (ms)\"\nFROM \"ping_check\"\nWHERE $timeFilter AND \"equipmentno\" = '$device'\nGROUP BY time($__interval) fill(null)\n",
-          "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series"
-        }
-      ],
-      "title": "Ping History",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {},
-            "includeByName": {},
-            "indexByName": {},
-            "renameByName": {
-              "Time": "Time",
-              "ping_check.p95 RTT (ms)": "Ping (ms)"
-            }
-          }
-        }
-      ],
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 15
-      },
-      "id": 34,
-      "panels": [],
-      "title": "Projector",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "influxdb",
-        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 5,
-        "x": 0,
-        "y": 16
-      },
-      "id": 31,
-      "options": {
-        "colorMode": "none",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "alias": "Power Status",
-          "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "query": "SELECT LAST(\"Power Status\") AS \"Power Status\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" =~ /^$device$/",
-          "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series"
-        }
-      ],
-      "title": "Power Status",
-      "transformations": [
-        {
-          "id": "reduce",
-          "options": {
-            "includeTimeField": false,
-            "mode": "reduceFields",
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
-        }
-      ],
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "influxdb",
-        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 11,
-        "x": 5,
-        "y": 16
-      },
-      "id": 32,
-      "options": {
-        "colorMode": "none",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "alias": "Firmware",
-          "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "query": "SELECT LAST(\"Firmware\") AS \"Firmware\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" =~ /^$device$/",
-          "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series"
-        }
-      ],
-      "title": "Firmware Version",
-      "transformations": [
-        {
-          "id": "reduce",
-          "options": {
-            "includeTimeField": false,
-            "mode": "reduceFields",
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
-        }
-      ],
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "influxdb",
-        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0,
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              },
-              {
-                "color": "#EAB839",
-                "value": 90
-              },
-              {
-                "color": "#6ED0E0",
-                "value": 100
-              }
-            ]
-          },
-          "unit": "hours"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 4,
-        "x": 16,
-        "y": 16
-      },
-      "id": 29,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "alias": "Lamp Hours",
-          "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "query": "SELECT LAST(\"Lamp Hours\") AS \"Lamp Hours\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" = '$device'\n",
-          "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series"
-        }
-      ],
-      "title": "Lamp Hours (h)",
-      "transformations": [
-        {
-          "id": "reduce",
-          "options": {
-            "includeTimeField": false,
-            "mode": "reduceFields",
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "Lamp Days",
-            "binary": {
-              "left": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Lamp Hours"
-                }
-              },
-              "operator": "/",
-              "right": {
-                "fixed": "24.0"
-              }
-            },
-            "mode": "binary",
-            "reduce": {
-              "reducer": "sum"
-            },
-            "replaceFields": true
-          }
-        }
-      ],
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "influxdb",
-        "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "dtdurations"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 4,
-        "x": 20,
-        "y": 16
-      },
-      "id": 30,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [],
-          "fields": "/.*/",
-          "values": true
-        },
-        "showPercentChange": false,
-        "textMode": "value",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.5.5",
-      "targets": [
-        {
-          "alias": "Uptime",
-          "datasource": {
-            "type": "influxdb",
-            "uid": "a866fbeb-2203-4a44-bfa9-32d28ad0adf0"
-          },
-          "query": "SELECT LAST(\"Uptime\") AS \"Uptime\"\nFROM \"snmp_query\"\nWHERE $timeFilter AND \"equipmentno\" =~ /^$device$/",
-          "rawQuery": true,
-          "refId": "A",
-          "resultFormat": "time_series"
-        }
-      ],
-      "title": "Uptime (h)",
-      "transformations": [
-        {
-          "id": "reduce",
-          "options": {
-            "includeTimeField": false,
-            "mode": "reduceFields",
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "alias": "",
-            "binary": {
-              "left": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Uptime"
-                }
-              },
-              "operator": "/",
-              "right": {
-                "fixed": "100"
-              }
-            },
-            "mode": "binary",
-            "reduce": {
-              "include": [
-                "Uptime"
-              ],
-              "reducer": "sum"
-            },
-            "replaceFields": true
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "binary": {
-              "left": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Uptime / 60"
-                }
-              },
-              "operator": "/",
-              "right": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Uptime / 60"
-                }
-              }
-            },
-            "mode": "binary",
-            "reduce": {
-              "reducer": "sum"
-            }
-          }
-        },
-        {
-          "id": "calculateField",
-          "options": {
-            "binary": {
-              "left": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Uptime / 100"
-                }
-              },
-              "operator": "/",
-              "right": {
-                "fixed": "60"
-              }
-            },
-            "mode": "binary",
-            "reduce": {
-              "include": [
-                "Uptime / 100"
-              ],
-              "reducer": "sum"
-            },
-            "replaceFields": true
-          }
-        },
-        {
-          "disabled": true,
-          "id": "calculateField",
-          "options": {
-            "binary": {
-              "left": {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Uptime / 100 / 60"
-                }
-              },
-              "operator": "/",
-              "right": {
-                "fixed": "24"
-              }
-            },
-            "mode": "binary",
-            "reduce": {
-              "include": [
-                "Uptime / 100"
-              ],
-              "reducer": "sum"
-            },
-            "replaceFields": true
-          }
-        }
-      ],
-      "type": "stat"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 19
-      },
-      "id": 46,
-      "panels": [],
-      "title": "Legend",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "dfaue906qonpcf"
-      },
-      "gridPos": {
-        "h": 2,
-        "w": 24,
-        "x": 0,
-        "y": 20
-      },
-      "id": 42,
-      "options": {
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        },
-        "content": "<div style=\"display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;font:12px/1.3 Inter,system-ui;\">\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#f2495c;border:1px solid #f2495c;color:#fff;\">AVA: Audio</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#ff9830;border:1px solid #ff9830;color:#fff;\">AVC: Computing</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#56a64b;border:1px solid #56a64b;color:#fff;\">AVD: Display</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#07e1f3;border:1px solid #07e1f3;color:#fff;\">AVO: Other</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#5794f2;border:1px solid #5794f2;color:#fff;\">AVS: Control</span>\n  <!-- AVV with 0.77 alpha -->\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:rgba(230,149,220,0.77);border:1px solid rgba(230,149,220,0.77);color:#000;\">AVV: Video Conference</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#8f3bb8;border:1px solid #8f3bb8;color:#fff;\">AVVS: Video Systems</span>\n</div>\n",
-        "mode": "markdown"
-      },
-      "pluginVersion": "11.5.5",
-      "transparent": true,
-      "type": "text"
-    }
-  ],
   "refresh": "5m",
   "schemaVersion": 40,
   "tags": [
@@ -1833,5 +157,1829 @@
   "title": "AV: Device Details",
   "uid": "av_devices_details-qa",
   "version": 31,
-  "weekStart": "sunday"
+  "weekStart": "sunday",
+  "panels": [
+    {
+      "id": 100,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"text-align:center;padding:10px 0 4px;font-family:Inter,system-ui\"><p style=\"margin:0 0 5px;font-size:11px;letter-spacing:3px;text-transform:uppercase;opacity:0.4;font-weight:500\">${device}</p><h1 style=\"margin:0;font-size:clamp(24px,4vw,42px);font-weight:700;letter-spacing:0.3px;line-height:1.1;color:inherit\">${device:text}</h1></div>"
+      }
+    },
+    {
+      "id": 101,
+      "type": "row",
+      "title": "General Info",
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 102,
+      "type": "stat",
+      "title": "Room",
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH RECURSIVE\ndevice_positions AS (SELECT DISTINCT d.position::varchar AS position FROM eam_devices d WHERE d.position IS NOT NULL),\nclimb AS (\n  SELECT dp.position AS start_pos,p.equipmentno::varchar AS cur_pos,\n    p.parentasset::varchar AS parent_pos,0 AS depth,ARRAY[p.equipmentno::varchar]::varchar[] AS visited\n  FROM device_positions dp JOIN eam_positions p ON p.equipmentno::varchar=dp.position\n  UNION ALL\n  SELECT c.start_pos,p.equipmentno::varchar,p.parentasset::varchar,c.depth+1,\n    (c.visited||p.equipmentno::varchar)::varchar[]\n  FROM climb c JOIN eam_positions p ON p.equipmentno::varchar=c.parent_pos\n  WHERE c.parent_pos IS NOT NULL AND c.depth<100 AND NOT p.equipmentno::varchar=ANY(c.visited)\n),\npos_to_room AS (\n  SELECT DISTINCT ON(c.start_pos) c.start_pos,c.cur_pos AS room_no,c.depth\n  FROM climb c JOIN eam_positions rp ON rp.equipmentno::varchar=c.cur_pos\n  ORDER BY c.start_pos,c.depth DESC,c.cur_pos\n),\nlisted AS (\n  SELECT CONCAT(parts.p1,'/',parts.p2,'-',parts.p3) AS ConferenceRoomNoFmt,d.equipmentno AS EquipmentNo\n  FROM eam_devices d\n  JOIN pos_to_room pr ON pr.start_pos=d.position::varchar\n  JOIN eam_positions room ON room.equipmentno::varchar=pr.room_no\n  CROSS JOIN LATERAL(\n    SELECT split_part(split_part(room.equipmentno::varchar,'-',2),'.',1) AS p1,\n           split_part(split_part(room.equipmentno::varchar,'-',2),'.',2) AS p2,\n           split_part(split_part(room.equipmentno::varchar,'-',2),'.',3) AS p3\n  ) AS parts\n)\nSELECT ConferenceRoomNoFmt FROM listed WHERE EquipmentNo IN (${device:sqlstring}) LIMIT 1"
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 103,
+      "type": "stat",
+      "title": "AV Class",
+      "gridPos": {
+        "x": 6,
+        "y": 5,
+        "w": 3,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT eqclass FROM eam_devices WHERE equipmentno = ${device:sqlstring}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "AVA": {
+                  "color": "#f2495c",
+                  "index": 0,
+                  "text": "AVA"
+                },
+                "AVC": {
+                  "color": "#ff9830",
+                  "index": 1,
+                  "text": "AVC"
+                },
+                "AVD": {
+                  "color": "#56a64b",
+                  "index": 2,
+                  "text": "AVD"
+                },
+                "AVO": {
+                  "color": "#07e1f3",
+                  "index": 3,
+                  "text": "AVO"
+                },
+                "AVS": {
+                  "color": "#5794f2",
+                  "index": 4,
+                  "text": "AVS"
+                },
+                "AVV": {
+                  "color": "rgba(230,149,220,0.77)",
+                  "index": 5,
+                  "text": "AVV"
+                },
+                "AVVS": {
+                  "color": "#8f3bb8",
+                  "index": 6,
+                  "text": "AVVS"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 104,
+      "type": "stat",
+      "title": "Manufacturer",
+      "gridPos": {
+        "x": 9,
+        "y": 5,
+        "w": 5,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT manufacturer FROM eam_devices WHERE equipmentno = ${device:sqlstring}"
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 105,
+      "type": "stat",
+      "title": "Model",
+      "gridPos": {
+        "x": 14,
+        "y": 5,
+        "w": 5,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT model FROM eam_devices WHERE equipmentno = ${device:sqlstring}"
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 106,
+      "type": "stat",
+      "title": "Commission",
+      "gridPos": {
+        "x": 19,
+        "y": 5,
+        "w": 5,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT TO_CHAR(commissiondate,'YYYY-MM-DD') AS commissiondate FROM eam_devices WHERE equipmentno = ${device:sqlstring}"
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 107,
+      "type": "stat",
+      "title": "Asset ID",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT equipmentno FROM eam_devices WHERE equipmentno = ${device:sqlstring}"
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 108,
+      "type": "stat",
+      "title": "Serial No.",
+      "gridPos": {
+        "x": 4,
+        "y": 10,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT serialnumber FROM eam_devices WHERE equipmentno = ${device:sqlstring}"
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 109,
+      "type": "stat",
+      "title": "Position",
+      "gridPos": {
+        "x": 8,
+        "y": 10,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT position FROM eam_devices WHERE equipmentno = ${device:sqlstring}"
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 110,
+      "type": "stat",
+      "title": "Status",
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT assetstatus_display FROM eam_devices WHERE equipmentno = ${device:sqlstring}"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "Installed": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Installed"
+                },
+                "Accepted": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "Accepted"
+                },
+                "In store, En magasin": {
+                  "color": "yellow",
+                  "index": 2,
+                  "text": "In Store"
+                },
+                "Awaiting Repair": {
+                  "color": "orange",
+                  "index": 3,
+                  "text": "Awaiting Repair"
+                },
+                "Withdrawn, Hors service d\u00e9finitif": {
+                  "color": "red",
+                  "index": 4,
+                  "text": "Withdrawn"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "color": "text",
+                  "index": 5,
+                  "text": "\u2014"
+                }
+              },
+              "type": "special"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 111,
+      "type": "stat",
+      "title": "Hostname",
+      "gridPos": {
+        "x": 16,
+        "y": 10,
+        "w": 5,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT hostname FROM landb_ipaddresses WHERE equipmentno = ${device:sqlstring} LIMIT 1"
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 112,
+      "type": "stat",
+      "title": "Category",
+      "gridPos": {
+        "x": 21,
+        "y": 10,
+        "w": 3,
+        "h": 4
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT category FROM eam_devices WHERE equipmentno = ${device:sqlstring}"
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 113,
+      "type": "row",
+      "title": "Connectivity",
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 114,
+      "type": "stat",
+      "title": "Ping Health",
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 5,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afcql1n10tnggc"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "hide": false,
+          "legendFormat": "__auto",
+          "expr": "last_over_time(avtools_ping_check_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "red",
+                  "index": 1,
+                  "text": "Offline"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "Online"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "color": "text",
+                  "index": 2,
+                  "text": "Not Monitored"
+                }
+              },
+              "type": "special"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 115,
+      "type": "stat",
+      "title": "SNMP Health",
+      "gridPos": {
+        "x": 5,
+        "y": 15,
+        "w": 5,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afcql1n10tnggc"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "hide": false,
+          "legendFormat": "__auto",
+          "expr": "last_over_time(avtools_snmp_probe_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "yellow",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "color": "yellow",
+                  "index": 1,
+                  "text": "OFF"
+                },
+                "1": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "ON"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "color": "text",
+                  "index": 2,
+                  "text": "N/A"
+                }
+              },
+              "type": "special"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 116,
+      "type": "stat",
+      "title": "Availability",
+      "gridPos": {
+        "x": 10,
+        "y": 15,
+        "w": 4,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afcql1n10tnggc"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "hide": false,
+          "legendFormat": "__auto",
+          "expr": "avg_over_time(avtools_ping_check_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__range]) * 100",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "color": "text",
+                  "index": 0,
+                  "text": "No data"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "decimals": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 117,
+      "type": "gauge",
+      "title": "Mean RTT",
+      "gridPos": {
+        "x": 14,
+        "y": 15,
+        "w": 5,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afcql1n10tnggc"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "hide": false,
+          "legendFormat": "__auto",
+          "expr": "avg_over_time(avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__range])",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "color": "text",
+                  "index": 0,
+                  "text": "N/A"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "decimals": 1,
+          "max": 5
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 118,
+      "type": "stat",
+      "title": "Last Checked",
+      "gridPos": {
+        "x": 19,
+        "y": 15,
+        "w": 5,
+        "h": 6
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afcql1n10tnggc"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "hide": false,
+          "legendFormat": "__auto",
+          "expr": "timestamp(last_over_time(avtools_ping_check_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))*1000",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "dateTimeFromNow",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": -900000
+              },
+              {
+                "color": "green",
+                "value": -300000
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "color": "text",
+                  "index": 0,
+                  "text": "Never"
+                }
+              },
+              "type": "special"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 119,
+      "type": "timeseries",
+      "title": "Ping History \u2014 p95 RTT",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afcql1n10tnggc"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "p95 RTT",
+          "expr": "quantile_over_time(0.95, avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__interval])"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "B",
+          "editorMode": "code",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "Mean RTT",
+          "expr": "avg_over_time(avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__interval])"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "C",
+          "editorMode": "code",
+          "hide": false,
+          "instant": false,
+          "range": true,
+          "legendFormat": "Median RTT (p50)",
+          "expr": "quantile_over_time(0.50, avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__interval])"
+        }
+      ],
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max",
+            "min",
+            "p95"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "ms",
+          "decimals": 2,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "orange",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          },
+          "mappings": [],
+          "custom": {
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "showPoints": "always",
+            "pointSize": 4,
+            "spanNulls": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95 RTT"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#F2495C",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 15
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mean RTT"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#56A64B",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 5
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Median RTT (p50)"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#5794F2",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [
+                    6,
+                    4
+                  ],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 120,
+      "type": "row",
+      "title": "Projector",
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 1
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 121,
+      "type": "stat",
+      "title": "Power Status",
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT power_status AS \"Power Status\" FROM avtools_projector_monitoring WHERE equipment_no = '$device'"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "On": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "On"
+                },
+                "Standby": {
+                  "color": "yellow",
+                  "index": 1,
+                  "text": "Standby"
+                },
+                "Off": {
+                  "color": "red",
+                  "index": 2,
+                  "text": "Off"
+                }
+              },
+              "type": "value"
+            },
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "color": "text",
+                  "index": 3,
+                  "text": "N/A"
+                }
+              },
+              "type": "special"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 122,
+      "type": "stat",
+      "title": "Firmware Version",
+      "gridPos": {
+        "x": 6,
+        "y": 31,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "dfaue906qonpcf"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "dfaue906qonpcf"
+          },
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT firmware AS \"Firmware\" FROM avtools_projector_monitoring WHERE equipment_no = '$device'"
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "color": "text",
+                  "index": 0,
+                  "text": "N/A"
+                }
+              },
+              "type": "special"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 123,
+      "type": "stat",
+      "title": "Lamp Hours",
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afcql1n10tnggc"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "hide": false,
+          "legendFormat": "__auto",
+          "expr": "last_over_time(avtools_projector_query_lamp_hours{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "h",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "orange",
+                "value": 2000
+              },
+              {
+                "color": "red",
+                "value": 4000
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "color": "text",
+                  "index": 0,
+                  "text": "N/A"
+                }
+              },
+              "type": "special"
+            }
+          ],
+          "decimals": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 124,
+      "type": "stat",
+      "title": "Uptime",
+      "gridPos": {
+        "x": 18,
+        "y": 31,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "afcql1n10tnggc"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "afcql1n10tnggc"
+          },
+          "refId": "A",
+          "editorMode": "code",
+          "hide": false,
+          "legendFormat": "__auto",
+          "expr": "last_over_time(avtools_projector_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "mode": "reduceFields",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Uptime (h)",
+            "binary": {
+              "left": {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Uptime"
+                }
+              },
+              "operator": "/",
+              "right": {
+                "fixed": "3600"
+              }
+            },
+            "mode": "binary",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 125,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "html",
+        "content": "<div style=\"display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;font:12px/1.3 Inter,system-ui;\">\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#f2495c;border:1px solid #f2495c;color:#fff;\">AVA: Audio</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#ff9830;border:1px solid #ff9830;color:#fff;\">AVC: Computing</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#56a64b;border:1px solid #56a64b;color:#fff;\">AVD: Display</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#07e1f3;border:1px solid #07e1f3;color:#fff;\">AVO: Other</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#5794f2;border:1px solid #5794f2;color:#fff;\">AVS: Control</span>\n  <!-- AVV with 0.77 alpha -->\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:rgba(230,149,220,0.77);border:1px solid rgba(230,149,220,0.77);color:#000;\">AVV: Video Conference</span>\n  <span style=\"display:inline-block;padding:.25rem .6rem;border-radius:999px;background:#8f3bb8;border:1px solid #8f3bb8;color:#fff;\">AVVS: Video Systems</span>\n</div>\n"
+      }
+    }
+  ]
 }
