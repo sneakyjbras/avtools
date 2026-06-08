@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.4.0] — 2026-05-29 — codename: arthas
+## [1.4.1] — 2026-05-29 — codename: arthas
 
 ### Added
 
