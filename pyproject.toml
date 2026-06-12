@@ -1,6 +1,6 @@
 [tool.poetry]
 name        = "avtools"
-version     = "1.4.1"
+version     = "1.5.0"
 description = "Monitoring tools for the AV infrastructure of CERN."
 readme      = "README.md"
 license     = "Proprietary"

@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0] — 2026-06-12 — codename: illidan
+
+### Fixed
+
+- **`avtools-service.sh`**: `snmp-timeseries` now explicitly passes
+  `--environment "$AVTOOLS_ENVIRONMENT"`, `--hostgroup "$AVTOOLS_HOSTGROUP"`,
+  and `--availability-zone "$AVTOOLS_AVAILABILITY_ZONE"` to the CLI instead of
+  relying on Click's implicit `envvar` fallback.  A `:?` guard on
+  `AVTOOLS_ENVIRONMENT` causes the service to fail loudly at startup if the
+  variable is absent, preventing metrics from being silently mislabelled with
+  the Click default (`"prod"`) in QA, or vice-versa.  `AVTOOLS_HOSTGROUP` and
+  `AVTOOLS_AVAILABILITY_ZONE` receive safe `:=` defaults that match the CLI
+  defaults so existing deployments without those Puppet variables are unaffected.
+
 ## [1.4.1] — 2026-05-29 — codename: arthas
 
 ### Added
