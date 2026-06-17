@@ -239,7 +239,6 @@ deploy_grafana_qa:
     - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_QA"
   script:
     - ./scripts/sync_grafana_dashboards.sh put qa
-    - ./scripts/sync_grafana_rulegroup_qa.sh put
 
 deploy_grafana_prod:
   stage: deploy_stable
@@ -262,6 +261,67 @@ deploy_grafana_prod:
     - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_PROD"
   script:
     - ./scripts/sync_grafana_dashboards.sh put prod
+
+# ==================================================
+# GRAFANA ALERT RULE GROUPS  (separate, manual)
+#
+# Publishing alert rule groups is intentionally split out from the dashboard
+# deploy jobs above so alerts can be shipped independently and only when
+# explicitly triggered. Both jobs are manual.
+#
+#   deploy_grafana_alerts_qa   -> QA org   (folder: playground / 7BZSQJX4z)
+#                                 receiver "AV Test",  Postgres dfaue906qonpcf
+#   deploy_grafana_alerts_prod -> PROD org (folder: av-dashboard / beuar1of5bo5cf)
+#                                 receiver "AV Tools", Postgres ed690575-...
+#
+# Each job publishes EVERY grafana/alerts/*.rulegroup.PUT.json. The QA payloads
+# are derived from the PROD sources at deploy time by patch_grafana_rulegroup.py
+# (no hand-maintained QA files).
+#
+# Same GRAFANA_API_TOKEN_QA / GRAFANA_API_TOKEN_PROD variables as the dashboard
+# jobs (see the Protected-variable note above).
+# ==================================================
+deploy_grafana_alerts_qa:
+  stage: deploy_qa
+  image: python:3.11-slim
+  rules:
+    - when: manual
+  environment:
+    name: grafana/qa
+    url: https://monit-grafana.cern.ch/dashboards/f/7BZSQJX4z/?orgId=12
+  before_script:
+    - apt-get update -qq && apt-get install -y --no-install-recommends curl ca-certificates python3
+    - chmod +x scripts/sync_grafana_rulegroup.sh scripts/sync_grafana_rulegroup_qa.sh
+    - |
+      : "${GRAFANA_API_TOKEN_QA:?
+      GRAFANA_API_TOKEN_QA is not set or not visible to this pipeline.
+      → Go to GitLab → Settings → CI/CD → Variables and add GRAFANA_API_TOKEN_QA.
+      → If it is already there and marked Protected, either uncheck Protected
+        or protect the 'development' branch (Settings → Repository → Protected Branches).}"
+    - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_QA"
+  script:
+    - ./scripts/sync_grafana_rulegroup_qa.sh put
+
+deploy_grafana_alerts_prod:
+  stage: deploy_stable
+  image: python:3.11-slim
+  rules:
+    - when: manual
+  environment:
+    name: grafana/prod
+    url: https://monit-grafana.cern.ch/dashboards/f/beuar1of5bo5cf/?orgId=12
+  before_script:
+    - apt-get update -qq && apt-get install -y --no-install-recommends curl ca-certificates python3
+    - chmod +x scripts/sync_grafana_rulegroup.sh scripts/sync_grafana_rulegroup_qa.sh
+    - |
+      : "${GRAFANA_API_TOKEN_PROD:?
+      GRAFANA_API_TOKEN_PROD is not set or not visible to this pipeline.
+      → Go to GitLab → Settings → CI/CD → Variables and add GRAFANA_API_TOKEN_PROD.
+      → If it is already there and marked Protected, either uncheck Protected
+        or protect the tag that triggered this job
+        (Settings → Repository → Protected Tags → add your tag pattern, e.g. v*).}"
+    - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_PROD"
+  script:
     - ./scripts/sync_grafana_rulegroup.sh prod
 
 # ==================================================
