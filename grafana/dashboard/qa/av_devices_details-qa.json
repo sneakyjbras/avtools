@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 51267,
+  "id": null,
   "links": [
     {
       "asDropdown": false,
@@ -121,7 +121,7 @@
       },
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "TELEVIC-005.CERN.CH",
           "value": "CCAX-001707"
         },
@@ -156,7 +156,7 @@
   "timezone": "Europe/Zurich",
   "title": "AV: Device Details",
   "uid": "av_devices_details-qa",
-  "version": 31,
+  "version": 9,
   "weekStart": "sunday",
   "panels": [
     {
@@ -792,7 +792,7 @@
                   "index": 3,
                   "text": "Awaiting Repair"
                 },
-                "Withdrawn, Hors service d\u00e9finitif": {
+                "Withdrawn, Hors service définitif": {
                   "color": "red",
                   "index": 4,
                   "text": "Withdrawn"
@@ -806,7 +806,7 @@
                 "result": {
                   "color": "text",
                   "index": 5,
-                  "text": "\u2014"
+                  "text": "—"
                 }
               },
               "type": "special"
@@ -1398,7 +1398,7 @@
     {
       "id": 119,
       "type": "timeseries",
-      "title": "Ping History \u2014 p95 RTT",
+      "title": "Ping History — p95 RTT",
       "gridPos": {
         "x": 0,
         "y": 21,
