@@ -1,36 +1,72 @@
 #!/usr/bin/env python3
-import json
+"""Render a PROD rule-group PUT payload for a target environment (prod | qa).
+
+The repository keeps a single PROD source-of-truth JSON per rule group under
+``grafana/alerts/*.rulegroup.PUT.json``.  The QA variant is *derived* from it at
+deploy time by this script — there is no hand-maintained QA file to drift.
+
+Per environment this applies a fixed, deterministic set of substitutions:
+
+  * folder UID           (prod ``beuar1of5bo5cf``  ->  qa ``7BZSQJX4z`` / playground)
+  * rule-group name      (``<base>``               ->  ``<base>-qa``)
+  * rule uid suffix      (``""``                   ->  ``-qa``)
+  * rule title prefix    (``""``                   ->  ``QA - ``)
+  * notification receiver(``AV Tools``             ->  ``AV Test``)
+  * dashboard link uid   (``av_devices_dashboard`` ->  ``av_devices_dashboard-qa``)
+  * Postgres datasource  (prod uid                 ->  qa uid)
+  * PromQL env matcher    ``submitter_environment="prod"`` -> ``..."qa"``
+
+The Prometheus datasource UID is shared across environments and is intentionally
+left untouched.  Running with ``prod`` reverses every substitution, so the
+transform is idempotent and round-trips cleanly.
+
+Usage:
+  patch_grafana_rulegroup.py <env> <src_json> <out_json>
+    <env>      prod | qa
+    <src_json> path to a *.rulegroup.PUT.json (PROD source of truth)
+    <out_json> output patched payload
+"""
 import copy
+import json
+import re
 import sys
 from pathlib import Path
 
-
 # ---- PROD settings
 PROD_FOLDER_UID = "beuar1of5bo5cf"
-PROD_GROUP = "avtools-eam-dq-weekly"
 PROD_RECEIVER = "AV Tools"
 PROD_DS_UID = "ed690575-af6b-41b8-a72d-81f47592f349"
 PROD_DASH_UID = "av_devices_dashboard"
 
 # ---- QA settings
-QA_FOLDER_UID = "7BZSQJX4z"
-QA_GROUP = "avtools-eam-dq-weekly-qa"
+QA_FOLDER_UID = "7BZSQJX4z"  # "playground" folder
 QA_RECEIVER = "AV Test"
 QA_DS_UID = "dfaue906qonpcf"
 QA_DASH_UID = "av_devices_dashboard-qa"
 
+# Postgres datasource UIDs across environments (the Prometheus UID is shared and
+# never rewritten). Matching either side keeps the env transform bijective.
+_PG_DS_UIDS = {PROD_DS_UID, QA_DS_UID}
+
+# ---- env-independent conventions
+QA_UID_SUFFIX = "-qa"
+QA_TITLE_PREFIX = "QA - "
+
+# PromQL label matcher  submitter_environment="prod" | "qa"
+_ENV_LABEL_RE = re.compile(r'(submitter_environment\s*=\s*")(prod|qa)(")')
+
 
 def usage() -> None:
-    print(
-        "Usage:\n"
-        "  patch_grafana_rulegroup.py <env> <src_json> <out_json>\n"
-        "Where:\n"
-        "  <env>      prod | qa\n"
-        "  <src_json> path to avtools-eam-dq-weekly.rulegroup.PUT.json\n"
-        "  <out_json> output patched payload\n",
-        file=sys.stderr,
-    )
+    print(__doc__, file=sys.stderr)
     raise SystemExit(2)
+
+
+def _base_group(title: str) -> str:
+    """Return the PROD base group name (strip a trailing ``-qa`` if present)."""
+    title = title or ""
+    if title.endswith(QA_UID_SUFFIX):
+        return title[: -len(QA_UID_SUFFIX)]
+    return title
 
 
 def patch_payload(env: str, src_path: Path, out_path: Path) -> None:
@@ -39,26 +75,31 @@ def patch_payload(env: str, src_path: Path, out_path: Path) -> None:
 
     if env == "prod":
         folder = PROD_FOLDER_UID
-        group = PROD_GROUP
         receiver = PROD_RECEIVER
         target_ds = PROD_DS_UID
         dash_uid = PROD_DASH_UID
+        env_label = "prod"
         uid_suffix = ""
         title_prefix = ""
     elif env == "qa":
         folder = QA_FOLDER_UID
-        group = QA_GROUP
         receiver = QA_RECEIVER
         target_ds = QA_DS_UID
         dash_uid = QA_DASH_UID
-        uid_suffix = "-qa"
-        title_prefix = "QA - "
+        env_label = "qa"
+        uid_suffix = QA_UID_SUFFIX
+        title_prefix = QA_TITLE_PREFIX
     else:
         raise SystemExit(f"Unknown env: {env!r} (expected 'prod' or 'qa')")
 
     payload = copy.deepcopy(base)
 
-    # These two are for the rule-group payload wrapper
+    # Group name is derived from the source payload's own title (NOT hardcoded),
+    # so this script works unchanged for every rule group in grafana/alerts/.
+    base_group = _base_group(payload.get("title", ""))
+    group = base_group + uid_suffix
+
+    # Rule-group payload wrapper
     payload["folderUid"] = folder
     payload["title"] = group
 
@@ -73,25 +114,25 @@ def patch_payload(env: str, src_path: Path, out_path: Path) -> None:
         rule["folderUID"] = folder
         rule["ruleGroup"] = group
 
-        # UID handling (QA must be separate set)
+        # UID handling (QA must be a separate set)
         uid = rule.get("uid", "")
         if isinstance(uid, str):
             if uid_suffix:
                 if not uid.endswith(uid_suffix):
                     rule["uid"] = uid + uid_suffix
             else:
-                if uid.endswith("-qa"):
-                    rule["uid"] = uid[:-3]
+                if uid.endswith(QA_UID_SUFFIX):
+                    rule["uid"] = uid[: -len(QA_UID_SUFFIX)]
 
-        # Title (optional, keeps QA visually distinct)
+        # Title (keeps QA visually distinct)
         title = rule.get("title", "")
         if isinstance(title, str):
             if title_prefix:
                 if not title.startswith(title_prefix):
                     rule["title"] = title_prefix + title
             else:
-                if title.startswith("QA - "):
-                    rule["title"] = title[5:]
+                if title.startswith(QA_TITLE_PREFIX):
+                    rule["title"] = title[len(QA_TITLE_PREFIX) :]
 
         # Receiver/contact point
         ns = rule.get("notification_settings") or {}
@@ -108,19 +149,29 @@ def patch_payload(env: str, src_path: Path, out_path: Path) -> None:
             ann["__dashboardUid__"] = dash_uid
         rule["annotations"] = ann
 
-        # Datasource patch: replace occurrences of PROD datasource uid
+        # Per-query datasource + PromQL env-label patches
         for q in rule.get("data", []) or []:
             if not isinstance(q, dict):
                 continue
 
-            if q.get("datasourceUid") == PROD_DS_UID:
+            # Postgres datasource UID (Prometheus UID is shared -> left as-is).
+            # Match either environment's Postgres UID so the transform is
+            # bijective and self-healing regardless of the input's current env.
+            if q.get("datasourceUid") in _PG_DS_UIDS:
                 q["datasourceUid"] = target_ds
 
             model = q.get("model") or {}
             if isinstance(model, dict):
                 ds = model.get("datasource")
-                if isinstance(ds, dict) and ds.get("uid") == PROD_DS_UID:
+                if isinstance(ds, dict) and ds.get("uid") in _PG_DS_UIDS:
                     ds["uid"] = target_ds
+
+                # PromQL: pin submitter_environment to the target env
+                expr = model.get("expr")
+                if isinstance(expr, str) and "submitter_environment" in expr:
+                    model["expr"] = _ENV_LABEL_RE.sub(
+                        lambda m: m.group(1) + env_label + m.group(3), expr
+                    )
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
