@@ -19,7 +19,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 52254,
+  "id": null,
   "links": [
     {
       "asDropdown": false,
@@ -792,7 +792,7 @@
                   "index": 3,
                   "text": "Awaiting Repair"
                 },
-                "Withdrawn, Hors service d\u00e9finitif": {
+                "Withdrawn, Hors service définitif": {
                   "color": "red",
                   "index": 4,
                   "text": "Withdrawn"
@@ -806,7 +806,7 @@
                 "result": {
                   "color": "text",
                   "index": 5,
-                  "text": "\u2014"
+                  "text": "—"
                 }
               },
               "type": "special"
@@ -1398,7 +1398,7 @@
     {
       "id": 119,
       "type": "timeseries",
-      "title": "Ping History \u2014 p95 RTT",
+      "title": "Ping History — p95 RTT",
       "gridPos": {
         "x": 0,
         "y": 21,
