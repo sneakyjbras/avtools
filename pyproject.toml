@@ -13,6 +13,14 @@ authors = [
     "jpolok <jarek.polok@cern.ch>",
 ]
 
+# Ship vendored MIB sources + the compiled metadata the resolver loads at runtime.
+include = [
+    { path = "src/avtools/mibs/compiled/*.metadata.json", format = ["sdist", "wheel"] },
+    { path = "src/avtools/mibs/sources/*", format = ["sdist", "wheel"] },
+    { path = "src/avtools/mibs/reference/*", format = ["sdist", "wheel"] },
+    { path = "src/avtools/mibs/*.md", format = ["sdist", "wheel"] },
+]
+
 [tool.poetry.urls]
 Homepage   = "https://gitlab.cern.ch/itdcim/av-tools"
 Repository = "https://gitlab.cern.ch/itdcim/av-tools.git"
@@ -75,6 +83,7 @@ detect-secrets = "^1.5.0"
 ipdb         = "^0.13.13"
 ipython      = "^8.32.0"
 pre-commit   = "^4.1.0"
+pysmi        = "*"  # used by scripts/compile_mibs.py to (re)generate MIB metadata
 pytest       = "^9.0.1"
 pytest-cov   = "^7.0.0"
 pytest-mock  = "^3.15.1"

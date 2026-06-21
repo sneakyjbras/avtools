@@ -1,0 +1,101 @@
+{
+  "title": "avtools-device-interfaces",
+  "folderUid": "beuar1of5bo5cf",
+  "interval": 300,
+  "rules": [
+    {
+      "id": 0,
+      "uid": "avifdown",
+      "orgID": 12,
+      "folderUID": "beuar1of5bo5cf",
+      "ruleGroup": "avtools-device-interfaces",
+      "title": "AV Tools: Device Interface Down",
+      "condition": "Active",
+      "data": [
+        {
+          "refId": "#If Down",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "afcql1n10tnggc",
+          "model": {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "afcql1n10tnggc"
+            },
+            "editorMode": "code",
+            "expr": "avtools_device_if_oper_status{submitter_environment=\"prod\"} == 2",
+            "instant": true,
+            "range": false,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "#If Down"
+          }
+        },
+        {
+          "refId": "Active",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 0,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "conditions": [
+              {
+                "evaluator": {
+                  "params": [
+                    0
+                  ],
+                  "type": "gt"
+                },
+                "operator": {
+                  "type": "and"
+                },
+                "query": {
+                  "params": [
+                    "C"
+                  ]
+                },
+                "reducer": {
+                  "params": [],
+                  "type": "last"
+                },
+                "type": "query"
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "#If Down",
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "Active",
+            "type": "threshold"
+          }
+        }
+      ],
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "300s",
+      "annotations": {
+        "__dashboardUid__": "av_devices_details",
+        "__panelId__": "180",
+        "description": "- A MIB-II network interface is reporting operationally DOWN (per device + ifindex)\n  Fires when avtools_device_if_oper_status == 2 (down) for 5m. Covers all SNMP families (codecs, matrices, projectors, PDUs) via the universal interface walk.\n  See the Network Interfaces (MIB-II) panel for the interface description (ifdescr). Devices commonly have unused ports that sit down by design - scope this rule to specific interfaces if it proves noisy in your environment.",
+        "summary": "Interface ifindex={{ $labels.ifindex }} on {{ $labels.equipmentno }} is down"
+      },
+      "labels": {
+        "av_alert_type": "operational",
+        "severity": "warning"
+      },
+      "isPaused": false,
+      "notification_settings": {
+        "receiver": "AV Tools"
+      },
+      "record": null
+    }
+  ]
+}

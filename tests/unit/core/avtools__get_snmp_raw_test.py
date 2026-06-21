@@ -121,6 +121,10 @@ def make_dummy_snmp_client(scenario: SNMPScenario):
                 )
             return out
 
+        async def collect_snmp_interfaces(self, devices: list[DummyDevice]):
+            # No interfaces in these orchestration tests.
+            return []
+
     return DummySNMPClient
 
 
@@ -131,7 +135,7 @@ def test_get_snmp_raw_no_devices_returns_empty(monkeypatch):
     DummySNMPClient = make_dummy_snmp_client(SNMPScenario())
     monkeypatch.setattr(av_mod, "SNMPClient", DummySNMPClient)
 
-    ping, probe, query = asyncio.run(av._get_snmp_raw([], max_workers=4))
+    ping, probe, query, interfaces = asyncio.run(av._get_snmp_raw([], max_workers=4))
     assert ping == []
     assert probe == []
     assert query == []
@@ -154,7 +158,7 @@ def test_get_snmp_raw_probe_runs_on_all_targets_even_if_ping_none_alive(monkeypa
     monkeypatch.setattr(av_mod, "SNMPClient", DummySNMPClient)
 
     av = make_avtools_for_tests()
-    ping_results, probe_results, query_results = asyncio.run(
+    ping_results, probe_results, query_results, interface_results = asyncio.run(
         av._get_snmp_raw(devices, max_workers=2)
     )
 
@@ -188,7 +192,7 @@ def test_get_snmp_raw_no_snmp_alive_yields_no_queries(monkeypatch):
     monkeypatch.setattr(av_mod, "SNMPClient", DummySNMPClient)
 
     av = make_avtools_for_tests()
-    ping_results, probe_results, query_results = asyncio.run(
+    ping_results, probe_results, query_results, interface_results = asyncio.run(
         av._get_snmp_raw(devices, max_workers=8)
     )
 

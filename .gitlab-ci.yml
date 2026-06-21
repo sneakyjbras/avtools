@@ -143,12 +143,23 @@ grafana_validate_json:
       done
       exit $fail
 
+# Ensure the committed MIB metadata matches a fresh compile of the vendored
+# sources (so handlers' MIB-backed mode never drifts from the .mib files).
+mibs_compile_check:
+  extends: .python-test-base
+  stage: lint
+  rules:
+    - when: always
+  script:
+    - poetry run python scripts/compile_mibs.py --check
+
 # ==================================================
-# FEATURE BRANCHES (MR) + MASTER — unit tests
+# FEATURE BRANCHES (MR) + MASTER + TAGS — unit tests
 #
 # Triggered by:
 #   • Any merge request event (feature branch → master)
 #   • Every direct push to master
+#   • Every Git tag (gates the publish jobs, which also fire on tags)
 # ==================================================
 unit_tests:
   extends: .python-test-base
@@ -156,6 +167,7 @@ unit_tests:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_TAG'
   script:
     - poetry run pytest tests/unit tests/cli --disable-warnings --junitxml=pytest-unit.xml --cov=avtools --cov-report=xml:coverage.xml
   artifacts:
@@ -167,17 +179,26 @@ unit_tests:
         path: coverage.xml
 
 # ==================================================
-# MASTER ONLY — integration → e2e  (manual triggers)
+# MR + MASTER + TAGS — integration → e2e  (automatic)
 #
-# Integration and e2e tests are master-only.
-# They are manual so the pipeline does not block on
-# slow/environment-dependent tests, but allow_failure
-# keeps visibility without blocking downstream stages.
+# integration_tests: MR + master, automatic, allow_failure.
+#   Depends on live infrastructure (SNMP targets, Postgres), so a downed
+#   endpoint must not block an MR or master. Runs for visibility; does not
+#   gate merges or downstream stages.
+#
+# e2e_tests: MR + master + tags + web, automatic, BLOCKING (no allow_failure).
+#   Hard gate in front of the publish jobs. NOTE: because it is blocking and
+#   now also runs on MRs, an infra-down / failing e2e run will block the MR.
+#   To keep e2e non-blocking on MRs only, add `allow_failure: true` to the
+#   merge_request_event rule below.
 # ==================================================
 integration_tests:
   extends: .python-test-base
   stage: integration
+  allow_failure: true
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: on_success
     - if: '$CI_COMMIT_BRANCH == "master"'
       when: on_success
   script:
@@ -191,9 +212,13 @@ e2e_tests:
   extends: .python-test-base
   stage: e2e
   rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: on_success
     - if: '$CI_COMMIT_BRANCH == "master"'
       when: on_success
     - if: '$CI_COMMIT_TAG'
+      when: on_success
+    - if: '$CI_PIPELINE_SOURCE == "web"'
       when: on_success
   script:
     - poetry run pytest tests/system --disable-warnings --junitxml=pytest-e2e.xml
@@ -223,7 +248,9 @@ deploy_grafana_qa:
   stage: deploy_qa
   image: python:3.11-slim
   rules:
-    - when: manual
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+    - when: never
   environment:
     name: grafana/qa
     url: https://monit-grafana.cern.ch/dashboards/f/7BZSQJX4z/?orgId=12
@@ -243,8 +270,12 @@ deploy_grafana_qa:
 deploy_grafana_prod:
   stage: deploy_stable
   image: python:3.11-slim
+  # Manual, but only offered on tag pipelines — PROD dashboard deploys are a
+  # release-time action. Non-tag pipelines won't show this job at all.
   rules:
-    - when: manual
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+    - when: never
   environment:
     name: grafana/prod
     url: https://monit-grafana.cern.ch/dashboards/f/beuar1of5bo5cf/?orgId=12
@@ -285,7 +316,9 @@ deploy_grafana_alerts_qa:
   stage: deploy_qa
   image: python:3.11-slim
   rules:
-    - when: manual
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+    - when: never
   environment:
     name: grafana/qa
     url: https://monit-grafana.cern.ch/dashboards/f/7BZSQJX4z/?orgId=12
@@ -305,8 +338,11 @@ deploy_grafana_alerts_qa:
 deploy_grafana_alerts_prod:
   stage: deploy_stable
   image: python:3.11-slim
+  # Manual, but only offered on tag pipelines — matches deploy_grafana_prod.
   rules:
-    - when: manual
+    - if: '$CI_COMMIT_TAG'
+      when: manual
+    - when: never
   environment:
     name: grafana/prod
     url: https://monit-grafana.cern.ch/dashboards/f/beuar1of5bo5cf/?orgId=12

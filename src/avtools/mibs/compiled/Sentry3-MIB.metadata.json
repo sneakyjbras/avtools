@@ -1,0 +1,915 @@
+{
+  "branchCapabilities": {
+    "enum": {
+      "0": "onSense",
+      "1": "loadSense"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.7.1.4",
+    "scale": 1.0
+  },
+  "branchCapacity": {
+    "oid": "1.3.6.1.4.1.1718.3.2.7.1.9",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "branchEntry": {
+    "oid": "1.3.6.1.4.1.1718.3.2.7.1",
+    "scale": 1.0
+  },
+  "branchID": {
+    "oid": "1.3.6.1.4.1.1718.3.2.7.1.2",
+    "scale": 1.0
+  },
+  "branchIndex": {
+    "oid": "1.3.6.1.4.1.1718.3.2.7.1.1",
+    "scale": 1.0
+  },
+  "branchLoadEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.15",
+    "scale": 1.0
+  },
+  "branchLoadHighThresh": {
+    "oid": "1.3.6.1.4.1.1718.3.2.7.1.8",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "branchLoadStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "notOn",
+      "2": "reading",
+      "3": "loadLow",
+      "4": "loadHigh",
+      "5": "overLoad",
+      "6": "readError",
+      "7": "noComm"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.7.1.6",
+    "scale": 1.0
+  },
+  "branchLoadValue": {
+    "oid": "1.3.6.1.4.1.1718.3.2.7.1.7",
+    "scale": 100.0,
+    "unit": "A",
+    "units": "hundredth Amps"
+  },
+  "branchName": {
+    "oid": "1.3.6.1.4.1.1718.3.2.7.1.3",
+    "scale": 1.0
+  },
+  "branchStatus": {
+    "enum": {
+      "0": "off",
+      "1": "on",
+      "2": "offWait",
+      "3": "onWait",
+      "4": "offError",
+      "5": "onError",
+      "6": "noComm",
+      "7": "reading",
+      "8": "offFuse",
+      "9": "onFuse"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.7.1.5",
+    "scale": 1.0
+  },
+  "branchStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.14",
+    "scale": 1.0
+  },
+  "branchTable": {
+    "oid": "1.3.6.1.4.1.1718.3.2.7",
+    "scale": 1.0
+  },
+  "contactClosureEntry": {
+    "oid": "1.3.6.1.4.1.1718.3.2.6.1",
+    "scale": 1.0
+  },
+  "contactClosureEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.13",
+    "scale": 1.0
+  },
+  "contactClosureID": {
+    "oid": "1.3.6.1.4.1.1718.3.2.6.1.2",
+    "scale": 1.0
+  },
+  "contactClosureIndex": {
+    "oid": "1.3.6.1.4.1.1718.3.2.6.1.1",
+    "scale": 1.0
+  },
+  "contactClosureName": {
+    "oid": "1.3.6.1.4.1.1718.3.2.6.1.3",
+    "scale": 1.0
+  },
+  "contactClosureStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "alarm",
+      "2": "noComm"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.6.1.4",
+    "scale": 1.0
+  },
+  "contactClosureTable": {
+    "oid": "1.3.6.1.4.1.1718.3.2.6",
+    "scale": 1.0
+  },
+  "envMonADCCount": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.9",
+    "scale": 1.0
+  },
+  "envMonADCEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.9",
+    "scale": 1.0
+  },
+  "envMonADCHighThresh": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.11",
+    "scale": 1.0
+  },
+  "envMonADCLowThresh": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.10",
+    "scale": 1.0
+  },
+  "envMonADCName": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.7",
+    "scale": 1.0
+  },
+  "envMonADCStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "reading",
+      "2": "countLow",
+      "3": "countHigh",
+      "4": "readError",
+      "5": "noComm"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.8",
+    "scale": 1.0
+  },
+  "envMonContactClosureCount": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.13",
+    "scale": 1.0
+  },
+  "envMonEntry": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1",
+    "scale": 1.0
+  },
+  "envMonID": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.2",
+    "scale": 1.0
+  },
+  "envMonIndex": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.1",
+    "scale": 1.0
+  },
+  "envMonName": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.3",
+    "scale": 1.0
+  },
+  "envMonStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "noComm"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.4",
+    "scale": 1.0
+  },
+  "envMonStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.7",
+    "scale": 1.0
+  },
+  "envMonTable": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4",
+    "scale": 1.0
+  },
+  "envMonTempHumidSensorCount": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.12",
+    "scale": 1.0
+  },
+  "envMonWaterSensorEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.8",
+    "scale": 1.0
+  },
+  "envMonWaterSensorName": {
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.5",
+    "scale": 1.0
+  },
+  "envMonWaterSensorStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "alarm",
+      "2": "noComm"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.4.1.6",
+    "scale": 1.0
+  },
+  "eventInformationGroup": {
+    "oid": "1.3.6.1.4.1.1718.3.99",
+    "scale": 1.0
+  },
+  "eventStatusCondition": {
+    "enum": {
+      "0": "nonError",
+      "1": "error"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.99.2",
+    "scale": 1.0
+  },
+  "eventStatusText": {
+    "oid": "1.3.6.1.4.1.1718.3.99.1",
+    "scale": 1.0
+  },
+  "events": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0",
+    "scale": 1.0
+  },
+  "infeedApparentPower": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.13",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "infeedCapabilities": {
+    "enum": {
+      "0": "onSense",
+      "1": "loadSense",
+      "2": "powerControl",
+      "3": "failSafe",
+      "4": "defaultOff",
+      "5": "voltageSense",
+      "6": "powerSense",
+      "7": "branchOnSense",
+      "8": "branchLoadSense"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.4",
+    "scale": 1.0
+  },
+  "infeedCapacity": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.10",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "infeedCapacityUsed": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.20",
+    "scale": 10.0,
+    "unit": "%",
+    "units": "tenth percentage"
+  },
+  "infeedCrestFactor": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.15",
+    "scale": 10.0,
+    "units": "tenths"
+  },
+  "infeedEnergy": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.16",
+    "scale": 10.0,
+    "unit": "kWh",
+    "units": "tenth Kilowatt-Hours"
+  },
+  "infeedEntry": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1",
+    "scale": 1.0
+  },
+  "infeedID": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.2",
+    "scale": 1.0
+  },
+  "infeedIndex": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.1",
+    "scale": 1.0
+  },
+  "infeedLineID": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.21",
+    "scale": 1.0
+  },
+  "infeedLineToLineID": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.22",
+    "scale": 1.0
+  },
+  "infeedLoadEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.3",
+    "scale": 1.0
+  },
+  "infeedLoadHighThresh": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.8",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "infeedLoadStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "notOn",
+      "2": "reading",
+      "3": "loadLow",
+      "4": "loadHigh",
+      "5": "overLoad",
+      "6": "readError",
+      "7": "noComm"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.6",
+    "scale": 1.0
+  },
+  "infeedLoadValue": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.7",
+    "scale": 100.0,
+    "unit": "A",
+    "units": "hundredth Amps"
+  },
+  "infeedName": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.3",
+    "scale": 1.0
+  },
+  "infeedOutletCount": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.9",
+    "scale": 1.0
+  },
+  "infeedPhaseCurrent": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.19",
+    "scale": 100.0,
+    "unit": "A",
+    "units": "hundredth Amps"
+  },
+  "infeedPhaseID": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.23",
+    "scale": 1.0
+  },
+  "infeedPhaseVoltage": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.18",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "infeedPower": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.12",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "infeedPowerFactor": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.14",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "infeedReactance": {
+    "enum": {
+      "0": "unknown",
+      "1": "capacitive",
+      "2": "inductive",
+      "3": "resistive"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.17",
+    "scale": 1.0
+  },
+  "infeedStatus": {
+    "enum": {
+      "0": "off",
+      "1": "on",
+      "2": "offWait",
+      "3": "onWait",
+      "4": "offError",
+      "5": "onError",
+      "6": "noComm",
+      "7": "reading",
+      "8": "offFuse",
+      "9": "onFuse"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.5",
+    "scale": 1.0
+  },
+  "infeedStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.2",
+    "scale": 1.0
+  },
+  "infeedTable": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2",
+    "scale": 1.0
+  },
+  "infeedVACapacity": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.24",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "infeedVACapacityUsed": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.25",
+    "scale": 10.0,
+    "unit": "%",
+    "units": "tenth percentage"
+  },
+  "infeedVoltage": {
+    "oid": "1.3.6.1.4.1.1718.3.2.2.1.11",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "outletApparentPower": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.15",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "outletCapabilities": {
+    "enum": {
+      "0": "onSense",
+      "1": "loadSense",
+      "2": "powerControl",
+      "3": "shutdown",
+      "4": "defaultOn",
+      "5": "ownInfeed",
+      "6": "fusedBranch",
+      "7": "voltageSense",
+      "8": "powerSense"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.4",
+    "scale": 1.0
+  },
+  "outletCapacity": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.12",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "outletChangeEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.6",
+    "scale": 1.0
+  },
+  "outletControlAction": {
+    "enum": {
+      "0": "none",
+      "1": "on",
+      "2": "off",
+      "3": "reboot"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.11",
+    "scale": 1.0
+  },
+  "outletControlState": {
+    "enum": {
+      "0": "idleOff",
+      "1": "idleOn",
+      "10": "pendOn",
+      "11": "pendOff",
+      "12": "minimumOff",
+      "13": "minimumOn",
+      "14": "eventOff",
+      "15": "eventOn",
+      "16": "eventReboot",
+      "17": "eventShutdown",
+      "2": "wakeOff",
+      "3": "wakeOn",
+      "4": "off",
+      "5": "on",
+      "6": "lockedOff",
+      "7": "lockedOn",
+      "8": "reboot",
+      "9": "shutdown"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.10",
+    "scale": 1.0
+  },
+  "outletCrestFactor": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.17",
+    "scale": 10.0,
+    "units": "tenths"
+  },
+  "outletEnergy": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.18",
+    "scale": 1.0,
+    "unit": "Wh",
+    "units": "Watt-Hours"
+  },
+  "outletEntry": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1",
+    "scale": 1.0
+  },
+  "outletID": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.2",
+    "scale": 1.0
+  },
+  "outletIndex": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.1",
+    "scale": 1.0
+  },
+  "outletLoadEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.5",
+    "scale": 1.0
+  },
+  "outletLoadHighThresh": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.9",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "outletLoadLowThresh": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.8",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "outletLoadStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "notOn",
+      "2": "reading",
+      "3": "loadLow",
+      "4": "loadHigh",
+      "5": "overLoad",
+      "6": "readError",
+      "7": "noComm"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.6",
+    "scale": 1.0
+  },
+  "outletLoadValue": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.7",
+    "scale": 100.0,
+    "unit": "A",
+    "units": "hundredth Amps"
+  },
+  "outletName": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.3",
+    "scale": 1.0
+  },
+  "outletPostOnDelay": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.20",
+    "scale": 1.0,
+    "unit": "s",
+    "units": "seconds"
+  },
+  "outletPower": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.14",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "outletPowerFactor": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.16",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "outletStatus": {
+    "enum": {
+      "0": "off",
+      "1": "on",
+      "2": "offWait",
+      "3": "onWait",
+      "4": "offError",
+      "5": "onError",
+      "6": "noComm",
+      "7": "reading",
+      "8": "offFuse",
+      "9": "onFuse"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.5",
+    "scale": 1.0
+  },
+  "outletStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.4",
+    "scale": 1.0
+  },
+  "outletTable": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3",
+    "scale": 1.0
+  },
+  "outletVoltage": {
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.13",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "outletWakeupState": {
+    "enum": {
+      "1": "last",
+      "2": "off",
+      "3": "on"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.3.1.19",
+    "scale": 1.0
+  },
+  "sentry3": {
+    "oid": "1.3.6.1.4.1.1718.3",
+    "scale": 1.0
+  },
+  "sentry3Traps": {
+    "oid": "1.3.6.1.4.1.1718.3.100",
+    "scale": 1.0
+  },
+  "serverTech": {
+    "oid": "1.3.6.1.4.1.1718",
+    "scale": 1.0
+  },
+  "systemArea": {
+    "oid": "1.3.6.1.4.1.1718.3.1.7",
+    "scale": 10.0,
+    "units": "tenth area units"
+  },
+  "systemAreaUnit": {
+    "enum": {
+      "0": "squareMeter",
+      "1": "squareFoot"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.1.9",
+    "scale": 1.0
+  },
+  "systemConfigModifiedCount": {
+    "oid": "1.3.6.1.4.1.1718.3.1.15",
+    "scale": 1.0
+  },
+  "systemEnvMonCount": {
+    "oid": "1.3.6.1.4.1.1718.3.1.5",
+    "scale": 1.0
+  },
+  "systemFeatureKey": {
+    "oid": "1.3.6.1.4.1.1718.3.1.12",
+    "scale": 1.0
+  },
+  "systemFeatures": {
+    "enum": {
+      "0": "smartLoadShedding",
+      "1": "snmpPOPS",
+      "2": "outletControlInhibit"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.1.11",
+    "scale": 1.0
+  },
+  "systemGroup": {
+    "oid": "1.3.6.1.4.1.1718.3.1",
+    "scale": 1.0
+  },
+  "systemLocation": {
+    "oid": "1.3.6.1.4.1.1718.3.1.3",
+    "scale": 1.0
+  },
+  "systemNICSerialNumber": {
+    "oid": "1.3.6.1.4.1.1718.3.1.2",
+    "scale": 1.0
+  },
+  "systemOutletRebootDelay": {
+    "oid": "1.3.6.1.4.1.1718.3.1.14",
+    "scale": 1.0,
+    "unit": "s",
+    "units": "seconds"
+  },
+  "systemOutletSeqInterval": {
+    "oid": "1.3.6.1.4.1.1718.3.1.13",
+    "scale": 1.0,
+    "unit": "s",
+    "units": "seconds"
+  },
+  "systemPowerFactor": {
+    "oid": "1.3.6.1.4.1.1718.3.1.10",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "systemTables": {
+    "oid": "1.3.6.1.4.1.1718.3.2",
+    "scale": 1.0
+  },
+  "systemTotalPower": {
+    "oid": "1.3.6.1.4.1.1718.3.1.6",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "systemTowerCount": {
+    "oid": "1.3.6.1.4.1.1718.3.1.4",
+    "scale": 1.0
+  },
+  "systemVersion": {
+    "oid": "1.3.6.1.4.1.1718.3.1.1",
+    "scale": 1.0
+  },
+  "systemWattsPerAreaUnit": {
+    "oid": "1.3.6.1.4.1.1718.3.1.8",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts per area unit"
+  },
+  "tempHumidSensorEntry": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1",
+    "scale": 1.0
+  },
+  "tempHumidSensorHumidEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.12",
+    "scale": 1.0
+  },
+  "tempHumidSensorHumidHighThresh": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.12",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percentage relative humidity"
+  },
+  "tempHumidSensorHumidLowThresh": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.11",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percentage relative humidity"
+  },
+  "tempHumidSensorHumidRecDelta": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.15",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percentage relative humidity"
+  },
+  "tempHumidSensorHumidStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "notFound",
+      "2": "reading",
+      "3": "humidLow",
+      "4": "humidHigh",
+      "5": "readError",
+      "6": "lost",
+      "7": "noComm"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.9",
+    "scale": 1.0
+  },
+  "tempHumidSensorHumidValue": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.10",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percentage relative humidity"
+  },
+  "tempHumidSensorID": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.2",
+    "scale": 1.0
+  },
+  "tempHumidSensorIndex": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.1",
+    "scale": 1.0
+  },
+  "tempHumidSensorName": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.3",
+    "scale": 1.0
+  },
+  "tempHumidSensorStatus": {
+    "enum": {
+      "0": "found",
+      "1": "notFound",
+      "2": "lost",
+      "3": "noComm"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.4",
+    "scale": 1.0
+  },
+  "tempHumidSensorStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.10",
+    "scale": 1.0
+  },
+  "tempHumidSensorTable": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5",
+    "scale": 1.0
+  },
+  "tempHumidSensorTempEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.11",
+    "scale": 1.0
+  },
+  "tempHumidSensorTempHighThresh": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.8",
+    "scale": 1.0,
+    "units": "degrees"
+  },
+  "tempHumidSensorTempLowThresh": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.7",
+    "scale": 1.0,
+    "units": "degrees"
+  },
+  "tempHumidSensorTempRecDelta": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.14",
+    "scale": 1.0,
+    "units": "degrees"
+  },
+  "tempHumidSensorTempScale": {
+    "enum": {
+      "0": "celsius",
+      "1": "fahrenheit"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.13",
+    "scale": 1.0
+  },
+  "tempHumidSensorTempStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "notFound",
+      "2": "reading",
+      "3": "tempLow",
+      "4": "tempHigh",
+      "5": "readError",
+      "6": "lost",
+      "7": "noComm"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.5",
+    "scale": 1.0
+  },
+  "tempHumidSensorTempValue": {
+    "oid": "1.3.6.1.4.1.1718.3.2.5.1.6",
+    "scale": 10.0,
+    "units": "tenth degrees"
+  },
+  "towerActivePower": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.11",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "towerApparentPower": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.12",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "towerCapabilities": {
+    "enum": {
+      "0": "failSafe",
+      "1": "fuseSense",
+      "2": "directCurrent",
+      "3": "threePhase",
+      "4": "fanSense",
+      "5": "tempSense"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.8",
+    "scale": 1.0
+  },
+  "towerEnergy": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.14",
+    "scale": 1.0,
+    "unit": "kWh",
+    "units": "Kilowatt-Hours"
+  },
+  "towerEntry": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1",
+    "scale": 1.0
+  },
+  "towerID": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.2",
+    "scale": 1.0
+  },
+  "towerIndex": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.1",
+    "scale": 1.0
+  },
+  "towerInfeedCount": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.5",
+    "scale": 1.0
+  },
+  "towerLineFrequency": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.15",
+    "scale": 1.0,
+    "unit": "Hz",
+    "units": "Hertz"
+  },
+  "towerModelNumber": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.7",
+    "scale": 1.0
+  },
+  "towerName": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.3",
+    "scale": 1.0
+  },
+  "towerPowerFactor": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.13",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "towerProductSN": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.6",
+    "scale": 1.0
+  },
+  "towerStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "noComm",
+      "2": "fanFail",
+      "3": "overTemp",
+      "4": "nvmFail",
+      "5": "outOfBalance"
+    },
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.4",
+    "scale": 1.0
+  },
+  "towerStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.3.100.0.1",
+    "scale": 1.0
+  },
+  "towerTable": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1",
+    "scale": 1.0
+  },
+  "towerVACapacity": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.9",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "towerVACapacityUsed": {
+    "oid": "1.3.6.1.4.1.1718.3.2.1.1.10",
+    "scale": 10.0,
+    "unit": "%",
+    "units": "tenth percentage"
+  }
+}

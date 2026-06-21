@@ -24,7 +24,7 @@ from dataclasses import dataclass, asdict
 
 import structlog
 
-from avtools.snmp.client import PingResult, ProbeResult, QueryResult
+from avtools.snmp.client import InterfaceResult, PingResult, ProbeResult, QueryResult
 from avtools.timeseries.encoder import encode_all, DeviceLookup
 from avtools.timeseries.otlp_publisher import OTLPMetricsPublisher
 from avtools.postgres.monitoring.client import PostgresMonitoringClient
@@ -73,6 +73,7 @@ class SNMPObserverRouter:
         ping: Iterable[PingResult],
         probe: Iterable[ProbeResult],
         queries: Iterable[QueryResult],
+        interfaces: Iterable[InterfaceResult] = (),
         device_lookup: DeviceLookup | None = None,
     ) -> SNMPRoutingStats:
         """Encode and publish one full SNMP pipeline batch.
@@ -100,6 +101,7 @@ class SNMPObserverRouter:
         ping_l = list(ping)
         probe_l = list(probe)
         query_l = list(queries)
+        interface_l = list(interfaces)
 
         # 1) Timeseries (numeric) → OTLP, with device-level label enrichment.
         try:
@@ -107,6 +109,7 @@ class SNMPObserverRouter:
                 ping=ping_l,
                 probe=probe_l,
                 queries=query_l,
+                interfaces=interface_l,
                 device_lookup=device_lookup,
             )
         except Exception as exc:

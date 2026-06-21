@@ -14,10 +14,21 @@ from pysnmp.hlapi import (
     SnmpEngine,
     UdpTransportTarget,
     getCmd,
+    nextCmd,
 )
 
 _SYS_UPTIME_OID = "1.3.6.1.2.1.1.3.0"  # sysUpTime.0 (mandatory on all agents)
 _SYS_DESCR_OID = "1.3.6.1.2.1.1.1.0"  # sysDescr.0 (mandatory on all agents)
+
+
+def _as_int(value: Any) -> int | None:
+    """Best-effort int conversion for pysnmp values; ``None`` on failure/empty."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class AbstractDeviceHandler(ABC):
@@ -72,6 +83,130 @@ class AbstractDeviceHandler(ABC):
         )
 
         return next(iterator)
+
+    def _snmp_walk(
+        self,
+        base_oid: str,
+        *,
+        timeout: float = 1.5,
+        retries: int = 1,
+        max_rows: int = 256,
+    ) -> list[tuple[str, Any]]:
+        """Walk an OID subtree (SNMP GETNEXT), returning ``(oid, value)`` rows.
+
+        Stops at the end of the subtree, on error, or after ``max_rows`` (a safety
+        cap so a misbehaving agent can't stream unbounded rows).
+
+        Args:
+            base_oid: Root OID of the column/table to walk.
+            timeout: Per-request timeout in seconds.
+            retries: Retries after the first attempt.
+            max_rows: Hard cap on the number of rows returned.
+
+        Returns:
+            List of ``(oid_string, value)`` for entries under ``base_oid``; empty
+            on error.
+        """
+        rows: list[tuple[str, Any]] = []
+        iterator = nextCmd(
+            self.engine or SnmpEngine(),
+            CommunityData(self.community, mpModel=1),  # SNMP v2c
+            UdpTransportTarget((self.ip, self.port), timeout=timeout, retries=retries),
+            ContextData(),
+            ObjectType(ObjectIdentity(base_oid)),
+            lexicographicMode=False,  # stop when we leave base_oid's subtree
+            maxRows=max_rows,
+        )
+        for error_indication, error_status, _error_index, var_binds in iterator:
+            if error_indication or error_status:
+                break
+            for name, value in var_binds:
+                rows.append((str(name), value))
+        return rows
+
+    def _walk_indexed(self, base_oid: str, *, max_rows: int = 256) -> dict[int, Any]:
+        """Walk a single table column, returning ``{last_index_component: value}``.
+
+        Convenience over :meth:`_snmp_walk` for simple single-integer-indexed
+        columns (interface tables, sensor tables); rows whose final OID arc isn't
+        an integer are skipped.
+        """
+        out: dict[int, Any] = {}
+        for oid, value in self._snmp_walk(base_oid, max_rows=max_rows):
+            try:
+                out[int(oid.rsplit(".", 1)[-1])] = value
+            except ValueError:
+                continue
+        return out
+
+    def fetch_interfaces(
+        self, *, include_counters: bool = True, max_rows: int = 256
+    ) -> list[dict[str, Any]]:
+        """Walk the MIB-II interface table and return per-interface readings.
+
+        Universal across vendors (MIB-II is implemented by essentially every SNMP
+        agent). Loopback interfaces (ifType 24) are filtered out. Each interface is
+        labelled by its stable ``ifindex``; ``ifdescr`` is returned for an info
+        metric rather than used as a series label (names can change).
+
+        Args:
+            include_counters: Also walk 64-bit octet + error counters.
+            max_rows: Row cap passed through to each column walk.
+
+        Returns:
+            List of dicts with keys ``ifindex``, ``ifdescr``, ``oper_status`` and
+            (when available) ``in_octets``/``out_octets``/``in_errors``/
+            ``out_errors``. Empty if the agent exposes no interface table.
+        """
+        # ifTable / ifXTable column base OIDs.
+        oid_descr = "1.3.6.1.2.1.2.2.1.2"  # ifDescr
+        oid_type = "1.3.6.1.2.1.2.2.1.3"  # ifType
+        oid_oper = "1.3.6.1.2.1.2.2.1.8"  # ifOperStatus
+        oid_in_err = "1.3.6.1.2.1.2.2.1.14"  # ifInErrors
+        oid_out_err = "1.3.6.1.2.1.2.2.1.20"  # ifOutErrors
+        oid_hc_in = "1.3.6.1.2.1.31.1.1.1.6"  # ifHCInOctets
+        oid_hc_out = "1.3.6.1.2.1.31.1.1.1.10"  # ifHCOutOctets
+
+        def walk_by_index(base: str) -> dict[int, Any]:
+            return self._walk_indexed(base, max_rows=max_rows)
+
+        oper = walk_by_index(oid_oper)
+        if not oper:
+            return []
+        descr = walk_by_index(oid_descr)
+        iftype = walk_by_index(oid_type)
+        in_err = walk_by_index(oid_in_err) if include_counters else {}
+        out_err = walk_by_index(oid_out_err) if include_counters else {}
+        hc_in = walk_by_index(oid_hc_in) if include_counters else {}
+        hc_out = walk_by_index(oid_hc_out) if include_counters else {}
+
+        interfaces: list[dict[str, Any]] = []
+        for idx, oper_val in oper.items():
+            # Skip loopback interfaces (ifType softwareLoopback = 24).
+            try:
+                if iftype.get(idx) is not None and int(iftype[idx]) == 24:
+                    continue
+            except (TypeError, ValueError):
+                pass
+
+            entry: dict[str, Any] = {"ifindex": idx, "oper_status": _as_int(oper_val)}
+            d = descr.get(idx)
+            if d is not None:
+                text = str(d).strip()
+                if text:
+                    entry["ifdescr"] = text
+            if include_counters:
+                for key, src in (
+                    ("in_octets", hc_in),
+                    ("out_octets", hc_out),
+                    ("in_errors", in_err),
+                    ("out_errors", out_err),
+                ):
+                    v = _as_int(src.get(idx))
+                    if v is not None:
+                        entry[key] = v
+            interfaces.append(entry)
+        return interfaces
 
     def probe(
         self,

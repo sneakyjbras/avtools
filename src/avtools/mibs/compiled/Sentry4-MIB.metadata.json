@@ -1,0 +1,2623 @@
+{
+  "sentry4": {
+    "oid": "1.3.6.1.4.1.1718.4",
+    "scale": 1.0
+  },
+  "serverTech": {
+    "oid": "1.3.6.1.4.1.1718",
+    "scale": 1.0
+  },
+  "st4AdcSensorCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.1",
+    "scale": 1.0
+  },
+  "st4AdcSensorConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.2.1",
+    "scale": 1.0
+  },
+  "st4AdcSensorConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.2",
+    "scale": 1.0
+  },
+  "st4AdcSensorEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.24",
+    "scale": 1.0
+  },
+  "st4AdcSensorEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.4.1",
+    "scale": 1.0
+  },
+  "st4AdcSensorEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.4",
+    "scale": 1.0
+  },
+  "st4AdcSensorHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.4.1.5",
+    "scale": 1.0
+  },
+  "st4AdcSensorHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.4.1.4",
+    "scale": 1.0
+  },
+  "st4AdcSensorHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.1.1",
+    "scale": 1.0
+  },
+  "st4AdcSensorID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.2.1.2",
+    "scale": 1.0
+  },
+  "st4AdcSensorIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.2.1.1",
+    "scale": 1.0
+  },
+  "st4AdcSensorLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.4.1.2",
+    "scale": 1.0
+  },
+  "st4AdcSensorLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.4.1.3",
+    "scale": 1.0
+  },
+  "st4AdcSensorMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.3.1",
+    "scale": 1.0
+  },
+  "st4AdcSensorMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.3",
+    "scale": 1.0
+  },
+  "st4AdcSensorName": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.2.1.3",
+    "scale": 1.0
+  },
+  "st4AdcSensorNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.13.4.1.1",
+    "scale": 1.0
+  },
+  "st4AdcSensorObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.13",
+    "scale": 1.0
+  },
+  "st4AdcSensorStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.13.3.1.2",
+    "scale": 1.0
+  },
+  "st4AdcSensorValue": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13.3.1.1",
+    "scale": 1.0
+  },
+  "st4AnalogToDigitalConvSensors": {
+    "oid": "1.3.6.1.4.1.1718.4.1.13",
+    "scale": 1.0
+  },
+  "st4BranchCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.1",
+    "scale": 1.0
+  },
+  "st4BranchConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.2.1",
+    "scale": 1.0
+  },
+  "st4BranchConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.2",
+    "scale": 1.0
+  },
+  "st4BranchCurrent": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.3.1.3",
+    "scale": 100.0,
+    "unit": "A",
+    "units": "hundredth Amps"
+  },
+  "st4BranchCurrentCapacity": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.2.1.6",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "st4BranchCurrentEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.14",
+    "scale": 1.0
+  },
+  "st4BranchCurrentHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.4.1.5",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4BranchCurrentHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.4.1.4",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4BranchCurrentHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.1.1",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4BranchCurrentLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.4.1.2",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4BranchCurrentLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.4.1.3",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4BranchCurrentStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.7.3.1.4",
+    "scale": 1.0
+  },
+  "st4BranchCurrentUtilized": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.3.1.5",
+    "scale": 10.0,
+    "unit": "%",
+    "units": "tenth percent"
+  },
+  "st4BranchEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.4.1",
+    "scale": 1.0
+  },
+  "st4BranchEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.4",
+    "scale": 1.0
+  },
+  "st4BranchID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.2.1.2",
+    "scale": 1.0
+  },
+  "st4BranchIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.2.1.1",
+    "scale": 1.0
+  },
+  "st4BranchLabel": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.2.1.4",
+    "scale": 1.0
+  },
+  "st4BranchMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.3.1",
+    "scale": 1.0
+  },
+  "st4BranchMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.3",
+    "scale": 1.0
+  },
+  "st4BranchNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.7.4.1.1",
+    "scale": 1.0
+  },
+  "st4BranchObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.7",
+    "scale": 1.0
+  },
+  "st4BranchOcpID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.2.1.21",
+    "scale": 1.0
+  },
+  "st4BranchOutletCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.2.1.30",
+    "scale": 1.0
+  },
+  "st4BranchPhaseID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7.2.1.20",
+    "scale": 1.0
+  },
+  "st4BranchState": {
+    "enum": {
+      "0": "unknown",
+      "1": "on",
+      "2": "off"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.7.3.1.1",
+    "scale": 1.0
+  },
+  "st4BranchStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.7.3.1.2",
+    "scale": 1.0
+  },
+  "st4BranchStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.13",
+    "scale": 1.0
+  },
+  "st4Branches": {
+    "oid": "1.3.6.1.4.1.1718.4.1.7",
+    "scale": 1.0
+  },
+  "st4CcSensorCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12.1",
+    "scale": 1.0
+  },
+  "st4CcSensorConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12.2.1",
+    "scale": 1.0
+  },
+  "st4CcSensorConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12.2",
+    "scale": 1.0
+  },
+  "st4CcSensorEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12.4.1",
+    "scale": 1.0
+  },
+  "st4CcSensorEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12.4",
+    "scale": 1.0
+  },
+  "st4CcSensorID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12.2.1.2",
+    "scale": 1.0
+  },
+  "st4CcSensorIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12.2.1.1",
+    "scale": 1.0
+  },
+  "st4CcSensorMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12.3.1",
+    "scale": 1.0
+  },
+  "st4CcSensorMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12.3",
+    "scale": 1.0
+  },
+  "st4CcSensorName": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12.2.1.3",
+    "scale": 1.0
+  },
+  "st4CcSensorNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.12.4.1.1",
+    "scale": 1.0
+  },
+  "st4CcSensorObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.12",
+    "scale": 1.0
+  },
+  "st4CcSensorStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.12.3.1.1",
+    "scale": 1.0
+  },
+  "st4CcSensorStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.23",
+    "scale": 1.0
+  },
+  "st4Compliances": {
+    "oid": "1.3.6.1.4.1.1718.4.200.2",
+    "scale": 1.0
+  },
+  "st4Conformance": {
+    "oid": "1.3.6.1.4.1.1718.4.200",
+    "scale": 1.0
+  },
+  "st4ContactClosureSensors": {
+    "oid": "1.3.6.1.4.1.1718.4.1.12",
+    "scale": 1.0
+  },
+  "st4EventInfoObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.99",
+    "scale": 1.0
+  },
+  "st4EventInformation": {
+    "oid": "1.3.6.1.4.1.1718.4.1.99",
+    "scale": 1.0
+  },
+  "st4EventNotificationsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.100",
+    "scale": 1.0
+  },
+  "st4EventStatusCondition": {
+    "enum": {
+      "0": "nonError",
+      "1": "error"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.99.2",
+    "scale": 1.0
+  },
+  "st4EventStatusText": {
+    "oid": "1.3.6.1.4.1.1718.4.1.99.1",
+    "scale": 1.0
+  },
+  "st4Events": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0",
+    "scale": 1.0
+  },
+  "st4FanSensorCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.1",
+    "scale": 1.0
+  },
+  "st4FanSensorConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.2.1",
+    "scale": 1.0
+  },
+  "st4FanSensorConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.2",
+    "scale": 1.0
+  },
+  "st4FanSensorEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.25",
+    "scale": 1.0
+  },
+  "st4FanSensorEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.4.1",
+    "scale": 1.0
+  },
+  "st4FanSensorEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.4",
+    "scale": 1.0
+  },
+  "st4FanSensorHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.4.1.5",
+    "scale": 1.0,
+    "units": "rotations per minute"
+  },
+  "st4FanSensorHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.4.1.4",
+    "scale": 1.0,
+    "units": "rotations per minute"
+  },
+  "st4FanSensorHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.1.1",
+    "scale": 1.0,
+    "units": "rotations per minute"
+  },
+  "st4FanSensorID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.2.1.2",
+    "scale": 1.0
+  },
+  "st4FanSensorIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.2.1.1",
+    "scale": 1.0
+  },
+  "st4FanSensorLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.4.1.2",
+    "scale": 1.0,
+    "units": "rotations per minute"
+  },
+  "st4FanSensorLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.4.1.3",
+    "scale": 1.0,
+    "units": "rotations per minute"
+  },
+  "st4FanSensorMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.3.1",
+    "scale": 1.0
+  },
+  "st4FanSensorMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.3",
+    "scale": 1.0
+  },
+  "st4FanSensorName": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.2.1.3",
+    "scale": 1.0
+  },
+  "st4FanSensorNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.14.4.1.1",
+    "scale": 1.0
+  },
+  "st4FanSensorObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.14",
+    "scale": 1.0
+  },
+  "st4FanSensorStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.14.3.1.2",
+    "scale": 1.0
+  },
+  "st4FanSensorValue": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14.3.1.1",
+    "scale": 1.0,
+    "units": "rotations per minute"
+  },
+  "st4FanSensors": {
+    "oid": "1.3.6.1.4.1.1718.4.1.14",
+    "scale": 1.0
+  },
+  "st4Groups": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1",
+    "scale": 1.0
+  },
+  "st4HumidSensorCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.1",
+    "scale": 1.0
+  },
+  "st4HumidSensorConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.2.1",
+    "scale": 1.0
+  },
+  "st4HumidSensorConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.2",
+    "scale": 1.0
+  },
+  "st4HumidSensorEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.21",
+    "scale": 1.0
+  },
+  "st4HumidSensorEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.4.1",
+    "scale": 1.0
+  },
+  "st4HumidSensorEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.4",
+    "scale": 1.0
+  },
+  "st4HumidSensorHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.4.1.5",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percentage relative humidity"
+  },
+  "st4HumidSensorHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.4.1.4",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percentage relative humidity"
+  },
+  "st4HumidSensorHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.1.1",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percentage relative humidity"
+  },
+  "st4HumidSensorID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.2.1.2",
+    "scale": 1.0
+  },
+  "st4HumidSensorIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.2.1.1",
+    "scale": 1.0
+  },
+  "st4HumidSensorLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.4.1.2",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percentage relative humidity"
+  },
+  "st4HumidSensorLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.4.1.3",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percentage relative humidity"
+  },
+  "st4HumidSensorMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.3.1",
+    "scale": 1.0
+  },
+  "st4HumidSensorMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.3",
+    "scale": 1.0
+  },
+  "st4HumidSensorName": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.2.1.3",
+    "scale": 1.0
+  },
+  "st4HumidSensorNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.10.4.1.1",
+    "scale": 1.0
+  },
+  "st4HumidSensorObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.10",
+    "scale": 1.0
+  },
+  "st4HumidSensorStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.10.3.1.2",
+    "scale": 1.0
+  },
+  "st4HumidSensorValue": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10.3.1.1",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percentage relative humidity"
+  },
+  "st4HumiditySensors": {
+    "oid": "1.3.6.1.4.1.1718.4.1.10",
+    "scale": 1.0
+  },
+  "st4InputCordActivePower": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.3",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4InputCordActivePowerEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.3",
+    "scale": 1.0
+  },
+  "st4InputCordActivePowerHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.5",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4InputCordActivePowerHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.4",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4InputCordActivePowerHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.1.1",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4InputCordActivePowerLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.2",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4InputCordActivePowerLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.3",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4InputCordActivePowerStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.4",
+    "scale": 1.0
+  },
+  "st4InputCordApparentPower": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.5",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "st4InputCordApparentPowerEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.4",
+    "scale": 1.0
+  },
+  "st4InputCordApparentPowerHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.9",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "st4InputCordApparentPowerHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.8",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "st4InputCordApparentPowerHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.1.2",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "st4InputCordApparentPowerLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.6",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "st4InputCordApparentPowerLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.7",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "st4InputCordApparentPowerStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.6",
+    "scale": 1.0
+  },
+  "st4InputCordBranchCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.23",
+    "scale": 1.0
+  },
+  "st4InputCordCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.1",
+    "scale": 1.0
+  },
+  "st4InputCordConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1",
+    "scale": 1.0
+  },
+  "st4InputCordConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2",
+    "scale": 1.0
+  },
+  "st4InputCordCurrentCapacity": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.10",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "st4InputCordCurrentCapacityMax": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.11",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "st4InputCordEnergy": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.10",
+    "scale": 10.0,
+    "unit": "kWh",
+    "units": "tenth Kilowatt-Hours"
+  },
+  "st4InputCordEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1",
+    "scale": 1.0
+  },
+  "st4InputCordEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4",
+    "scale": 1.0
+  },
+  "st4InputCordFrequency": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.11",
+    "scale": 10.0,
+    "unit": "Hz",
+    "units": "tenth Hertz"
+  },
+  "st4InputCordID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.2",
+    "scale": 1.0
+  },
+  "st4InputCordIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.1",
+    "scale": 1.0
+  },
+  "st4InputCordInletType": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.6",
+    "scale": 1.0
+  },
+  "st4InputCordLineCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.20",
+    "scale": 1.0
+  },
+  "st4InputCordMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1",
+    "scale": 1.0
+  },
+  "st4InputCordMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3",
+    "scale": 1.0
+  },
+  "st4InputCordName": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.3",
+    "scale": 1.0
+  },
+  "st4InputCordNominalPowerFactor": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.13",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4InputCordNominalVoltage": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.7",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "st4InputCordNominalVoltageMax": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.9",
+    "scale": 1.0,
+    "unit": "V",
+    "units": "Volts"
+  },
+  "st4InputCordNominalVoltageMin": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.8",
+    "scale": 1.0,
+    "unit": "V",
+    "units": "Volts"
+  },
+  "st4InputCordNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.1",
+    "scale": 1.0
+  },
+  "st4InputCordObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.3",
+    "scale": 1.0
+  },
+  "st4InputCordOcpCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.22",
+    "scale": 1.0
+  },
+  "st4InputCordOutOfBalance": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.12",
+    "scale": 10.0,
+    "unit": "%",
+    "units": "tenth percent"
+  },
+  "st4InputCordOutOfBalanceEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.6",
+    "scale": 1.0
+  },
+  "st4InputCordOutOfBalanceHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.13",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percent"
+  },
+  "st4InputCordOutOfBalanceHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.12",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percent"
+  },
+  "st4InputCordOutOfBalanceHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.1.4",
+    "scale": 1.0,
+    "unit": "%",
+    "units": "percent"
+  },
+  "st4InputCordOutOfBalanceStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.13",
+    "scale": 1.0
+  },
+  "st4InputCordOutletCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.24",
+    "scale": 1.0
+  },
+  "st4InputCordPhaseCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.21",
+    "scale": 1.0
+  },
+  "st4InputCordPowerCapacity": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.2.1.12",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "st4InputCordPowerFactor": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.8",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4InputCordPowerFactorEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.5",
+    "scale": 1.0
+  },
+  "st4InputCordPowerFactorHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.1.3",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4InputCordPowerFactorLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.10",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4InputCordPowerFactorLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.4.1.11",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4InputCordPowerFactorStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.9",
+    "scale": 1.0
+  },
+  "st4InputCordPowerUtilized": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.7",
+    "scale": 10.0,
+    "unit": "%",
+    "units": "tenth percent"
+  },
+  "st4InputCordState": {
+    "enum": {
+      "0": "unknown",
+      "1": "on",
+      "2": "off"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.1",
+    "scale": 1.0
+  },
+  "st4InputCordStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.3.3.1.2",
+    "scale": 1.0
+  },
+  "st4InputCordStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.2",
+    "scale": 1.0
+  },
+  "st4InputCords": {
+    "oid": "1.3.6.1.4.1.1718.4.1.3",
+    "scale": 1.0
+  },
+  "st4LineCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.1",
+    "scale": 1.0
+  },
+  "st4LineConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.2.1",
+    "scale": 1.0
+  },
+  "st4LineConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.2",
+    "scale": 1.0
+  },
+  "st4LineCurrent": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.3.1.3",
+    "scale": 100.0,
+    "unit": "A",
+    "units": "hundredth Amps"
+  },
+  "st4LineCurrentCapacity": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.2.1.6",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "st4LineCurrentEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.8",
+    "scale": 1.0
+  },
+  "st4LineCurrentHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.4.1.5",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4LineCurrentHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.4.1.4",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4LineCurrentHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.1.1",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4LineCurrentLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.4.1.2",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4LineCurrentLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.4.1.3",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4LineCurrentStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.4.3.1.4",
+    "scale": 1.0
+  },
+  "st4LineCurrentUtilized": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.3.1.5",
+    "scale": 10.0,
+    "unit": "%",
+    "units": "tenth percent"
+  },
+  "st4LineEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.4.1",
+    "scale": 1.0
+  },
+  "st4LineEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.4",
+    "scale": 1.0
+  },
+  "st4LineID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.2.1.2",
+    "scale": 1.0
+  },
+  "st4LineIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.2.1.1",
+    "scale": 1.0
+  },
+  "st4LineLabel": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.2.1.4",
+    "scale": 1.0
+  },
+  "st4LineMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.3.1",
+    "scale": 1.0
+  },
+  "st4LineMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4.3",
+    "scale": 1.0
+  },
+  "st4LineNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.4.4.1.1",
+    "scale": 1.0
+  },
+  "st4LineObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.4",
+    "scale": 1.0
+  },
+  "st4LineState": {
+    "enum": {
+      "0": "unknown",
+      "1": "on",
+      "2": "off"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.4.3.1.1",
+    "scale": 1.0
+  },
+  "st4LineStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.4.3.1.2",
+    "scale": 1.0
+  },
+  "st4LineStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.7",
+    "scale": 1.0
+  },
+  "st4Lines": {
+    "oid": "1.3.6.1.4.1.1718.4.1.4",
+    "scale": 1.0
+  },
+  "st4ModuleCompliances": {
+    "oid": "1.3.6.1.4.1.1718.4.200.2.1",
+    "scale": 1.0
+  },
+  "st4Notifications": {
+    "oid": "1.3.6.1.4.1.1718.4.100",
+    "scale": 1.0
+  },
+  "st4Objects": {
+    "oid": "1.3.6.1.4.1.1718.4.1",
+    "scale": 1.0
+  },
+  "st4OcpBranchCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.2.1.20",
+    "scale": 1.0
+  },
+  "st4OcpCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.1",
+    "scale": 1.0
+  },
+  "st4OcpConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.2.1",
+    "scale": 1.0
+  },
+  "st4OcpConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.2",
+    "scale": 1.0
+  },
+  "st4OcpCurrentCapacity": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.2.1.7",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "st4OcpCurrentCapacityMax": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.2.1.8",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "st4OcpEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.4.1",
+    "scale": 1.0
+  },
+  "st4OcpEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.4",
+    "scale": 1.0
+  },
+  "st4OcpID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.2.1.2",
+    "scale": 1.0
+  },
+  "st4OcpIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.2.1.1",
+    "scale": 1.0
+  },
+  "st4OcpLabel": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.2.1.4",
+    "scale": 1.0
+  },
+  "st4OcpMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.3.1",
+    "scale": 1.0
+  },
+  "st4OcpMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.3",
+    "scale": 1.0
+  },
+  "st4OcpNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.6.4.1.1",
+    "scale": 1.0
+  },
+  "st4OcpObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.6",
+    "scale": 1.0
+  },
+  "st4OcpOutletCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6.2.1.21",
+    "scale": 1.0
+  },
+  "st4OcpStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.6.3.1.1",
+    "scale": 1.0
+  },
+  "st4OcpStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.12",
+    "scale": 1.0
+  },
+  "st4OcpType": {
+    "enum": {
+      "0": "fuse",
+      "1": "breaker"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.6.2.1.6",
+    "scale": 1.0
+  },
+  "st4OutletActivePower": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.7",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4OutletActivePowerEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.18",
+    "scale": 1.0
+  },
+  "st4OutletActivePowerHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.9",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4OutletActivePowerHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.8",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4OutletActivePowerHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.1.2",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4OutletActivePowerLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.6",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4OutletActivePowerLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.7",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4OutletActivePowerStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.8",
+    "scale": 1.0
+  },
+  "st4OutletApparentPower": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.9",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "st4OutletBranchID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.32",
+    "scale": 1.0
+  },
+  "st4OutletCapabilities": {
+    "enum": {
+      "0": "switched",
+      "1": "pops"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.5",
+    "scale": 1.0
+  },
+  "st4OutletCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.1",
+    "scale": 1.0
+  },
+  "st4OutletCommonControl": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.6",
+    "scale": 1.0
+  },
+  "st4OutletConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1",
+    "scale": 1.0
+  },
+  "st4OutletConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2",
+    "scale": 1.0
+  },
+  "st4OutletControlAction": {
+    "enum": {
+      "0": "none",
+      "1": "on",
+      "2": "off",
+      "3": "reboot",
+      "4": "queueOn",
+      "5": "queueOff",
+      "6": "queueReboot"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.5.1.2",
+    "scale": 1.0
+  },
+  "st4OutletControlEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.5.1",
+    "scale": 1.0
+  },
+  "st4OutletControlState": {
+    "enum": {
+      "0": "notSet",
+      "1": "fixedOn",
+      "10": "off",
+      "11": "on",
+      "12": "reboot",
+      "13": "shutdown",
+      "14": "lockedOff",
+      "15": "lockedOn",
+      "16": "eventOff",
+      "17": "eventOn",
+      "18": "eventReboot",
+      "19": "eventShutdown",
+      "2": "idleOff",
+      "3": "idleOn",
+      "4": "wakeOff",
+      "5": "wakeOn",
+      "6": "ocpOff",
+      "7": "ocpOn",
+      "8": "pendOn",
+      "9": "pendOff"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.5.1.1",
+    "scale": 1.0
+  },
+  "st4OutletControlTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.5",
+    "scale": 1.0
+  },
+  "st4OutletCurrent": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.3",
+    "scale": 100.0,
+    "unit": "A",
+    "units": "hundredth Amps"
+  },
+  "st4OutletCurrentCapacity": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.7",
+    "scale": 1.0,
+    "unit": "A",
+    "units": "Amps"
+  },
+  "st4OutletCurrentCrestFactor": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.12",
+    "scale": 10.0,
+    "units": "tenths"
+  },
+  "st4OutletCurrentEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.17",
+    "scale": 1.0
+  },
+  "st4OutletCurrentHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.5",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4OutletCurrentHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.4",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4OutletCurrentHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.1.1",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4OutletCurrentLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.2",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4OutletCurrentLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.3",
+    "scale": 10.0,
+    "unit": "A",
+    "units": "tenth Amps"
+  },
+  "st4OutletCurrentStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.4",
+    "scale": 1.0
+  },
+  "st4OutletCurrentUtilized": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.5",
+    "scale": 10.0,
+    "unit": "%",
+    "units": "tenth percent"
+  },
+  "st4OutletEnergy": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.14",
+    "scale": 1.0,
+    "unit": "Wh",
+    "units": "Watt-Hours"
+  },
+  "st4OutletEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1",
+    "scale": 1.0
+  },
+  "st4OutletEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4",
+    "scale": 1.0
+  },
+  "st4OutletID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.2",
+    "scale": 1.0
+  },
+  "st4OutletIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.1",
+    "scale": 1.0
+  },
+  "st4OutletMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1",
+    "scale": 1.0
+  },
+  "st4OutletMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3",
+    "scale": 1.0
+  },
+  "st4OutletName": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.3",
+    "scale": 1.0
+  },
+  "st4OutletNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.1",
+    "scale": 1.0
+  },
+  "st4OutletObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.8",
+    "scale": 1.0
+  },
+  "st4OutletOcpID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.31",
+    "scale": 1.0
+  },
+  "st4OutletPhaseID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.30",
+    "scale": 1.0
+  },
+  "st4OutletPostOnDelay": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.21",
+    "scale": 1.0,
+    "unit": "s",
+    "units": "seconds"
+  },
+  "st4OutletPowerCapacity": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.8",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "st4OutletPowerFactor": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.10",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4OutletPowerFactorEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.19",
+    "scale": 1.0
+  },
+  "st4OutletPowerFactorHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.1.3",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4OutletPowerFactorLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.10",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4OutletPowerFactorLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.4.1.11",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4OutletPowerFactorStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.11",
+    "scale": 1.0
+  },
+  "st4OutletQueueControl": {
+    "enum": {
+      "0": "clear",
+      "1": "commit"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.6.1",
+    "scale": 1.0
+  },
+  "st4OutletReactance": {
+    "enum": {
+      "0": "unknown",
+      "1": "capacitive",
+      "2": "inductive",
+      "3": "resistive"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.13",
+    "scale": 1.0
+  },
+  "st4OutletRebootDelay": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.1.11",
+    "scale": 1.0,
+    "unit": "s",
+    "units": "seconds"
+  },
+  "st4OutletSequenceInterval": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.1.10",
+    "scale": 1.0,
+    "unit": "s",
+    "units": "seconds"
+  },
+  "st4OutletSocketAdapter": {
+    "enum": {
+      "0": "none",
+      "1": "c13",
+      "2": "c19"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.9",
+    "scale": 1.0
+  },
+  "st4OutletSocketType": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.6",
+    "scale": 1.0
+  },
+  "st4OutletState": {
+    "enum": {
+      "0": "unknown",
+      "1": "on",
+      "2": "off"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.1",
+    "scale": 1.0
+  },
+  "st4OutletStateChangeEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.16",
+    "scale": 1.0
+  },
+  "st4OutletStateChangeLogging": {
+    "enum": {
+      "0": "disabled",
+      "1": "enabled"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.1.12",
+    "scale": 1.0
+  },
+  "st4OutletStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.2",
+    "scale": 1.0
+  },
+  "st4OutletStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.15",
+    "scale": 1.0
+  },
+  "st4OutletVoltage": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8.3.1.6",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "st4OutletWakeupState": {
+    "enum": {
+      "0": "on",
+      "1": "off",
+      "2": "last"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.8.2.1.20",
+    "scale": 1.0
+  },
+  "st4Outlets": {
+    "oid": "1.3.6.1.4.1.1718.4.1.8",
+    "scale": 1.0
+  },
+  "st4OverCurrentProtectors": {
+    "oid": "1.3.6.1.4.1.1718.4.1.6",
+    "scale": 1.0
+  },
+  "st4PhaseActivePower": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.8",
+    "scale": 1.0,
+    "unit": "W",
+    "units": "Watts"
+  },
+  "st4PhaseApparentPower": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.9",
+    "scale": 1.0,
+    "unit": "VA",
+    "units": "Volt-Amps"
+  },
+  "st4PhaseBranchCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.2.1.20",
+    "scale": 1.0
+  },
+  "st4PhaseCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.1",
+    "scale": 1.0
+  },
+  "st4PhaseConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.2.1",
+    "scale": 1.0
+  },
+  "st4PhaseConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.2",
+    "scale": 1.0
+  },
+  "st4PhaseCurrent": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.6",
+    "scale": 100.0,
+    "unit": "A",
+    "units": "hundredth Amps"
+  },
+  "st4PhaseCurrentCrestFactor": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.7",
+    "scale": 10.0,
+    "units": "tenths"
+  },
+  "st4PhaseEnergy": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.13",
+    "scale": 10.0,
+    "unit": "kWh",
+    "units": "tenth Kilowatt-Hours"
+  },
+  "st4PhaseEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.4.1",
+    "scale": 1.0
+  },
+  "st4PhaseEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.4",
+    "scale": 1.0
+  },
+  "st4PhaseID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.2.1.2",
+    "scale": 1.0
+  },
+  "st4PhaseIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.2.1.1",
+    "scale": 1.0
+  },
+  "st4PhaseLabel": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.2.1.4",
+    "scale": 1.0
+  },
+  "st4PhaseMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1",
+    "scale": 1.0
+  },
+  "st4PhaseMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3",
+    "scale": 1.0
+  },
+  "st4PhaseNominalVoltage": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.2.1.6",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "st4PhaseNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.5.4.1.1",
+    "scale": 1.0
+  },
+  "st4PhaseObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.5",
+    "scale": 1.0
+  },
+  "st4PhaseOutletCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.2.1.21",
+    "scale": 1.0
+  },
+  "st4PhasePowerFactor": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.10",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4PhasePowerFactorEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.11",
+    "scale": 1.0
+  },
+  "st4PhasePowerFactorHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.1.2",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4PhasePowerFactorLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.4.1.6",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4PhasePowerFactorLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.4.1.7",
+    "scale": 100.0,
+    "units": "hundredths"
+  },
+  "st4PhasePowerFactorStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.11",
+    "scale": 1.0
+  },
+  "st4PhaseReactance": {
+    "enum": {
+      "0": "unknown",
+      "1": "capacitive",
+      "2": "inductive",
+      "3": "resistive"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.12",
+    "scale": 1.0
+  },
+  "st4PhaseState": {
+    "enum": {
+      "0": "unknown",
+      "1": "on",
+      "2": "off"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.1",
+    "scale": 1.0
+  },
+  "st4PhaseStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.2",
+    "scale": 1.0
+  },
+  "st4PhaseStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.9",
+    "scale": 1.0
+  },
+  "st4PhaseVoltage": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.3",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "st4PhaseVoltageDeviation": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.5",
+    "scale": 10.0,
+    "unit": "%",
+    "units": "tenth percent"
+  },
+  "st4PhaseVoltageEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.10",
+    "scale": 1.0
+  },
+  "st4PhaseVoltageHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.4.1.5",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "st4PhaseVoltageHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.4.1.4",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "st4PhaseVoltageHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.1.1",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "st4PhaseVoltageLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.4.1.2",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "st4PhaseVoltageLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5.4.1.3",
+    "scale": 10.0,
+    "unit": "V",
+    "units": "tenth Volts"
+  },
+  "st4PhaseVoltageStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.5.3.1.4",
+    "scale": 1.0
+  },
+  "st4Phases": {
+    "oid": "1.3.6.1.4.1.1718.4.1.5",
+    "scale": 1.0
+  },
+  "st4System": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1",
+    "scale": 1.0
+  },
+  "st4SystemConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1",
+    "scale": 1.0
+  },
+  "st4SystemConfigModifiedCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.20",
+    "scale": 1.0
+  },
+  "st4SystemFeatureKey": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.11",
+    "scale": 1.0
+  },
+  "st4SystemFeatures": {
+    "enum": {
+      "0": "smartLoadShedding",
+      "1": "reserved",
+      "2": "outletControlInhibit"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.10",
+    "scale": 1.0
+  },
+  "st4SystemFirmwareBuildInfo": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.4",
+    "scale": 1.0
+  },
+  "st4SystemFirmwareVersion": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.3",
+    "scale": 1.0
+  },
+  "st4SystemLocation": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.2",
+    "scale": 1.0
+  },
+  "st4SystemNICHardwareInfo": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.6",
+    "scale": 1.0
+  },
+  "st4SystemNICSerialNumber": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.5",
+    "scale": 1.0
+  },
+  "st4SystemObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.1",
+    "scale": 1.0
+  },
+  "st4SystemProductName": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.1",
+    "scale": 1.0
+  },
+  "st4SystemProductSeries": {
+    "enum": {
+      "0": "pro1",
+      "1": "pro2"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.7",
+    "scale": 1.0
+  },
+  "st4SystemUnitCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.21",
+    "scale": 1.0
+  },
+  "st4SystemUptime": {
+    "oid": "1.3.6.1.4.1.1718.4.1.1.1.8",
+    "scale": 1.0
+  },
+  "st4TempSensorCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.1",
+    "scale": 1.0
+  },
+  "st4TempSensorConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.2.1",
+    "scale": 1.0
+  },
+  "st4TempSensorConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.2",
+    "scale": 1.0
+  },
+  "st4TempSensorEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.20",
+    "scale": 1.0
+  },
+  "st4TempSensorEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.4.1",
+    "scale": 1.0
+  },
+  "st4TempSensorEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.4",
+    "scale": 1.0
+  },
+  "st4TempSensorHighAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.4.1.5",
+    "scale": 1.0,
+    "units": "degrees"
+  },
+  "st4TempSensorHighWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.4.1.4",
+    "scale": 1.0,
+    "units": "degrees"
+  },
+  "st4TempSensorHysteresis": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.1.1",
+    "scale": 1.0,
+    "units": "degrees"
+  },
+  "st4TempSensorID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.2.1.2",
+    "scale": 1.0
+  },
+  "st4TempSensorIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.2.1.1",
+    "scale": 1.0
+  },
+  "st4TempSensorLowAlarm": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.4.1.2",
+    "scale": 1.0,
+    "units": "degrees"
+  },
+  "st4TempSensorLowWarning": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.4.1.3",
+    "scale": 1.0,
+    "units": "degrees"
+  },
+  "st4TempSensorMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.3.1",
+    "scale": 1.0
+  },
+  "st4TempSensorMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.3",
+    "scale": 1.0
+  },
+  "st4TempSensorName": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.2.1.3",
+    "scale": 1.0
+  },
+  "st4TempSensorNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.9.4.1.1",
+    "scale": 1.0
+  },
+  "st4TempSensorObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.9",
+    "scale": 1.0
+  },
+  "st4TempSensorScale": {
+    "enum": {
+      "0": "celsius",
+      "1": "fahrenheit"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.9.1.10",
+    "scale": 1.0
+  },
+  "st4TempSensorStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.9.3.1.2",
+    "scale": 1.0
+  },
+  "st4TempSensorValue": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.3.1.1",
+    "scale": 10.0,
+    "units": "tenth degrees"
+  },
+  "st4TempSensorValueMax": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.2.1.5",
+    "scale": 1.0,
+    "units": "degrees"
+  },
+  "st4TempSensorValueMin": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9.2.1.4",
+    "scale": 1.0,
+    "units": "degrees"
+  },
+  "st4TemperatureSensors": {
+    "oid": "1.3.6.1.4.1.1718.4.1.9",
+    "scale": 1.0
+  },
+  "st4UnitAdcSensorCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.35",
+    "scale": 1.0
+  },
+  "st4UnitAssetTag": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.6",
+    "scale": 1.0
+  },
+  "st4UnitCapabilities": {
+    "enum": {
+      "0": "dc",
+      "1": "phase3",
+      "2": "wye",
+      "3": "delta"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.8",
+    "scale": 1.0
+  },
+  "st4UnitCcSensorCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.34",
+    "scale": 1.0
+  },
+  "st4UnitCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.1",
+    "scale": 1.0
+  },
+  "st4UnitConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1",
+    "scale": 1.0
+  },
+  "st4UnitConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2",
+    "scale": 1.0
+  },
+  "st4UnitDisplayOrientation": {
+    "enum": {
+      "0": "normal",
+      "1": "inverted",
+      "2": "auto"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.20",
+    "scale": 1.0
+  },
+  "st4UnitEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.4.1",
+    "scale": 1.0
+  },
+  "st4UnitEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.4",
+    "scale": 1.0
+  },
+  "st4UnitFanSensorCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.36",
+    "scale": 1.0
+  },
+  "st4UnitHumidSensorCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.32",
+    "scale": 1.0
+  },
+  "st4UnitID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.2",
+    "scale": 1.0
+  },
+  "st4UnitIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.1",
+    "scale": 1.0
+  },
+  "st4UnitInputCordCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.30",
+    "scale": 1.0
+  },
+  "st4UnitModel": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.5",
+    "scale": 1.0
+  },
+  "st4UnitMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.3.1",
+    "scale": 1.0
+  },
+  "st4UnitMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.3",
+    "scale": 1.0
+  },
+  "st4UnitName": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.3",
+    "scale": 1.0
+  },
+  "st4UnitNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.2.4.1.1",
+    "scale": 1.0
+  },
+  "st4UnitObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.2",
+    "scale": 1.0
+  },
+  "st4UnitOutletDisplayOrder": {
+    "enum": {
+      "0": "normal",
+      "1": "reversed"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.22",
+    "scale": 1.0
+  },
+  "st4UnitOutletSequenceOrder": {
+    "enum": {
+      "0": "normal",
+      "1": "reversed"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.21",
+    "scale": 1.0
+  },
+  "st4UnitProductMfrDate": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.9",
+    "scale": 1.0
+  },
+  "st4UnitProductSN": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.4",
+    "scale": 1.0
+  },
+  "st4UnitStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.2.3.1.1",
+    "scale": 1.0
+  },
+  "st4UnitStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.1",
+    "scale": 1.0
+  },
+  "st4UnitTempSensorCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.31",
+    "scale": 1.0
+  },
+  "st4UnitType": {
+    "enum": {
+      "0": "primary",
+      "1": "link",
+      "2": "controller",
+      "3": "emcu"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.7",
+    "scale": 1.0
+  },
+  "st4UnitWaterSensorCount": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2.2.1.33",
+    "scale": 1.0
+  },
+  "st4Units": {
+    "oid": "1.3.6.1.4.1.1718.4.1.2",
+    "scale": 1.0
+  },
+  "st4WaterSensorCommonConfig": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11.1",
+    "scale": 1.0
+  },
+  "st4WaterSensorConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11.2.1",
+    "scale": 1.0
+  },
+  "st4WaterSensorConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11.2",
+    "scale": 1.0
+  },
+  "st4WaterSensorEventConfigEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11.4.1",
+    "scale": 1.0
+  },
+  "st4WaterSensorEventConfigTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11.4",
+    "scale": 1.0
+  },
+  "st4WaterSensorID": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11.2.1.2",
+    "scale": 1.0
+  },
+  "st4WaterSensorIndex": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11.2.1.1",
+    "scale": 1.0
+  },
+  "st4WaterSensorMonitorEntry": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11.3.1",
+    "scale": 1.0
+  },
+  "st4WaterSensorMonitorTable": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11.3",
+    "scale": 1.0
+  },
+  "st4WaterSensorName": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11.2.1.3",
+    "scale": 1.0
+  },
+  "st4WaterSensorNotifications": {
+    "enum": {
+      "0": "snmpTrap",
+      "1": "email"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.11.4.1.1",
+    "scale": 1.0
+  },
+  "st4WaterSensorObjectsGroup": {
+    "oid": "1.3.6.1.4.1.1718.4.200.1.11",
+    "scale": 1.0
+  },
+  "st4WaterSensorStatus": {
+    "enum": {
+      "0": "normal",
+      "1": "disabled",
+      "10": "noComm",
+      "11": "pwrError",
+      "12": "breakerTripped",
+      "13": "fuseBlown",
+      "14": "lowAlarm",
+      "15": "lowWarning",
+      "16": "highWarning",
+      "17": "highAlarm",
+      "18": "alarm",
+      "19": "underLimit",
+      "2": "purged",
+      "20": "overLimit",
+      "21": "nvmFail",
+      "22": "profileError",
+      "23": "conflict",
+      "5": "reading",
+      "6": "settle",
+      "7": "notFound",
+      "8": "lost",
+      "9": "readError"
+    },
+    "oid": "1.3.6.1.4.1.1718.4.1.11.3.1.1",
+    "scale": 1.0
+  },
+  "st4WaterSensorStatusEvent": {
+    "oid": "1.3.6.1.4.1.1718.4.100.0.22",
+    "scale": 1.0
+  },
+  "st4WaterSensors": {
+    "oid": "1.3.6.1.4.1.1718.4.1.11",
+    "scale": 1.0
+  }
+}

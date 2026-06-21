@@ -111,7 +111,7 @@ except Exception:  # pragma: no cover
 
 from avtools.postgres.client import PostgresClient, PostgresMonitoringClient
 from avtools.postgres.inventory.orm.landb_ipaddress import CachedIPAddress
-from avtools.snmp.client import SNMPClient, PingResult, ProbeResult, QueryResult
+from avtools.snmp.client import SNMPClient, InterfaceResult, PingResult, ProbeResult, QueryResult
 from avtools.pipeline import SNMPObserverRouter
 from avtools.timeseries.models import MetricSample
 from avtools.timeseries.otlp_publisher import OTLPMetricsPublisher, OTLPPublishError
@@ -1156,7 +1156,7 @@ class AVTools:
             self.logger.info("Fetching LanDB IP targets", total=devices_total, tasks=max_workers)
 
             try:
-                ping_results, probe_results, query_results = asyncio_run(
+                ping_results, probe_results, query_results, interface_results = asyncio_run(
                     self._get_snmp_raw(devices, max_workers)
                 )
             except KeyboardInterrupt:
@@ -1198,6 +1198,7 @@ class AVTools:
                     ping=ping_results,
                     probe=probe_results,
                     queries=query_results,
+                    interfaces=interface_results,
                     device_lookup=device_lookup,
                 )
 
@@ -1245,7 +1246,9 @@ class AVTools:
 
     async def _get_snmp_raw(
         self, devices: list[CachedIPAddress], max_workers: int
-    ) -> tuple[list["PingResult"], list["ProbeResult"], list["QueryResult"]]:
+    ) -> tuple[
+        list["PingResult"], list["ProbeResult"], list["QueryResult"], list["InterfaceResult"]
+    ]:
         """Collect raw ping/probe/query results with global barriers between phases.
 
         This keeps the existing, efficient 3-phase pipeline:
@@ -1258,7 +1261,7 @@ class AVTools:
         """
         total = len(devices)
         if total == 0:
-            return ([], [], [])
+            return ([], [], [], [])
 
         max_workers = max(1, int(max_workers))
 
@@ -1340,7 +1343,27 @@ class AVTools:
             tasks=len(query_chunks),
         )
 
-        return (ping_results, probe_results, query_results)
+        # Phase 4: MIB-II interfaces (universal; runs on all SNMP-alive devices)
+        async def interface_worker(chunk: list[CachedIPAddress]):
+            monitor = SNMPClient(targets=chunk)
+            results = await monitor.collect_snmp_interfaces(chunk)
+            self.logger.info("snmp_interface_task_done", devices=len(chunk), results=len(results))
+            return results
+
+        interface_done = await asyncio.gather(*(interface_worker(c) for c in query_chunks))
+        interface_results: list[InterfaceResult] = []
+        for res in interface_done:
+            interface_results.extend(res)
+
+        self.logger.info(
+            "snmp_interface_phase_done",
+            devices=len(snmp_alive),
+            results=len(interface_results),
+            interfaces=sum(len(r.interfaces) for r in interface_results),
+            tasks=len(query_chunks),
+        )
+
+        return (ping_results, probe_results, query_results, interface_results)
 
     async def _get_snmp_samples(
         self, devices: list[CachedIPAddress], max_workers: int
@@ -1351,8 +1374,15 @@ class AVTools:
         """
         from avtools.timeseries.encoder import encode_all
 
-        ping_results, probe_results, query_results = await self._get_snmp_raw(devices, max_workers)
-        return encode_all(ping=ping_results, probe=probe_results, queries=query_results)
+        ping_results, probe_results, query_results, interface_results = await self._get_snmp_raw(
+            devices, max_workers
+        )
+        return encode_all(
+            ping=ping_results,
+            probe=probe_results,
+            queries=query_results,
+            interfaces=interface_results,
+        )
 
     def _publish_timeseries(
         self,
