@@ -132,7 +132,7 @@ def patch_payload(env: str, src_path: Path, out_path: Path) -> None:
                     rule["title"] = title_prefix + title
             else:
                 if title.startswith(QA_TITLE_PREFIX):
-                    rule["title"] = title[len(QA_TITLE_PREFIX):]
+                    rule["title"] = title[len(QA_TITLE_PREFIX) :]
 
         # Receiver/contact point
         ns = rule.get("notification_settings") or {}
