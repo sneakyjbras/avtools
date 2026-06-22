@@ -19,6 +19,9 @@ from collections.abc import Iterable
 import structlog
 
 from avtools.postgres.inventory.orm.landb_ipaddress import CachedIPAddress
+from avtools.snmp.factories.codec_factory import CodecHandlerFactory
+from avtools.snmp.factories.matrix_factory import MatrixHandlerFactory
+from avtools.snmp.factories.pdu_factory import PduHandlerFactory
 from avtools.snmp.factories.projector_factory import ProjectorHandlerFactory
 from avtools.snmp.handlers.abstract_device_handler import AbstractDeviceHandler
 from avtools.snmp.handlers.generic_snmp_handler import GenericSnmpHandler
@@ -30,7 +33,10 @@ logger = structlog.get_logger(__name__).bind(
 
 _FACTORY_REGISTRY: dict[str, type] = {
     "AVD": ProjectorHandlerFactory,
-    # add more: "SENSOR": SensorHandlerFactory, ...
+    "AVS": PduHandlerFactory,  # Server Technology rack PDUs (Sentry3/Sentry4)
+    "AVV": CodecHandlerFactory,  # Cisco/Tandberg/Polycom/Radvision video codecs
+    "AVA": MatrixHandlerFactory,  # Extron AV matrix switchers
+    "AVVS": MatrixHandlerFactory,  # Extron video matrix switchers
 }
 
 

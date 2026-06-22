@@ -68,7 +68,7 @@ class DummyRouter:
         self.pg = postgres_monitoring
         self.calls: list[dict[str, Any]] = []
 
-    def process(self, *, ping, probe, queries, device_lookup=None):
+    def process(self, *, ping, probe, queries, interfaces=(), device_lookup=None):
         self.calls.append(
             {
                 "ping": list(ping),
@@ -134,7 +134,7 @@ def _make_snmp_results(devices):
             stats={"firmware": "1.2.3"},
         )
     ]
-    return ping, probe, queries
+    return ping, probe, queries, []
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +151,7 @@ def test_skips_when_no_targets(monkeypatch):
     async def fake_get_raw(self, devices, max_workers):
         nonlocal called_get
         called_get = True
-        return ([], [], [])
+        return ([], [], [], [])
 
     monkeypatch.setattr(AVTools, "_get_snmp_raw", fake_get_raw)
 
@@ -218,7 +218,7 @@ def test_metric_labels_passed_to_publisher(monkeypatch):
     )
 
     async def fake_get_raw(self, devices_arg, max_workers):
-        return ([], [], [])
+        return ([], [], [], [])
 
     monkeypatch.setattr(AVTools, "_get_snmp_raw", fake_get_raw)
 
@@ -274,7 +274,7 @@ def test_device_lookup_built_from_cached_ip_addresses(monkeypatch):
     )
 
     async def fake_get_raw(self, devices_arg, max_workers):
-        return ([], [], [])
+        return ([], [], [], [])
 
     monkeypatch.setattr(AVTools, "_get_snmp_raw", fake_get_raw)
 
@@ -324,7 +324,7 @@ def test_device_with_no_equipment_no_excluded_from_lookup(monkeypatch):
     )
 
     async def fake_get_raw(self, devices_arg, max_workers):
-        return ([], [], [])
+        return ([], [], [], [])
 
     monkeypatch.setattr(AVTools, "_get_snmp_raw", fake_get_raw)
 

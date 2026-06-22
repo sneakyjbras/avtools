@@ -143,6 +143,16 @@ grafana_validate_json:
       done
       exit $fail
 
+# Ensure the committed MIB metadata matches a fresh compile of the vendored
+# sources (so handlers' MIB-backed mode never drifts from the .mib files).
+mibs_compile_check:
+  extends: .python-test-base
+  stage: lint
+  rules:
+    - when: always
+  script:
+    - poetry run python scripts/compile_mibs.py --check
+
 # ==================================================
 # FEATURE BRANCHES (MR) + MASTER + TAGS — unit tests
 #

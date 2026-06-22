@@ -119,16 +119,22 @@ def test_encode_all_produces_expected_metric_names():
     assert m.PROJECTOR_QUERY_UPTIME_SECONDS in names
 
 
-def test_encode_all_excludes_firmware_and_power_status():
+def test_encode_all_includes_projector_power_and_firmware():
     dev = D(ip="10.0.0.1", equipment_no="EQ1")
     samples = encode_all(
         ping=[_ping(dev)],
         probe=[_probe(dev)],
         queries=[_query(dev, {"lamp_hours": "123", "firmware": "FW1", "power_status": "1"})],
     )
-    names = {s.name for s in samples}
-    assert m.PROJECTOR_QUERY_FIRMWARE_INFO not in names
-    assert m.PROJECTOR_QUERY_POWER_STATUS not in names
+    by_name = {s.name: s for s in samples}
+    # Power status is now published numerically.
+    assert m.PROJECTOR_QUERY_POWER_STATUS in by_name
+    assert by_name[m.PROJECTOR_QUERY_POWER_STATUS].value == 1.0
+    # Firmware is published as an info gauge (value=1, firmware label).
+    assert m.PROJECTOR_QUERY_FIRMWARE_INFO in by_name
+    fw_sample = by_name[m.PROJECTOR_QUERY_FIRMWARE_INFO]
+    assert fw_sample.value == 1
+    assert fw_sample.labels.get("firmware") == "FW1"
 
 
 # ---------------------------------------------------------------------------

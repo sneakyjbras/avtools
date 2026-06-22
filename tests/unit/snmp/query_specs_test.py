@@ -14,7 +14,7 @@ class DummyBadHandler:
 
 def test_default_query_specs_contains_projector_spec():
     specs = default_query_specs()
-    assert [s.name for s in specs] == ["projector"]
+    assert [s.name for s in specs] == ["projector", "pdu", "codec", "matrix"]
 
 
 def test_projector_query_spec_match_policy():

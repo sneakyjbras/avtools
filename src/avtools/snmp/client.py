@@ -80,6 +80,22 @@ class QueryResult:
     stats: Mapping[str, object]
 
 
+@dataclass(slots=True)
+class InterfaceResult:
+    """MIB-II interface-table readings for a device.
+
+    `interfaces` is a list of per-interface dicts as returned by
+    ``AbstractDeviceHandler.fetch_interfaces`` (one entry per non-loopback
+    interface). Kept separate from QueryResult because it is per-interface
+    (many rows per device) and universal (not routed by equipment class).
+    """
+
+    device: CachedIPAddress
+    ip: str | None
+    equipmentno: str | None
+    interfaces: list[dict[str, object]]
+
+
 class SNMPClient:
     """Collect ping + SNMP metrics for LanDB devices.
 
@@ -622,6 +638,69 @@ class SNMPClient:
             devices=len(devices),
             results=len(out),
             snmp_query_concurrency=self.snmp_query_concurrency,
+            routes=dict(routes),
+            duration_s=round(time() - t0, 3),
+        )
+        return out
+
+    async def collect_snmp_interfaces(
+        self, devices: list[CachedIPAddress]
+    ) -> list[InterfaceResult]:
+        """Walk the MIB-II interface table for each device (universal stage).
+
+        Runs on every SNMP-available device that has a handler, regardless of
+        equipment class — interface health (link up/down) is the same across
+        vendors. Devices whose agent exposes no interface table are omitted.
+
+        Args:
+            devices: Device list previously confirmed as SNMP-available.
+
+        Returns:
+            List of InterfaceResult (devices with at least one interface).
+        """
+        t0 = time()
+
+        async def interfaces_one(
+            dev: CachedIPAddress,
+        ) -> tuple[str, InterfaceResult | None]:
+            ip = dev.ip
+            eq = dev.equipment_no
+            if not (ip and eq):
+                return ("skip_missing_ident", None)
+
+            handler = self.handlers.get(str(ip))
+            if handler is None:
+                return ("skip_no_handler", None)
+
+            async with self._snmp_query_sem:
+                try:
+                    interfaces = await asyncio.to_thread(handler.fetch_interfaces)
+                except Exception as exc:
+                    raise SNMPQueryExecutionError(
+                        f"SNMP interface walk failed for equipmentno={eq} ip={ip}"
+                    ) from exc
+
+            if not interfaces:
+                return ("interface:empty", None)
+
+            return (
+                "interface",
+                InterfaceResult(device=dev, ip=str(ip), equipmentno=eq, interfaces=interfaces),
+            )
+
+        routes: Counter[str] = Counter()
+        out: list[InterfaceResult] = []
+        for fut in asyncio.as_completed([interfaces_one(d) for d in devices]):
+            tag, res = await fut
+            routes[tag] += 1
+            if res is not None:
+                out.append(res)
+
+        self.log.info(
+            "snmp_interface_walk_done",
+            devices=len(devices),
+            results=len(out),
+            interfaces=sum(len(r.interfaces) for r in out),
             routes=dict(routes),
             duration_s=round(time() - t0, 3),
         )

@@ -110,7 +110,7 @@ def test_run_snmp_timeseries_otlp_publish_error_marks_completed_with_errors(
     )
 
     async def ok(self, devices, max_workers):
-        return ([], [], [])
+        return ([], [], [], [])
 
     monkeypatch.setattr(AVTools, "_get_snmp_raw", ok)
 
@@ -142,7 +142,7 @@ def test_run_snmp_timeseries_unexpected_publish_error_is_logged(
     )
 
     async def ok(self, devices, max_workers):
-        return ([], [], [])
+        return ([], [], [], [])
 
     monkeypatch.setattr(AVTools, "_get_snmp_raw", ok)
 

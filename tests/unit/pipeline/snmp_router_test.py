@@ -113,7 +113,9 @@ def test_router_routes_numeric_to_otlp_and_text_to_postgres():
 
     assert len(ts.published) == 1
     samples = ts.published[0]
-    assert all(getattr(s, "name", None) != PROJECTOR_QUERY_POWER_STATUS for s in samples)
+    # Power status is now published numerically to OTLP (in addition to the
+    # text snapshot persisted to Postgres below).
+    assert any(getattr(s, "name", None) == PROJECTOR_QUERY_POWER_STATUS for s in samples)
 
     assert len(pg.projector_rows) == 1
     assert pg.projector_rows[0].equipment_no == "EQ1"
