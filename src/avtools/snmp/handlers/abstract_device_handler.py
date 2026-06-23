@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from typing import Any, Union
@@ -19,6 +20,33 @@ from pysnmp.hlapi import (
 
 _SYS_UPTIME_OID = "1.3.6.1.2.1.1.3.0"  # sysUpTime.0 (mandatory on all agents)
 _SYS_DESCR_OID = "1.3.6.1.2.1.1.1.0"  # sysDescr.0 (mandatory on all agents)
+
+# Thread-local SnmpEngine reuse. SNMP calls are offloaded to a thread pool; pysnmp's
+# SnmpEngine is NOT thread-safe, so each worker thread keeps its own engine and reuses
+# it across all calls on that thread (the engine is target-independent — the target
+# rides on UdpTransportTarget per call). This eliminates the previous per-call engine
+# construction, which dominated SNMP overhead. `engine_build_count()` exposes the number
+# of constructions so the churn reduction is observable in logs (expect ~= thread count).
+_thread_local = threading.local()
+_engine_build_lock = threading.Lock()
+_engine_build_count = 0
+
+
+def _thread_engine() -> SnmpEngine:
+    """Return this thread's reusable SnmpEngine, building one on first use."""
+    eng = getattr(_thread_local, "engine", None)
+    if eng is None:
+        eng = SnmpEngine()
+        _thread_local.engine = eng
+        global _engine_build_count
+        with _engine_build_lock:
+            _engine_build_count += 1
+    return eng
+
+
+def engine_build_count() -> int:
+    """Total SnmpEngine constructions so far (observability; expect ~= thread count)."""
+    return _engine_build_count
 
 
 def _as_int(value: Any) -> int | None:
@@ -63,7 +91,7 @@ class AbstractDeviceHandler(ABC):
         oids: Sequence[Union[str, ObjectIdentity]],
         *,
         timeout: float = 1.0,
-        retries: int = 2,
+        retries: int = 1,  # cut dead-device probe/query timeout tail (was 2)
     ):
         """Perform a single SNMP GET for multiple OIDs.
 
@@ -75,7 +103,7 @@ class AbstractDeviceHandler(ABC):
         ]
 
         iterator = getCmd(
-            self.engine or SnmpEngine(),
+            self.engine or _thread_engine(),
             CommunityData(self.community, mpModel=1),  # SNMP v2c
             UdpTransportTarget((self.ip, self.port), timeout=timeout, retries=retries),
             ContextData(),
@@ -109,7 +137,7 @@ class AbstractDeviceHandler(ABC):
         """
         rows: list[tuple[str, Any]] = []
         iterator = nextCmd(
-            self.engine or SnmpEngine(),
+            self.engine or _thread_engine(),
             CommunityData(self.community, mpModel=1),  # SNMP v2c
             UdpTransportTarget((self.ip, self.port), timeout=timeout, retries=retries),
             ContextData(),
@@ -213,7 +241,7 @@ class AbstractDeviceHandler(ABC):
         oid: str = _SYS_UPTIME_OID,
         *,
         timeout: int = 1,
-        retries: int = 2,
+        retries: int = 1,  # cut dead-device probe/query timeout tail (was 2)
     ) -> bool:
         """
         Check whether the device responds to a simple SNMP GET request.
@@ -230,7 +258,7 @@ class AbstractDeviceHandler(ABC):
         oid: str = _SYS_DESCR_OID,
         *,
         timeout: float = 1.0,
-        retries: int = 2,
+        retries: int = 1,  # cut dead-device probe/query timeout tail (was 2)
     ) -> str | None:
         """Fetch sysDescr.0 (device description string).
 

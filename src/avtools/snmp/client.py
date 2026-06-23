@@ -151,7 +151,7 @@ class SNMPClient:
         targets: list[CachedIPAddress],
         *,
         ping_timeout_s: int = 2,
-        ping_retries: int = 3,
+        ping_retries: int = 2,  # cut dead-device ping tail (was 3)
         ping_backoff_s: float = 0.2,
         ping_backoff_max_s: float = 0.8,
         ping_jitter_s: float = 0.2,

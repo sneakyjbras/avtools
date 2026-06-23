@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from asyncio import run as asyncio_run
+from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable, Sequence
 from time import time
 from typing import Any, TypeVar
@@ -1200,6 +1201,7 @@ class AVTools:
                     queries=query_results,
                     interfaces=interface_results,
                     device_lookup=device_lookup,
+                    targeted=devices_total,
                 )
 
                 samples_total = routing_stats.ts_samples
@@ -1264,6 +1266,18 @@ class AVTools:
             return ([], [], [], [])
 
         max_workers = max(1, int(max_workers))
+
+        # Concurrency ceiling: all blocking SNMP (probe/query/walks) is offloaded via
+        # asyncio.to_thread, which uses the running loop's DEFAULT executor. Python's
+        # default is only ~min(32, cpu+4) threads (~8 on a 4-core host), which — not the
+        # semaphores — was the real cap. Since this work is I/O-wait (SNMP timeouts), not
+        # CPU, we install an explicit pool sized by `threads` so the semaphores actually
+        # bind. (Ping is native-async and unaffected.) Fresh loop per run (asyncio.run),
+        # so this is scoped to this cycle; shut down before returning.
+        loop = asyncio.get_running_loop()
+        snmp_pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="snmp-io")
+        loop.set_default_executor(snmp_pool)
+        self.logger.info("snmp_executor_sized", thread_pool_size=max_workers)
 
         def split_even(items: list[CachedIPAddress]) -> list[list[CachedIPAddress]]:
             """Split items across up to max_workers chunks (round-robin) for balance."""
@@ -1363,6 +1377,15 @@ class AVTools:
             tasks=len(query_chunks),
         )
 
+        # Observability: engine builds should be ~= pool threads (not ~= SNMP calls).
+        from avtools.snmp.handlers.abstract_device_handler import engine_build_count
+
+        self.logger.info(
+            "snmp_collection_done",
+            thread_pool_size=max_workers,
+            engine_builds=engine_build_count(),
+        )
+        snmp_pool.shutdown(wait=False)
         return (ping_results, probe_results, query_results, interface_results)
 
     async def _get_snmp_samples(

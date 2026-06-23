@@ -68,7 +68,7 @@ class DummyRouter:
         self.pg = postgres_monitoring
         self.calls: list[dict[str, Any]] = []
 
-    def process(self, *, ping, probe, queries, interfaces=(), device_lookup=None):
+    def process(self, *, ping, probe, queries, interfaces=(), device_lookup=None, targeted=0):
         self.calls.append(
             {
                 "ping": list(ping),

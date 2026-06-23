@@ -26,6 +26,8 @@ import structlog
 
 from avtools.snmp.client import InterfaceResult, PingResult, ProbeResult, QueryResult
 from avtools.timeseries.encoder import encode_all, DeviceLookup
+from avtools.timeseries.models import MetricSample
+from avtools.timeseries import metrics as m
 from avtools.timeseries.otlp_publisher import OTLPMetricsPublisher
 from avtools.postgres.monitoring.client import PostgresMonitoringClient
 from avtools.postgres.monitoring.codec import (
@@ -75,6 +77,7 @@ class SNMPObserverRouter:
         queries: Iterable[QueryResult],
         interfaces: Iterable[InterfaceResult] = (),
         device_lookup: DeviceLookup | None = None,
+        targeted: int = 0,
     ) -> SNMPRoutingStats:
         """Encode and publish one full SNMP pipeline batch.
 
@@ -114,6 +117,18 @@ class SNMPObserverRouter:
             )
         except Exception as exc:
             raise SNMPObserverRouterError("Failed to encode SNMP samples") from exc
+
+        # Coverage guardrail: every targeted device should produce a ping result.
+        # polled/targeted < 1.0 signals silent loss (e.g. over-concurrency / UDP drops).
+        polled = len(ping_l)
+        if targeted > 0:
+            ratio = polled / targeted
+            samples = list(samples) + [
+                MetricSample(name=m.SNMP_DEVICES_TARGETED, value=targeted, labels={}),
+                MetricSample(name=m.SNMP_DEVICES_POLLED, value=polled, labels={}),
+                MetricSample(name=m.SNMP_COVERAGE_RATIO, value=round(ratio, 4), labels={}),
+            ]
+
         if samples:
             self._ts.publish(samples)
 

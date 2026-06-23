@@ -40,6 +40,12 @@ PING_CHECK_RTT_MS = METRIC_PREFIX + "ping_check_rtt_ms"
 # 1 = SNMP reachable/enabled, 0 = SNMP not responding / not supported
 SNMP_PROBE_STATUS = METRIC_PREFIX + "snmp_probe_status"
 
+# --- Collection coverage (determinism guardrail; cycle-level, no per-device labels) ---
+# polled/targeted should be ~1.0; a drop signals silent loss (e.g. over-concurrency).
+SNMP_DEVICES_TARGETED = METRIC_PREFIX + "snmp_devices_targeted"
+SNMP_DEVICES_POLLED = METRIC_PREFIX + "snmp_devices_polled"
+SNMP_COVERAGE_RATIO = METRIC_PREFIX + "snmp_coverage_ratio"
+
 # ---------------------------------------------------------------------------
 # MIB-II interfaces (universal; Phase C) — labelled by ifindex
 # ---------------------------------------------------------------------------
@@ -153,6 +159,11 @@ METRIC_META: dict[str, MetricMeta] = {
     PING_CHECK_RTT_MS: MetricMeta("Ping round-trip time in milliseconds.", unit="ms"),
     SNMP_PROBE_STATUS: MetricMeta(
         "SNMP probe status (1=SNMP OK, 0=SNMP not responding / not supported)."
+    ),
+    SNMP_DEVICES_TARGETED: MetricMeta("Devices targeted for collection this cycle."),
+    SNMP_DEVICES_POLLED: MetricMeta("Devices that produced a result this cycle."),
+    SNMP_COVERAGE_RATIO: MetricMeta(
+        "Collection coverage (polled/targeted); ~1.0 healthy, a drop signals silent loss."
     ),
     DEVICE_IF_OPER_STATUS: MetricMeta(
         "MIB-II interface operational status (1=up, 2=down, ...) per ifindex."
