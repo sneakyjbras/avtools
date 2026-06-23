@@ -390,9 +390,9 @@ python-publish-qa:
   stage: deploy_qa
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+/'
-      when: on_success
+      when: manual
     - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: on_success
+      when: manual
     - when: never
   script:
     # Register the QA upload endpoint (upload URL differs from /simple install URL)
@@ -406,9 +406,9 @@ python-publish-stable:
   stage: deploy_stable
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+/'
-      when: on_success
+      when: manual
     - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: on_success
+      when: manual
     - when: never
   script:
     # Register the PROD upload endpoint

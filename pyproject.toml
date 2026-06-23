@@ -72,7 +72,6 @@ avtools          = "avtools.main:cli"
 get-token        = "avtools.main:get_token"
 precommit-checks = "avtools.devtools:precommit_checks"
 
-
 [tool.poetry.group.lint.dependencies]
 black          = "^25.1.0"
 ruff           = "^0.11.7"
