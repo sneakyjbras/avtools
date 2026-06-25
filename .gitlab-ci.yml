@@ -78,9 +78,7 @@ check:
   extends: .python-test-base
   stage: lint
   rules:
-   - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-   - if: '$CI_COMMIT_BRANCH == "master"'
-   - if: '$CI_COMMIT_TAG' 
+    - when: always
   script:
     - poetry run detect-secrets scan --exclude-files '\.secrets\.baseline' > /tmp/secrets-current.json
     - |
@@ -119,9 +117,7 @@ lint:
   extends: .python-test-base
   stage: lint
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_TAG'
+    - when: always
   script:
     - poetry run black --check src tests scripts
     - poetry run ruff check src tests scripts
@@ -131,9 +127,7 @@ grafana_validate_json:
   stage: lint
   image: python:3.11-slim
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_TAG'
+    - when: always
   script:
     - |
       set -eu
@@ -155,9 +149,7 @@ mibs_compile_check:
   extends: .python-test-base
   stage: lint
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH == "master"'
-    - if: '$CI_COMMIT_TAG'
+    - when: always
   script:
     - poetry run python scripts/compile_mibs.py --check
 
