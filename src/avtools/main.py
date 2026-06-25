@@ -8,6 +8,100 @@ import structlog
 
 from avtools.core.av_tools import AVTools
 from avtools.exception.errors import NoRecordsFound
+from avtools.timeseries import metrics as m
+from avtools.timeseries.heartbeat import publish_heartbeat
+
+
+def _otlp_heartbeat_options(f):
+    """Attach the OTLP/deployment options needed to publish a heartbeat.
+
+    Mirrors the snmp-timeseries OTLP block but reads everything from the shared
+    avtools.env (EnvironmentFile), and makes tenant/password NON-required so the
+    heartbeat is best-effort: a sync without MONIT creds still succeeds, just
+    without a heartbeat. The MONIT password is exposed as --monit-password to avoid
+    colliding with the EAM/LanDB credential options on these commands.
+    """
+    opts = [
+        click.option(
+            "--otlp-endpoint",
+            envvar="MONIT_OTLP_ENDPOINT",
+            default="monit-otlp.cern.ch:4316",
+            show_default=True,
+            help="MONIT OTLP gRPC endpoint (host:port).",
+        ),
+        click.option("--tenant", envvar="MONIT_TENANT", default=None, help="MONIT tenant name."),
+        click.option(
+            "--monit-password",
+            envvar="MONIT_PASSWORD",
+            default=None,
+            hide_input=True,
+            help="MONIT tenant password (heartbeat is skipped if unset).",
+        ),
+        click.option(
+            "--service-name",
+            envvar="OTEL_SERVICE_NAME",
+            default="avtools",
+            show_default=True,
+            help="OpenTelemetry resource service.name.",
+        ),
+        click.option(
+            "--otlp-ca-file",
+            envvar="OTLP_CA_FILE",
+            default=None,
+            help="Optional CA bundle path for OTLP gRPC.",
+        ),
+        click.option(
+            "--otlp-insecure/--otlp-tls",
+            envvar="MONIT_OTLP_INSECURE",
+            default=False,
+            show_default=True,
+            help="Use plaintext OTLP/gRPC (no TLS).",
+        ),
+        click.option(
+            "--environment",
+            envvar="AVTOOLS_ENVIRONMENT",
+            default="prod",
+            show_default=True,
+            help="Deployment environment label (prod/qa).",
+        ),
+        click.option(
+            "--hostgroup",
+            envvar="AVTOOLS_HOSTGROUP",
+            default="itdcim/av",
+            show_default=True,
+            help="submitter_hostgroup label.",
+        ),
+        click.option(
+            "--availability-zone",
+            envvar="AVTOOLS_AVAILABILITY_ZONE",
+            default="cern-geneva-b",
+            show_default=True,
+            help="availability_zone label.",
+        ),
+    ]
+    for opt in reversed(opts):
+        f = opt(f)
+    return f
+
+
+def _emit_heartbeat(metric_name: str, **otlp) -> None:
+    """Publish a heartbeat iff MONIT creds are available; otherwise skip quietly."""
+    if not otlp.get("tenant") or not otlp.get("monit_password"):
+        structlog.get_logger(__name__).info("heartbeat_skipped_no_creds", metric=metric_name)
+        return
+    publish_heartbeat(
+        metric_name,
+        otlp_endpoint=otlp["otlp_endpoint"],
+        tenant=otlp["tenant"],
+        password=otlp["monit_password"],
+        service_name=otlp["service_name"],
+        otlp_ca_file=otlp["otlp_ca_file"],
+        otlp_insecure=otlp["otlp_insecure"],
+        environment=otlp["environment"],
+        hostgroup=otlp["hostgroup"],
+        availability_zone=otlp["availability_zone"],
+    )
+
 
 logger = structlog.get_logger(__name__)
 
@@ -62,14 +156,17 @@ def cli(ctx: click.Context, logs: bool, dbod_url: str) -> None:
     hide_input=True,
     help="EAM password.",
 )
+@_otlp_heartbeat_options
 @click.pass_context
-def run_eam(ctx: click.Context, username: str, password: str) -> None:
+def run_eam(ctx: click.Context, username: str, password: str, **otlp) -> None:
     dbod_url = ctx.obj["dbod_url"]
     try:
         tools = AVTools(dbod_url)
         tools.run_eam(username=username, password=password)
     except NoRecordsFound as exc:
         raise click.ClickException(str(exc))
+    # Heartbeat only after a successful sync (best-effort).
+    _emit_heartbeat(m.EAM_LAST_RUN_TIMESTAMP, **otlp)
 
 
 @cli.command("run-landb", help="Run LanDB CRUD operations.")
@@ -92,12 +189,14 @@ def run_eam(ctx: click.Context, username: str, password: str) -> None:
     required=True,
     help="OAuth2 audience.",
 )
+@_otlp_heartbeat_options
 @click.pass_context
 def run_landb(
     ctx: click.Context,
     client_id: str,
     client_secret: str,
     audience: str,
+    **otlp,
 ) -> None:
     dbod_url = ctx.obj["dbod_url"]
     try:
@@ -109,6 +208,8 @@ def run_landb(
         )
     except NoRecordsFound as exc:
         raise click.ClickException(str(exc))
+    # Heartbeat only after a successful sync (best-effort).
+    _emit_heartbeat(m.LANDB_LAST_RUN_TIMESTAMP, **otlp)
 
 
 @cli.command(
