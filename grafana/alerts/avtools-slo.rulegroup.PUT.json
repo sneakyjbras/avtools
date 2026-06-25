@@ -93,7 +93,7 @@
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV SLO"
+        "receiver": "AV Tools"
       },
       "record": null
     },
@@ -187,7 +187,7 @@
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV SLO"
+        "receiver": "AV Tools"
       },
       "record": null
     },
@@ -281,7 +281,7 @@
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV SLO"
+        "receiver": "AV Tools"
       },
       "record": null
     },
@@ -375,7 +375,7 @@
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV SLO"
+        "receiver": "AV Tools"
       },
       "record": null
     },
@@ -469,7 +469,7 @@
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV SLO"
+        "receiver": "AV Tools"
       },
       "record": null
     }
