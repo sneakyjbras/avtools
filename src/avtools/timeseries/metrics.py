@@ -46,6 +46,13 @@ SNMP_DEVICES_TARGETED = METRIC_PREFIX + "snmp_devices_targeted"
 SNMP_DEVICES_POLLED = METRIC_PREFIX + "snmp_devices_polled"
 SNMP_COVERAGE_RATIO = METRIC_PREFIX + "snmp_coverage_ratio"
 
+# --- av-tools self-instrumentation (about the collector, not the fleet) ---
+# Heartbeat: unix-seconds timestamp written once at the end of a successful sync.
+# "Is the job alive?" -> time() - <metric> > threshold. Distinct metric class from
+# the device-telemetry metrics above; keep the avtools_<job>_last_run_* naming.
+EAM_LAST_RUN_TIMESTAMP = METRIC_PREFIX + "eam_last_run_timestamp"
+LANDB_LAST_RUN_TIMESTAMP = METRIC_PREFIX + "landb_last_run_timestamp"
+
 # ---------------------------------------------------------------------------
 # MIB-II interfaces (universal; Phase C) — labelled by ifindex
 # ---------------------------------------------------------------------------
@@ -164,6 +171,12 @@ METRIC_META: dict[str, MetricMeta] = {
     SNMP_DEVICES_POLLED: MetricMeta("Devices that produced a result this cycle."),
     SNMP_COVERAGE_RATIO: MetricMeta(
         "Collection coverage (polled/targeted); ~1.0 healthy, a drop signals silent loss."
+    ),
+    EAM_LAST_RUN_TIMESTAMP: MetricMeta(
+        "Unix timestamp of the last successful EAM inventory sync (heartbeat)."
+    ),
+    LANDB_LAST_RUN_TIMESTAMP: MetricMeta(
+        "Unix timestamp of the last successful LanDB inventory sync (heartbeat)."
     ),
     DEVICE_IF_OPER_STATUS: MetricMeta(
         "MIB-II interface operational status (1=up, 2=down, ...) per ifindex."

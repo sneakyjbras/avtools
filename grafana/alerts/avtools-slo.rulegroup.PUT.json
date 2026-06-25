@@ -1,0 +1,477 @@
+{
+  "title": "avtools-slo",
+  "folderUid": "beuar1of5bo5cf",
+  "interval": 300,
+  "rules": [
+    {
+      "id": 0,
+      "uid": "avslocoveragewarn",
+      "orgID": 12,
+      "folderUID": "beuar1of5bo5cf",
+      "ruleGroup": "avtools-slo",
+      "title": "AV SLO: Collection Coverage Below 99% (Warning)",
+      "condition": "Active",
+      "data": [
+        {
+          "refId": "#Coverage",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "afcql1n10tnggc",
+          "model": {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "afcql1n10tnggc"
+            },
+            "editorMode": "code",
+            "expr": "avtools_snmp_coverage_ratio{submitter_environment=\"prod\"}",
+            "instant": true,
+            "range": false,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "#Coverage"
+          }
+        },
+        {
+          "refId": "Active",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 0,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "conditions": [
+              {
+                "evaluator": {
+                  "params": [
+                    0.99
+                  ],
+                  "type": "lt"
+                },
+                "operator": {
+                  "type": "and"
+                },
+                "query": {
+                  "params": [
+                    "C"
+                  ]
+                },
+                "reducer": {
+                  "params": [],
+                  "type": "last"
+                },
+                "type": "query"
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "#Coverage",
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "Active",
+            "type": "threshold"
+          }
+        }
+      ],
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "0s",
+      "annotations": {
+        "__dashboardUid__": "av_rooms_dashboard",
+        "__panelId__": "900",
+        "description": "- Coverage SLO (warning)\n  polled/targeted dropped below 0.99. Some targeted devices were not polled this cycle.\n  Action: check for over-concurrency / UDP loss (ramp `threads` down) or a collection error.",
+        "summary": "SNMP collection coverage {{ $values.C.Value }} is below the 0.99 SLO"
+      },
+      "labels": {
+        "av_alert_type": "slo",
+        "severity": "warning"
+      },
+      "isPaused": false,
+      "notification_settings": {
+        "receiver": "AV SLO"
+      },
+      "record": null
+    },
+    {
+      "id": 0,
+      "uid": "avslocoveragecrit",
+      "orgID": 12,
+      "folderUID": "beuar1of5bo5cf",
+      "ruleGroup": "avtools-slo",
+      "title": "AV SLO: Collection Coverage Below 95% (Critical)",
+      "condition": "Active",
+      "data": [
+        {
+          "refId": "#Coverage",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "afcql1n10tnggc",
+          "model": {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "afcql1n10tnggc"
+            },
+            "editorMode": "code",
+            "expr": "avtools_snmp_coverage_ratio{submitter_environment=\"prod\"}",
+            "instant": true,
+            "range": false,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "#Coverage"
+          }
+        },
+        {
+          "refId": "Active",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 0,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "conditions": [
+              {
+                "evaluator": {
+                  "params": [
+                    0.95
+                  ],
+                  "type": "lt"
+                },
+                "operator": {
+                  "type": "and"
+                },
+                "query": {
+                  "params": [
+                    "C"
+                  ]
+                },
+                "reducer": {
+                  "params": [],
+                  "type": "last"
+                },
+                "type": "query"
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "#Coverage",
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "Active",
+            "type": "threshold"
+          }
+        }
+      ],
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "0s",
+      "annotations": {
+        "__dashboardUid__": "av_rooms_dashboard",
+        "__panelId__": "900",
+        "description": "- Coverage SLO (critical)\n  polled/targeted dropped below 0.95 \u2014 significant silent loss.\n  Action: investigate the collection pipeline immediately.",
+        "summary": "SNMP collection coverage {{ $values.C.Value }} is below the 0.95 SLO"
+      },
+      "labels": {
+        "av_alert_type": "slo",
+        "severity": "critical"
+      },
+      "isPaused": false,
+      "notification_settings": {
+        "receiver": "AV SLO"
+      },
+      "record": null
+    },
+    {
+      "id": 0,
+      "uid": "avslosnmpfresh",
+      "orgID": 12,
+      "folderUID": "beuar1of5bo5cf",
+      "ruleGroup": "avtools-slo",
+      "title": "AV SLO: SNMP Collection Stale (No Cycle in 5m)",
+      "condition": "Active",
+      "data": [
+        {
+          "refId": "#SnmpStale",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 900,
+            "to": 0
+          },
+          "datasourceUid": "afcql1n10tnggc",
+          "model": {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "afcql1n10tnggc"
+            },
+            "editorMode": "code",
+            "expr": "absent_over_time(avtools_snmp_devices_targeted{submitter_environment=\"prod\"}[5m])",
+            "instant": true,
+            "range": false,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "#SnmpStale"
+          }
+        },
+        {
+          "refId": "Active",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 0,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "conditions": [
+              {
+                "evaluator": {
+                  "params": [
+                    0
+                  ],
+                  "type": "gt"
+                },
+                "operator": {
+                  "type": "and"
+                },
+                "query": {
+                  "params": [
+                    "C"
+                  ]
+                },
+                "reducer": {
+                  "params": [],
+                  "type": "last"
+                },
+                "type": "query"
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "#SnmpStale",
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "Active",
+            "type": "threshold"
+          }
+        }
+      ],
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "0s",
+      "annotations": {
+        "__dashboardUid__": "av_rooms_dashboard",
+        "__panelId__": "900",
+        "description": "- SNMP freshness SLO\n  No avtools_snmp_devices_targeted sample in 5m => the snmp-timeseries collection has stalled (cycle normally ~99s).\n  Action: check avtools@snmp-timeseries.service.",
+        "summary": "No SNMP collection cycle has completed in the last 5 minutes"
+      },
+      "labels": {
+        "av_alert_type": "slo",
+        "severity": "critical"
+      },
+      "isPaused": false,
+      "notification_settings": {
+        "receiver": "AV SLO"
+      },
+      "record": null
+    },
+    {
+      "id": 0,
+      "uid": "avsloeamfresh",
+      "orgID": 12,
+      "folderUID": "beuar1of5bo5cf",
+      "ruleGroup": "avtools-slo",
+      "title": "AV SLO: EAM Inventory Sync Stale (No Success in 10m)",
+      "condition": "Active",
+      "data": [
+        {
+          "refId": "#EamStale",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 1200,
+            "to": 0
+          },
+          "datasourceUid": "afcql1n10tnggc",
+          "model": {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "afcql1n10tnggc"
+            },
+            "editorMode": "code",
+            "expr": "absent_over_time(avtools_eam_last_run_timestamp{submitter_environment=\"prod\"}[10m])",
+            "instant": true,
+            "range": false,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "#EamStale"
+          }
+        },
+        {
+          "refId": "Active",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 0,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "conditions": [
+              {
+                "evaluator": {
+                  "params": [
+                    0
+                  ],
+                  "type": "gt"
+                },
+                "operator": {
+                  "type": "and"
+                },
+                "query": {
+                  "params": [
+                    "C"
+                  ]
+                },
+                "reducer": {
+                  "params": [],
+                  "type": "last"
+                },
+                "type": "query"
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "#EamStale",
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "Active",
+            "type": "threshold"
+          }
+        }
+      ],
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "0s",
+      "annotations": {
+        "__dashboardUid__": "av_rooms_dashboard",
+        "__panelId__": "900",
+        "description": "- EAM freshness SLO\n  No EAM heartbeat in 10m (~2 missed 5-min runs). The device truth list may be going stale while SNMP coverage still reads healthy.\n  Action: check avtools@run-eam.service.",
+        "summary": "No successful EAM inventory sync in the last 10 minutes"
+      },
+      "labels": {
+        "av_alert_type": "slo",
+        "severity": "critical"
+      },
+      "isPaused": false,
+      "notification_settings": {
+        "receiver": "AV SLO"
+      },
+      "record": null
+    },
+    {
+      "id": 0,
+      "uid": "avslolandbfresh",
+      "orgID": 12,
+      "folderUID": "beuar1of5bo5cf",
+      "ruleGroup": "avtools-slo",
+      "title": "AV SLO: LanDB Inventory Sync Stale (No Success in 10m)",
+      "condition": "Active",
+      "data": [
+        {
+          "refId": "#LandbStale",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 1200,
+            "to": 0
+          },
+          "datasourceUid": "afcql1n10tnggc",
+          "model": {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "afcql1n10tnggc"
+            },
+            "editorMode": "code",
+            "expr": "absent_over_time(avtools_landb_last_run_timestamp{submitter_environment=\"prod\"}[10m])",
+            "instant": true,
+            "range": false,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "#LandbStale"
+          }
+        },
+        {
+          "refId": "Active",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 0,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "conditions": [
+              {
+                "evaluator": {
+                  "params": [
+                    0
+                  ],
+                  "type": "gt"
+                },
+                "operator": {
+                  "type": "and"
+                },
+                "query": {
+                  "params": [
+                    "C"
+                  ]
+                },
+                "reducer": {
+                  "params": [],
+                  "type": "last"
+                },
+                "type": "query"
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "#LandbStale",
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "Active",
+            "type": "threshold"
+          }
+        }
+      ],
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "0s",
+      "annotations": {
+        "__dashboardUid__": "av_rooms_dashboard",
+        "__panelId__": "900",
+        "description": "- LanDB freshness SLO\n  No LanDB heartbeat in 10m (~2 missed 5-min runs). The networked-device join may be stale => SNMP could be polling a wrong/stale target set while coverage reads 1.0.\n  Action: check avtools@run-landb.service.",
+        "summary": "No successful LanDB inventory sync in the last 10 minutes"
+      },
+      "labels": {
+        "av_alert_type": "slo",
+        "severity": "critical"
+      },
+      "isPaused": false,
+      "notification_settings": {
+        "receiver": "AV SLO"
+      },
+      "record": null
+    }
+  ]
+}
