@@ -975,7 +975,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_ping_check_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_ping_check_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -1069,7 +1069,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_snmp_probe_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_snmp_probe_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -1163,7 +1163,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "avg_over_time(avtools_ping_check_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__range]) * 100",
+          "expr": "max by (equipmentno) (avg_over_time(avtools_ping_check_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__range]) * 100)",
           "instant": true,
           "range": false
         }
@@ -1247,7 +1247,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "avg_over_time(avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__range])",
+          "expr": "avg by (equipmentno) (avg_over_time(avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__range]))",
           "instant": true,
           "range": false
         }
@@ -1336,7 +1336,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "timestamp(last_over_time(avtools_ping_check_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))*1000",
+          "expr": "max by (equipmentno) (timestamp(last_over_time(avtools_ping_check_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))*1000)",
           "instant": true,
           "range": false
         }
@@ -1421,7 +1421,7 @@
           "instant": false,
           "range": true,
           "legendFormat": "p95 RTT",
-          "expr": "quantile_over_time(0.95, avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__interval])"
+          "expr": "avg by (equipmentno) (quantile_over_time(0.95, avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__interval]))"
         },
         {
           "datasource": {
@@ -1434,7 +1434,7 @@
           "instant": false,
           "range": true,
           "legendFormat": "Mean RTT",
-          "expr": "avg_over_time(avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__interval])"
+          "expr": "avg by (equipmentno) (avg_over_time(avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__interval]))"
         },
         {
           "datasource": {
@@ -1447,7 +1447,7 @@
           "instant": false,
           "range": true,
           "legendFormat": "Median RTT (p50)",
-          "expr": "quantile_over_time(0.50, avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__interval])"
+          "expr": "avg by (equipmentno) (quantile_over_time(0.50, avtools_ping_check_rtt_ms{equipmentno=\"$device\",submitter_environment=\"qa\"}[$__interval]))"
         }
       ],
       "options": {
@@ -1802,7 +1802,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_projector_query_lamp_hours{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_projector_query_lamp_hours{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -1890,7 +1890,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_projector_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_projector_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -2003,7 +2003,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_healthy{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_healthy{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -2092,7 +2092,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_input_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_input_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -2168,7 +2168,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_line_current_amps{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_line_current_amps{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -2245,7 +2245,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_current_utilized_pct{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_current_utilized_pct{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -2330,7 +2330,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_active_power_watts{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_active_power_watts{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -2407,7 +2407,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_voltage_volts{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_voltage_volts{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -2484,7 +2484,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -2725,7 +2725,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_codec_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_codec_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -2887,7 +2887,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_matrix_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_matrix_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -3066,7 +3066,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_energy_kwh{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_energy_kwh{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -3143,7 +3143,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_frequency_hz{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_frequency_hz{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -3220,7 +3220,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_power_factor{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_power_factor{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -3297,7 +3297,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_apparent_power_va{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_apparent_power_va{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -3374,7 +3374,7 @@
           "editorMode": "code",
           "hide": false,
           "legendFormat": "__auto",
-          "expr": "last_over_time(avtools_pdu_query_out_of_balance_pct{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+          "expr": "max by (equipmentno) (last_over_time(avtools_pdu_query_out_of_balance_pct{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
           "instant": true,
           "range": false
         }
@@ -3900,7 +3900,7 @@
           "range": true,
           "instant": false,
           "legendFormat": "{{sensor}} (#{{sensorindex}})",
-          "expr": "avtools_pdu_query_temperature_c{equipmentno=\"$device\",submitter_environment=\"qa\"}"
+          "expr": "max by (equipmentno) (avtools_pdu_query_temperature_c{equipmentno=\"$device\",submitter_environment=\"qa\"})"
         }
       ],
       "fieldConfig": {
@@ -3954,7 +3954,7 @@
           "range": true,
           "instant": false,
           "legendFormat": "{{sensor}} (#{{sensorindex}})",
-          "expr": "avtools_pdu_query_humidity_pct{equipmentno=\"$device\",submitter_environment=\"qa\"}"
+          "expr": "max by (equipmentno) (avtools_pdu_query_humidity_pct{equipmentno=\"$device\",submitter_environment=\"qa\"})"
         }
       ],
       "fieldConfig": {
@@ -4217,7 +4217,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "timestamp(last_over_time(avtools_snmp_probe_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))*1000",
+              "expr": "max by (equipmentno) (timestamp(last_over_time(avtools_snmp_probe_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))*1000)",
               "range": true,
               "instant": false
             }
@@ -4280,7 +4280,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "(time() - timestamp(last_over_time(avtools_snmp_probe_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])))/60",
+              "expr": "min by (equipmentno) ((time() - timestamp(last_over_time(avtools_snmp_probe_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])))/60)",
               "range": true,
               "instant": false
             }
@@ -4351,7 +4351,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "last_over_time(avtools_snmp_probe_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d])",
+              "expr": "max by (equipmentno) (last_over_time(avtools_snmp_probe_status{equipmentno=\"$device\",submitter_environment=\"qa\"}[30d]))",
               "range": true,
               "instant": false
             }
@@ -4432,7 +4432,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_pdu_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_pdu_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "pdu"
@@ -4444,7 +4444,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_projector_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_projector_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "projector"
@@ -4456,7 +4456,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_codec_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_codec_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "codec"
@@ -4468,7 +4468,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_matrix_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_matrix_query_uptime_seconds{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "matrix"
@@ -4532,7 +4532,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_projector_query_lamp_hours{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_projector_query_lamp_hours{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "lamp hours"
@@ -4596,7 +4596,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_pdu_query_line_current_amps{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_pdu_query_line_current_amps{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "current"
@@ -4660,7 +4660,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_pdu_query_active_power_watts{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_pdu_query_active_power_watts{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "power"
@@ -4724,7 +4724,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_pdu_query_voltage_volts{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_pdu_query_voltage_volts{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "voltage"
@@ -4788,7 +4788,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_pdu_query_current_utilized_pct{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_pdu_query_current_utilized_pct{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "utilisation"
@@ -4854,7 +4854,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_pdu_query_power_factor{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_pdu_query_power_factor{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "pf"
@@ -4920,7 +4920,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_pdu_query_frequency_hz{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_pdu_query_frequency_hz{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "frequency"
@@ -4984,7 +4984,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "avtools_pdu_query_apparent_power_va{equipmentno=\"$device\",submitter_environment=\"qa\"}",
+              "expr": "max by (equipmentno) (avtools_pdu_query_apparent_power_va{equipmentno=\"$device\",submitter_environment=\"qa\"})",
               "range": true,
               "instant": false,
               "legendFormat": "apparent"
@@ -5048,7 +5048,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "count(avtools_pdu_query_outlet_state{equipmentno=\"$device\",submitter_environment=\"qa\"} == 1)",
+              "expr": "count(max by (equipmentno, outlet) (avtools_pdu_query_outlet_state{equipmentno=\"$device\",submitter_environment=\"qa\"}) == 1)",
               "range": true,
               "instant": false,
               "legendFormat": "active outlets"
@@ -5112,7 +5112,7 @@
                 "uid": "afcql1n10tnggc"
               },
               "editorMode": "code",
-              "expr": "count(avtools_device_if_oper_status{equipmentno=\"$device\",submitter_environment=\"qa\"} == 1)",
+              "expr": "count(max by (equipmentno, ifindex) (avtools_device_if_oper_status{equipmentno=\"$device\",submitter_environment=\"qa\"}) == 1)",
               "range": true,
               "instant": false,
               "legendFormat": "ifs up"
