@@ -1,5 +1,59 @@
 # Changelog
 
+## [1.8.4] — 2026-06-26 — codename: boros
+
+### Changed
+
+- **`Online Devices Without SNMP`** operational alert (`avnetsnmpdown`,
+  `avtools-network-state` group) hardened. This rule catches the
+  reachable-but-not-yielding case ping cannot see — a rotated community string,
+  a wedged SNMP agent, a dropped UDP/161 ACL, or a broken MIB all leave ping
+  green while SNMP data freezes (a failed probe emits `snmp_probe_status=0`, it
+  does not go absent, so the `== 0` test is the correct signal).
+  - `for: 0s` → **`for: 10m`**: no longer fires on a single transient SNMP cycle
+    miss; the real failure modes are persistent, so the ~10-minute delay is
+    immaterial while per-device noise from one-off UDP losses is suppressed.
+  - Added **`severity: warning`** (was unset): SNMP-stale-but-pingable is a
+    degradation, not an outage, and it now routes/colours accordingly.
+
+
+## [1.8.2] — 2026-06-26 — codename: boros
+
+### Added
+
+- **Fleet-availability SLO** (`avsloavailwarn` / `avsloavailcrit` in the
+  `avtools-slo` group): alarms on the share of the fleet reachable by ping
+  (`sum(reachable) / max(targeted)`). **Baseline-relative**, not absolute — it
+  fires when reachability drops >10% (warning) / >20% (critical) below its
+  trailing-day average. AV devices are routinely powered off, so the baseline
+  self-adjusts to the normal off-rate and the alarm flags only *unexpected* mass
+  unreachability. Per-device offline detection stays in the operational family
+  (`Devices Offline`) and is unchanged.
+- **Rooms dashboard**: *Fleet Availability (now)* stat + *Fleet Availability —
+  Over Time* timeseries (panels 33/34), so the real reachability distribution is
+  visible before any absolute target is considered.
+
+### Changed
+
+- **Details single-value panels** (stats, gauges, ON/OFF) now select the latest
+  replica with `topk by (equipmentno) (1, …)` instead of `max by (equipmentno)`.
+  `topk` preserves the winning series' labels, which is required for the
+  string-`_info` panels (Firmware, Status MIB, PDU status stats) and the
+  per-row tables (Interfaces, Outlets) — `max` dropped those display labels.
+- **Details timeseries panels** keep all N redundant-replica series (the prior
+  `max by (equipmentno)` collapse is reverted); legend collapsed to one entry.
+  More replicas → finer time-granularity. Aggregate *count* plots (Active
+  Outlets, Interfaces Up) stay replica-collapsed to a single true count.
+
+### Fixed
+
+- **Details freshness panels** (Last Checked, SNMP Last Sample, Minutes Since)
+  used `timestamp(last_over_time(…))`, which returns the *evaluation* time, not
+  the sample time — so "minutes since" read ≈0 regardless of staleness. Now use
+  the bare-selector `timestamp(…)` of the freshest replica (real sample age;
+  visible up to the 5-minute lookback, beyond which the freshness SLO fires).
+
+
 ## [1.5.0] — 2026-06-12 — codename: illidan
 
 ### Fixed
