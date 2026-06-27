@@ -264,11 +264,19 @@
         "summary": "EAM Assets without Metadata"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -375,11 +383,19 @@
         "summary": "EAM Assets without a Position"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -486,11 +502,19 @@
         "summary": "EAM Assets/Positions without a Parent Position"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -753,11 +777,19 @@
         "summary": "EAM Assets Missing Serial Numbers"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -864,11 +896,19 @@
         "summary": "EAM Assets with Misformatted Asset Code (should be CCAX-)"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -1131,11 +1171,19 @@
         "summary": "EAM Assets Missing Description"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -1398,11 +1446,19 @@
         "summary": "EAM-LanDB Equipment Devices with mismatched Serial Numbers"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -1665,11 +1721,19 @@
         "summary": "EAM-LanDB Equipment Devices with mismatched Descriptions"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -1932,11 +1996,19 @@
         "summary": "EAM Device Missing Manufacturer"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -2199,11 +2271,19 @@
         "summary": "EAM Device Missing Model"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -2466,11 +2546,19 @@
         "summary": "EAM Device Missing Status"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -2733,11 +2821,19 @@
         "summary": "EAM Device Missing Eqclass"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -3000,11 +3096,19 @@
         "summary": "EAM Device Missing Commission Date"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     },
@@ -3267,11 +3371,19 @@
         "summary": "EAM Device Missing Category (AVC/AVD)"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "inventory"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "120h"
       },
       "record": null
     }

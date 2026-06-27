@@ -52,6 +52,22 @@ _PG_DS_UIDS = {PROD_DS_UID, QA_DS_UID}
 QA_UID_SUFFIX = "-qa"
 QA_TITLE_PREFIX = "QA - "
 
+# Receiver/contact-point mapping prod -> qa. Applied PER RULE (preserving a rule's
+# own route) rather than forcing every rule onto one receiver, so dedicated routes
+# (e.g. the SLO route) survive the transform. Bijective: the reverse map recovers prod.
+RECEIVER_MAP = {
+    PROD_RECEIVER: QA_RECEIVER,  # "AV Tools" -> "AV Test"
+    "AV SLO": "AV SLO Test",  # dedicated SLO route
+}
+_RECEIVER_MAP_REV = {v: k for k, v in RECEIVER_MAP.items()}
+
+
+def _map_receiver(current: str, env: str) -> str:
+    """Map a rule's receiver to the target env, bijectively (unknown -> unchanged)."""
+    prod_name = _RECEIVER_MAP_REV.get(current, current)  # normalise qa->prod
+    return prod_name if env == "prod" else RECEIVER_MAP.get(prod_name, prod_name)
+
+
 # PromQL label matcher  submitter_environment="prod" | "qa"
 _ENV_LABEL_RE = re.compile(r'(submitter_environment\s*=\s*")(prod|qa)(")')
 
@@ -75,7 +91,6 @@ def patch_payload(env: str, src_path: Path, out_path: Path) -> None:
 
     if env == "prod":
         folder = PROD_FOLDER_UID
-        receiver = PROD_RECEIVER
         target_ds = PROD_DS_UID
         dash_uid = PROD_DASH_UID
         env_label = "prod"
@@ -83,7 +98,6 @@ def patch_payload(env: str, src_path: Path, out_path: Path) -> None:
         title_prefix = ""
     elif env == "qa":
         folder = QA_FOLDER_UID
-        receiver = QA_RECEIVER
         target_ds = QA_DS_UID
         dash_uid = QA_DASH_UID
         env_label = "qa"
@@ -134,11 +148,11 @@ def patch_payload(env: str, src_path: Path, out_path: Path) -> None:
                 if title.startswith(QA_TITLE_PREFIX):
                     rule["title"] = title[len(QA_TITLE_PREFIX) :]
 
-        # Receiver/contact point
+        # Receiver/contact point (per-rule map, preserves dedicated routes like SLO)
         ns = rule.get("notification_settings") or {}
         if not isinstance(ns, dict):
             ns = {}
-        ns["receiver"] = receiver
+        ns["receiver"] = _map_receiver(ns.get("receiver", PROD_RECEIVER), env)
         rule["notification_settings"] = ns
 
         # Dashboard link: update only __dashboardUid__ (keep panel id)

@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "DRAFT — child route to collapse the entire SLO alert family into ONE notification.",
+    "This is NOT a standalone PUT. The Grafana provisioning API replaces the WHOLE org-12",
+    "policy tree on PUT, which would wipe other teams' routes. Apply it with",
+    "scripts/add_slo_notification_route.py (GET -> upsert this route -> PUT).",
+    "",
+    "ACTIVATION REQUIREMENT: per-rule notification_settings BYPASS the policy tree. For this",
+    "route to take effect, remove notification_settings from the 6 avtools-slo rules (run the",
+    "patcher/strip step in SLO_BATCH_NOTES.md). Until then the shipped per-rule grouping is",
+    "what governs SLO notifications (deterministic: <=6 mails / 2h, never per-device spam).",
+    "",
+    "For qa: change receiver to 'AV Test'."
+  ],
+  "route": {
+    "receiver": "AV Tools",
+    "object_matchers": [["av_alert_family", "=", "slo"]],
+    "group_by": ["av_alert_family"],
+    "group_wait": "30s",
+    "group_interval": "5m",
+    "repeat_interval": "2h",
+    "continue": false
+  }
+}

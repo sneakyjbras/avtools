@@ -105,11 +105,19 @@
         "summary": "EAM device {{ $labels.equipmentno }} is in inventory but not networked"
       },
       "labels": {
-        "av_alert_type": "inventory"
+        "av_alert_type": "inventory",
+        "av_alert_family": "operational"
       },
       "isPaused": false,
       "notification_settings": {
-        "receiver": "AV Tools"
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "1m",
+        "group_interval": "5m",
+        "repeat_interval": "4h"
       },
       "record": null
     }
