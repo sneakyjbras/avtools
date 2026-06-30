@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 
 import click
 import requests
@@ -8,6 +7,7 @@ import structlog
 
 from avtools.core.av_tools import AVTools
 from avtools.exception.errors import NoRecordsFound
+from avtools.logsink import DEFAULT_LOG_FILE, bind_envelope, configure_logging
 from avtools.timeseries import metrics as m
 from avtools.timeseries.heartbeat import publish_heartbeat
 
@@ -106,16 +106,6 @@ def _emit_heartbeat(metric_name: str, **otlp) -> None:
 logger = structlog.get_logger(__name__)
 
 
-def _configure_logging(logs: bool) -> None:
-    log_level = logging.DEBUG if logs else logging.INFO
-
-    structlog.configure(
-        wrapper_class=structlog.make_filtering_bound_logger(log_level),
-    )
-    logging.basicConfig(level=log_level)
-    logger.info("Logging configured", log_level=log_level)
-
-
 # -----------------------------------------------------------------------------
 # CLI
 # -----------------------------------------------------------------------------
@@ -136,10 +126,17 @@ def _configure_logging(logs: bool) -> None:
     required=True,
     help="DBoD PostgreSQL URL (env DATABASE_URL).",
 )
+@click.option(
+    "--log-file",
+    envvar="AVTOOLS_LOG_FILE",
+    default=DEFAULT_LOG_FILE,
+    show_default=True,
+    help="JSON-lines log file tailed by Fluent Bit (env AVTOOLS_LOG_FILE).",
+)
 @click.pass_context
-def cli(ctx: click.Context, logs: bool, dbod_url: str) -> None:
+def cli(ctx: click.Context, logs: bool, dbod_url: str, log_file: str) -> None:
     ctx.obj = {"logs": logs, "dbod_url": dbod_url}
-    _configure_logging(logs)
+    configure_logging(logs, log_file)
 
 
 @cli.command("run-eam", help="Run EAM CRUD operations.")
@@ -159,6 +156,7 @@ def cli(ctx: click.Context, logs: bool, dbod_url: str) -> None:
 @_otlp_heartbeat_options
 @click.pass_context
 def run_eam(ctx: click.Context, username: str, password: str, **otlp) -> None:
+    bind_envelope("run-eam", otlp["environment"], otlp["hostgroup"])
     dbod_url = ctx.obj["dbod_url"]
     try:
         tools = AVTools(dbod_url)
@@ -198,6 +196,7 @@ def run_landb(
     audience: str,
     **otlp,
 ) -> None:
+    bind_envelope("run-landb", otlp["environment"], otlp["hostgroup"])
     dbod_url = ctx.obj["dbod_url"]
     try:
         tools = AVTools(dbod_url)
@@ -311,6 +310,7 @@ def snmp_timeseries(
     hostgroup: str,
     availability_zone: str,
 ) -> None:
+    bind_envelope("avtools", environment, hostgroup)
     dbod_url = ctx.obj["dbod_url"]
     tools = AVTools(dbod_url)
     tools.run_snmp_timeseries(

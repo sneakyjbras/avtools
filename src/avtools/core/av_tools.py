@@ -1095,6 +1095,8 @@ class AVTools:
 
         devices_total = 0
         samples_total = 0
+        polled_total: int | None = None
+        failed_total: int | None = None
 
         self.logger.info(
             "avtools_run_snmp_timeseries_start",
@@ -1160,6 +1162,8 @@ class AVTools:
                 ping_results, probe_results, query_results, interface_results = asyncio_run(
                     self._get_snmp_raw(devices, max_workers)
                 )
+                polled_total = sum(1 for r in probe_results if r.up == 1)
+                failed_total = devices_total - polled_total
             except KeyboardInterrupt:
                 status = "interrupted"
                 raise
@@ -1244,6 +1248,17 @@ class AVTools:
                 samples=samples_total,
                 otlp_endpoint=otlp_endpoint,
                 tasks=max_workers,
+            )
+
+            # Contract event (OpenSearch): one per cycle. polled/failed are None if
+            # the cycle failed before the SNMP probe phase (status conveys that).
+            self.logger.info(
+                "cycle_summary",
+                status=status,
+                targeted=devices_total,
+                polled=polled_total,
+                failed=failed_total,
+                duration_s=round(duration_s, 3),
             )
 
     async def _get_snmp_raw(
