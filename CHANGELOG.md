@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.8.6] — 2026-06-30 — codename: boros
+
+### Added
+
+- **Structured-log sink (`avtools.logsink`)** — the producer end of the OpenSearch
+  logging contract. structlog now renders to a JSON-lines file (tailed by Fluent
+  Bit → OTLP → `otel-logs_<tenant>`) **and** the console/journal at once. Envelope
+  fields (`service`, `host`, `submitter_environment`, `hostgroup`, `cycle_id`) are
+  bound as contextvars on every event; `--log-file` (env `AVTOOLS_LOG_FILE`,
+  default `/var/log/avtools/avtools.jsonl`) sets the path.
+- **`snmp_probe_failure` event** — per-device, with `equipmentno` / `reason` / `ip`.
+  Routed to a dedicated file-only logger so a mass-down period does not flood the
+  journal. SNMP failures are classified (`classify_snmp_failure`) into
+  `timeout | host_unreachable | network_unreachable | auth_failure | mib_error | unknown`.
+  NOTE: this stack is SNMPv2c, so a rotated community surfaces as **`timeout`**
+  (silent drop), not `auth_failure` — the rotated-credential alarm must therefore
+  key on a timeout-burst-while-ping-up, not on `auth_failure`.
+- **`cycle_summary` event** — one per SNMP cycle: `targeted` / `polled` / `failed` /
+  `duration_s` (+ `status`).
+
+### Changed
+
+- `AbstractDeviceHandler.probe()` now delegates to **`probe_with_reason()`**, which
+  returns `(ok, reason)`; `probe()` keeps its boolean contract. `ProbeResult` gained
+  a `reason` field (defaulted, so existing constructors are unaffected).
+
+
 ## [1.8.4] — 2026-06-26 — codename: boros
 
 ### Changed

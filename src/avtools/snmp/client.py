@@ -21,6 +21,7 @@ from avtools.snmp.queries import (
 )
 from avtools.postgres.inventory.orm.landb_ipaddress import CachedIPAddress
 from avtools.exception.errors import SNMPQueryExecutionError
+from avtools.logsink import event_logger
 
 logger = structlog.get_logger(__name__)
 
@@ -62,6 +63,7 @@ class ProbeResult:
     eqclass: str | None
     category: str | None
     sysdescr: str | None
+    reason: str | None = None
 
 
 @dataclass(slots=True)
@@ -163,6 +165,7 @@ class SNMPClient:
         self.factory = DeviceHandlerFactory(devices=self.targets)
         self.handlers = self.factory.get_handlers()  # ip -> handler
         self.log = logger.bind(component="SNMPClient")
+        self._events = event_logger()
 
         # Ping reliability knobs (per process).
         self.ping_timeout_s = int(ping_timeout_s)
@@ -524,26 +527,49 @@ class SNMPClient:
             ip = dev.ip
             eq = dev.equipment_no
             if not eq:
-                return ProbeResult(dev, str(ip) if ip else None, None, 0, None, None, None)
+                return ProbeResult(
+                    dev, str(ip) if ip else None, None, 0, None, None, None, "missing_equipmentno"
+                )
             if not ip:
-                return ProbeResult(dev, None, eq, 0, None, None, None)
+                return ProbeResult(dev, None, eq, 0, None, None, None, "missing_ip")
             handler = self.handlers.get(str(ip))
             if handler is None:
-                return ProbeResult(dev, str(ip), eq, 0, None, None, None)
+                return ProbeResult(dev, str(ip), eq, 0, None, None, None, "no_handler")
 
             eqclass, category = get_eqclass_category(dev)
 
             sysdescr: str | None = None
+            reason: str | None = None
             async with self._snmp_probe_sem:
-                ok = await asyncio.to_thread(handler.probe)
+                probe_with_reason = getattr(handler, "probe_with_reason", None)
+                if callable(probe_with_reason):
+                    ok, reason = await asyncio.to_thread(probe_with_reason)
+                else:  # handler implements only the boolean probe()
+                    ok = await asyncio.to_thread(handler.probe)
+                    reason = None if ok else "unknown"
                 if ok:
                     fetch = getattr(handler, "fetch_sysdescr", None)
                     if callable(fetch):
                         sysdescr = await asyncio.to_thread(fetch)
 
-            return ProbeResult(dev, str(ip), eq, 1 if ok else 0, eqclass, category, sysdescr)
+            return ProbeResult(
+                dev, str(ip), eq, 1 if ok else 0, eqclass, category, sysdescr, reason
+            )
 
         results = await asyncio.gather(*(probe_one(d) for d in devices))
+
+        # Per-device structured failure events -> JSON file (OpenSearch) only, so the
+        # journal is not flooded during mass-down periods. The alarms aggregate these
+        # by `reason` (and, joined with ping, the ping-up-but-SNMP-timeout fingerprint
+        # of a rotated v2c community).
+        for r in results:
+            if r.up == 0 and r.equipmentno:
+                self._events.warning(
+                    "snmp_probe_failure",
+                    equipmentno=r.equipmentno,
+                    reason=r.reason or "unknown",
+                    ip=r.ip,
+                )
 
         alive: list[CachedIPAddress] = []
         for r in results:
