@@ -1,0 +1,70 @@
+# Sharded SNMP/ping sweep as a Kubernetes Indexed Job, fired every 5 minutes.
+#
+# The fleet is split N ways: each pod gets JOB_COMPLETION_INDEX = 0..N-1 (set
+# automatically by Indexed mode), which the app reads as --shard-index. It keeps
+# only the devices where crc32(equipment_no) % SHARD_TOTAL == JOB_COMPLETION_INDEX.
+#
+#   *** completions MUST equal SHARD_TOTAL, or some devices are never polled. ***
+#   (The app also refuses to start on a mismatched/out-of-range shard.)
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: avtools-snmp
+  labels:
+    app: avtools
+    component: snmp-timeseries
+spec:
+  schedule: "*/5 * * * *"          # every 5 min; sharding keeps each cycle fast
+  concurrencyPolicy: Forbid         # never run two cycles at once
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      completionMode: Indexed       # each pod gets JOB_COMPLETION_INDEX 0..N-1
+      completions: 8                # N shards  ---- MUST equal SHARD_TOTAL below
+      parallelism: 8                # run all N shards simultaneously
+      backoffLimit: 2               # retry a failed shard (the "alarm + retry")
+      activeDeadlineSeconds: 240     # kill a stuck cycle before the next one fires
+      ttlSecondsAfterFinished: 900   # auto-clean finished Jobs after 15 min
+      template:
+        metadata:
+          labels:
+            app: avtools
+            component: snmp-timeseries
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: snmp
+              image: image-registry.openshift-image-registry.svc:5000/avtools/avtools:latest
+              imagePullPolicy: IfNotPresent   # required by CERN admission policy
+              command: ["avtools", "--logs", "snmp-timeseries"]
+              env:
+                - name: SHARD_TOTAL
+                  value: "8"                   # ---- MUST equal completions above
+                - name: THREADS
+                  value: "8"                   # per-pod pool; 8 pods x 8 = 64 total
+                # JOB_COMPLETION_INDEX is injected automatically by Indexed mode
+                # and read by the app as --shard-index; no need to set it here.
+              envFrom:
+                - configMapRef:
+                    name: avtools-config
+                - secretRef:
+                    name: avtools-secrets
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                # NOTE: ICMP ping needs CAP_NET_RAW. Under the restricted SCC
+                # (caps dropped) SNMP still works but ping may fail. See README.
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "1"
+                  memory: "512Mi"
