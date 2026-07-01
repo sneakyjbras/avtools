@@ -130,16 +130,18 @@ class SNMPObserverRouter:
         # SLO expressions (which sum/count across shards) read garbage. The label
         # is omitted for the single-emitter case (shard_total <= 1) so the current
         # unsharded deployment keeps its existing series identity unchanged.
-        shard_labels: dict[str, str] = (
-            {"shard": str(shard_index)} if shard_total > 1 else {}
-        )
+        shard_labels: dict[str, str] = {"shard": str(shard_index)} if shard_total > 1 else {}
         polled = len(ping_l)
         if targeted > 0:
             ratio = polled / targeted
             samples = list(samples) + [
-                MetricSample(name=m.SNMP_DEVICES_TARGETED, value=targeted, labels=dict(shard_labels)),
+                MetricSample(
+                    name=m.SNMP_DEVICES_TARGETED, value=targeted, labels=dict(shard_labels)
+                ),
                 MetricSample(name=m.SNMP_DEVICES_POLLED, value=polled, labels=dict(shard_labels)),
-                MetricSample(name=m.SNMP_COVERAGE_RATIO, value=round(ratio, 4), labels=dict(shard_labels)),
+                MetricSample(
+                    name=m.SNMP_COVERAGE_RATIO, value=round(ratio, 4), labels=dict(shard_labels)
+                ),
             ]
         if cycle_duration_s is not None:
             samples = list(samples) + [

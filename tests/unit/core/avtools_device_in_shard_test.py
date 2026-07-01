@@ -23,10 +23,7 @@ SAMPLE_IDS = [f"EQ{i:05d}" for i in range(5000)]
 def test_partition_is_complete_and_disjoint(shard_total: int) -> None:
     """Every device maps to exactly one shard for a given N."""
     for equipment_no in SAMPLE_IDS:
-        owning = [
-            k for k in range(shard_total)
-            if device_in_shard(equipment_no, k, shard_total)
-        ]
+        owning = [k for k in range(shard_total) if device_in_shard(equipment_no, k, shard_total)]
         assert owning == [owning[0]], (equipment_no, owning)  # exactly one shard
 
 
