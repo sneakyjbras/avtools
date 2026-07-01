@@ -26,7 +26,7 @@
               "uid": "afcql1n10tnggc"
             },
             "editorMode": "code",
-            "expr": "max(avtools_snmp_coverage_ratio{submitter_environment=\"prod\"})",
+            "expr": "sum(avtools_snmp_devices_polled{submitter_environment=\"prod\"}) / sum(avtools_snmp_devices_targeted{submitter_environment=\"prod\"})",
             "instant": true,
             "range": false,
             "intervalMs": 1000,
@@ -128,7 +128,7 @@
               "uid": "afcql1n10tnggc"
             },
             "editorMode": "code",
-            "expr": "max(avtools_snmp_coverage_ratio{submitter_environment=\"prod\"})",
+            "expr": "sum(avtools_snmp_devices_polled{submitter_environment=\"prod\"}) / sum(avtools_snmp_devices_targeted{submitter_environment=\"prod\"})",
             "instant": true,
             "range": false,
             "intervalMs": 1000,
@@ -536,7 +536,7 @@
               "uid": "afcql1n10tnggc"
             },
             "editorMode": "code",
-            "expr": "max(avtools_snmp_devices_targeted{submitter_environment=\"prod\"}) < (0.90 * avg_over_time(max(avtools_snmp_devices_targeted{submitter_environment=\"prod\"})[1d:10m]))",
+            "expr": "sum(avtools_snmp_devices_targeted{submitter_environment=\"prod\"}) < (0.90 * avg_over_time(sum(avtools_snmp_devices_targeted{submitter_environment=\"prod\"})[1d:10m]))",
             "instant": true,
             "range": false,
             "intervalMs": 1000,

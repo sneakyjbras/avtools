@@ -57,6 +57,8 @@ class DummyAVTools:
         submitter_environment: str = "prod",
         submitter_hostgroup: str = "itdcim/av",
         availability_zone: str = "cern-geneva-b",
+        shard_index: int = 0,
+        shard_total: int = 1,
     ) -> None:
         type(self).calls.append(
             (
@@ -73,6 +75,8 @@ class DummyAVTools:
                     "submitter_environment": submitter_environment,
                     "submitter_hostgroup": submitter_hostgroup,
                     "availability_zone": availability_zone,
+                    "shard_index": shard_index,
+                    "shard_total": shard_total,
                 },
             )
         )
@@ -162,6 +166,8 @@ def test_snmp_timeseries_uses_envvars_for_required_and_optional_flags() -> None:
                 "submitter_environment": "prod",
                 "submitter_hostgroup": "itdcim/av",
                 "availability_zone": "cern-geneva-b",
+                "shard_index": 0,
+                "shard_total": 1,
             },
         )
     ]

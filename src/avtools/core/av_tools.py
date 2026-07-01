@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import zlib
 from asyncio import run as asyncio_run
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable, Sequence
@@ -120,6 +121,25 @@ from avtools.utils.eam_sanitizer import EAMTextSanitizer
 from avtools.utils.sync_reporting import SyncReportLogger
 
 Model = TypeVar("Model")
+
+
+def device_in_shard(equipment_no: str, shard_index: int, shard_total: int) -> bool:
+    """Return True if this device belongs to the caller's shard.
+
+    Pure function of the device key: every pod runs the SAME hash over the SAME
+    ``equipment_no`` and keeps only the rows where ``crc32 % N == my_index``. The
+    union of all shards is the full fleet and their intersection is empty (each
+    device maps to exactly one shard), so N pods partition the work with zero
+    inter-pod coordination — the property that lets this stay masterless/AP.
+
+    ``crc32`` is used deliberately instead of the builtin ``hash()``: ``hash()``
+    is salted per process (``PYTHONHASHSEED``), so two pods would compute
+    different partitions and silently create gaps + overlaps. ``crc32`` is
+    stable across processes and hosts.
+    """
+    if shard_total <= 1:
+        return True
+    return zlib.crc32(equipment_no.encode("utf-8")) % shard_total == shard_index
 
 
 class AVTools:
@@ -1055,6 +1075,8 @@ class AVTools:
         submitter_environment: str = "prod",
         submitter_hostgroup: str = "itdcim/av",
         availability_zone: str = "cern-geneva-b",
+        shard_index: int = 0,
+        shard_total: int = 1,
     ) -> None:
         """Collect ping/SNMP metrics and publish to Prometheus via MONIT OTLP.
 
@@ -1097,6 +1119,7 @@ class AVTools:
         samples_total = 0
         polled_total: int | None = None
         failed_total: int | None = None
+        collect_duration_s: float | None = None
 
         self.logger.info(
             "avtools_run_snmp_timeseries_start",
@@ -1117,6 +1140,29 @@ class AVTools:
 
             try:
                 devices = self._load_timeseries_targets_from_landb_ipaddresses()
+
+                # Shard partition: keep only the devices that hash to THIS pod's
+                # shard. Applied before device_lookup/collection so both the work
+                # and the coverage denominator (`targeted`) are shard-scoped. With
+                # shard_total == 1 this is a no-op and the unsharded deployment is
+                # unaffected. `targeted` per shard is what the fleet-wide coverage
+                # SLO sums back up across shards.
+                if shard_total > 1:
+                    devices_before_shard = len(devices)
+                    devices = [
+                        d
+                        for d in devices
+                        if d.equipment_no
+                        and device_in_shard(d.equipment_no, shard_index, shard_total)
+                    ]
+                    self.logger.info(
+                        "snmp_shard_applied",
+                        shard_index=shard_index,
+                        shard_total=shard_total,
+                        devices_in_shard=len(devices),
+                        devices_fleet=devices_before_shard,
+                    )
+
                 devices_total = len(devices)
 
                 # Pre-compute per-device label dicts from EAM/LanDB metadata.
@@ -1159,9 +1205,11 @@ class AVTools:
             self.logger.info("Fetching LanDB IP targets", total=devices_total, tasks=max_workers)
 
             try:
+                collect_started = time()
                 ping_results, probe_results, query_results, interface_results = asyncio_run(
                     self._get_snmp_raw(devices, max_workers)
                 )
+                collect_duration_s = time() - collect_started
                 polled_total = sum(1 for r in probe_results if r.up == 1)
                 failed_total = devices_total - polled_total
             except KeyboardInterrupt:
@@ -1206,6 +1254,9 @@ class AVTools:
                     interfaces=interface_results,
                     device_lookup=device_lookup,
                     targeted=devices_total,
+                    shard_index=shard_index,
+                    shard_total=shard_total,
+                    cycle_duration_s=collect_duration_s,
                 )
 
                 samples_total = routing_stats.ts_samples
@@ -1259,6 +1310,8 @@ class AVTools:
                 polled=polled_total,
                 failed=failed_total,
                 duration_s=round(duration_s, 3),
+                shard_index=shard_index,
+                shard_total=shard_total,
             )
 
     async def _get_snmp_raw(
