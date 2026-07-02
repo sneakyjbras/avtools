@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.8.7] — 2026-07-02 — codename: boros
+
+### Changed
+
+- **`cycle_summary` now splits `failed`** into `failed_equipment` (down devices that
+  carry an `equipmentno` — the actionable set that also emits `snmp_probe_failure`)
+  and `unreachable_targets` (down raw LanDB IP targets never SNMP-managed — structural
+  noise). `failed` is retained and always equals their sum, so existing consumers are
+  unaffected. Alerting should key on `failed_equipment`, not the raw `failed` total.
+
+
 ## [1.8.6] — 2026-06-30 — codename: boros
 
 ### Added
