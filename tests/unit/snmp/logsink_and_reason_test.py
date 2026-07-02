@@ -25,7 +25,13 @@ def test_json_sink_emits_contract_envelope(tmp_path):
     bind_envelope("avtools", "prod", "itdcim/av")
 
     structlog.get_logger("avtools.core").info(
-        "cycle_summary", targeted=1358, polled=1351, failed=7, duration_s=99.4
+        "cycle_summary",
+        targeted=1358,
+        polled=1351,
+        failed=7,
+        failed_equipment=2,
+        unreachable_targets=5,
+        duration_s=99.4,
     )
 
     events = _read(log_file)
@@ -43,6 +49,10 @@ def test_json_sink_emits_contract_envelope(tmp_path):
     assert cs["service"] == "avtools"
     assert cs["submitter_environment"] == "prod"
     assert cs["targeted"] == 1358 and cs["polled"] == 1351 and cs["failed"] == 7
+    # failed splits into equipment-mapped (actionable) vs. unreachable raw targets,
+    # and the two always reconcile with the total.
+    assert cs["failed_equipment"] == 2 and cs["unreachable_targets"] == 5
+    assert cs["failed_equipment"] + cs["unreachable_targets"] == cs["failed"]
 
 
 def test_per_device_failure_is_file_only_and_correlates(tmp_path, capsys):
