@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.8.7] — 2026-07-02 — codename: boros
+
+### Added
+
+- **Sharded SNMP collection** — the fleet can be partitioned across N pods with no
+  coordinator: each shard keeps devices where `crc32(equipment_no) % shard_total ==
+  shard_index` (`device_in_shard`), a pure function of the device key, so the shards
+  union to the full fleet with empty intersection and zero inter-pod coordination.
+  Exposed via `--shard-index` / `--shard-total` (validated: total ≥ 1, index in
+  range). `crc32` is used deliberately over the salted builtin `hash()` so every pod
+  computes the same partition across processes and hosts.
+- **OpenShift deploy manifests** (`deploy/openshift/`: Dockerfile, configmap,
+  cronjob, README) to run avtools as sharded pods.
+- **Kubernetes reliability SLOs** (`grafana/alerts/avtools-k8s-slo.rulegroup`).
+- **`.env.example`** for local sharded-sweep testing.
+
+
 ## [1.8.6] — 2026-06-30 — codename: boros
 
 ### Added
