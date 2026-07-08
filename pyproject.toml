@@ -58,8 +58,16 @@ pyasn1            = ">=0.4.8,<0.5.0"
 pydantic          = ">=1.10,<2"
 pysnmp            = "4.4.12"
 requests          = "^2.31.0"
+# Optional: error tracking (CERN Sentry). Installed via the `sentry` extra; the
+# app's init_sentry() is a no-op unless SENTRY_DSN is set, so the monolith wheel
+# (installed without the extra) is unaffected.
+sentry-sdk        = { version = ">=2,<3", optional = true }
 sqlalchemy        = "^2.0.39"
 structlog         = "^25.1.0"
+
+
+[tool.poetry.extras]
+sentry = ["sentry-sdk"]
 
 
 [[tool.poetry.packages]]

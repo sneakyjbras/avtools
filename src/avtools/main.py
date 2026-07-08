@@ -8,6 +8,7 @@ import structlog
 from avtools.core.av_tools import AVTools
 from avtools.exception.errors import NoRecordsFound
 from avtools.logsink import DEFAULT_LOG_FILE, bind_envelope, configure_logging
+from avtools.observability import init_sentry
 from avtools.timeseries import metrics as m
 from avtools.timeseries.heartbeat import publish_heartbeat
 
@@ -137,6 +138,8 @@ logger = structlog.get_logger(__name__)
 def cli(ctx: click.Context, logs: bool, dbod_url: str, log_file: str) -> None:
     ctx.obj = {"logs": logs, "dbod_url": dbod_url}
     configure_logging(logs, log_file)
+    # No-op unless SENTRY_DSN is set (and sentry-sdk installed); safe on the monolith.
+    init_sentry()
 
 
 @cli.command("run-eam", help="Run EAM CRUD operations.")
