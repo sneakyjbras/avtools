@@ -175,12 +175,3 @@ src/avtools/av_device_cache.json
 
 # Remove environment file
 .env.prod
-
-# Filled-in Kubernetes secret (use deploy/k8s/secrets/secret.example.yaml as the template)
-deploy/**/secret.yaml
-
-# Terraform
-terraform/.terraform/
-terraform/*.tfstate
-terraform/*.tfstate.*
-terraform/terraform.tfvars

@@ -467,7 +467,7 @@ docker_build_qa:
     - |
       /kaniko/executor \
         --context "$CI_PROJECT_DIR" \
-        --dockerfile "$CI_PROJECT_DIR/deploy/k8s/Dockerfile" \
+        --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
         --build-arg AVTOOLS_INDEX_URL=https://qa-pypi-itdcim.cern.ch/simple \
         --destination registry.cern.ch/itdcim/avtools:qa \
         --destination registry.cern.ch/itdcim/avtools:qa-$CI_COMMIT_SHORT_SHA
@@ -481,7 +481,7 @@ docker_build_prod:
     - |
       /kaniko/executor \
         --context "$CI_PROJECT_DIR" \
-        --dockerfile "$CI_PROJECT_DIR/deploy/k8s/Dockerfile" \
+        --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
         --build-arg AVTOOLS_INDEX_URL=https://pypi-itdcim.cern.ch/simple \
         --destination registry.cern.ch/itdcim/avtools:prod \
         --destination registry.cern.ch/itdcim/avtools:$CI_COMMIT_TAG

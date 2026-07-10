@@ -4,25 +4,22 @@
 
 ### Added
 
-- **Kubernetes-on-OpenStack (Magnum) platform** under `deploy/k8s/` and `terraform/`:
-  Terraform for the Magnum cluster (1 master + 3 workers, autoscale 3–6, GitLab-managed
-  state); a Helm chart rendering the three services as Indexed CronJobs
-  (`snmp-timeseries` 8×16, `run-eam` 4×16, `run-landb` 1×8, `*/2` cadence); ArgoCD
-  AppProject + ApplicationSet (QA/PROD, master-mirrors-QA / tags→PROD) + app-of-apps;
-  an optional Fluent Bit → OpenSearch shipper and a freshness PrometheusRule (both off
-  by default); and `deploy/k8s/scripts/sync-secret.sh` bridging tbag → K8s Secret.
+- **Container image build for Kubernetes (Magnum).** A non-root `Dockerfile` at the
+  repo root (`python:3.11-slim`, `iputils-ping` for `NET_RAW` ICMP, env-selectable
+  ITDCIM PyPI index) plus a kaniko `docker_build` CI job publishing
+  `registry.cern.ch/itdcim/avtools:{qa,prod}` (QA on `qa`/`master`, PROD on tags).
 - **Sentry error tracking** (`avtools.observability.sentry`): a no-op unless `SENTRY_DSN`
   is set, with a `before_send` that scrubs device IPs / equipment numbers; shipped as an
-  optional `[sentry]` extra so the monolith wheel is unaffected.
-- **CI**: kaniko `docker_build` (QA on `qa`/`master`, PROD on tags; env-selected PyPI
-  index) pushing `registry.cern.ch/itdcim/avtools:{qa,prod}`, and scripted `sentry-cli`
+  optional `[sentry]` extra so the monolith wheel is unaffected. Scripted `sentry-cli`
   release jobs that skip cleanly until the project token is set.
 
 ### Changed
 
-- **Replaced the OpenShift deploy** (`deploy/openshift/`) with the Magnum/GitOps stack
-  above; the `Dockerfile` is rewritten for a non-root Magnum image with `NET_RAW` ICMP
-  ping and an env-selectable ITDCIM PyPI index.
+- **Deployment split out into `itdcim/av-tools-infra`.** The Terraform (Magnum cluster),
+  Helm chart, ArgoCD manifests, and the tbag→Secret bridge now live in that dedicated
+  GitOps repo (app/config separation); this repo owns only the application and the
+  container image it publishes. Replaced the former OpenShift deploy
+  (`deploy/openshift/`).
 
 
 ## [1.8.7] — 2026-07-02 — codename: boros
