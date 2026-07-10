@@ -24,7 +24,7 @@ serviceAccount:
 
 # Native K8s Secret populated by the tbag bridge (deploy/k8s/scripts/sync-secret.sh).
 # The chart NEVER templates secret values — it only references this name.
-secretName: avtools-secrets
+secretName: avtools-secrets # pragma: allowlist secret
 
 # Non-secret config → ConfigMap (envFrom on every job). The *_username / client_id
 # halves are non-secret (they live in Puppet hiera, not teigi); the passwords are

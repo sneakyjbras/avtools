@@ -28,8 +28,8 @@ NAMESPACE="${K8S_NAMESPACE:-avtools-${ENVIRONMENT}}"
 SECRET_NAME="${SECRET_NAME:-avtools-secrets}"
 
 case "$ENVIRONMENT" in
-  qa)   db_key="database_url_qa"; eam_key="eam_qa_pwd"; landb_key="landb_qa_pwd" ;;
-  prod) db_key="database_url";    eam_key="eam_pwd";    landb_key="landb_pwd" ;;
+  qa)   db_key="database_url_qa"; eam_key="eam_qa_pwd"; landb_key="landb_qa_pwd" ;; # pragma: allowlist secret
+  prod) db_key="database_url";    eam_key="eam_pwd";    landb_key="landb_pwd" ;; # pragma: allowlist secret
   *) echo "ERROR: AVTOOLS_ENVIRONMENT must be qa or prod (got '$ENVIRONMENT')." >&2; exit 2 ;;
 esac
 
@@ -43,7 +43,7 @@ landb_secret="$(read_key "$landb_key")"
 # Optional keys (don't fail if not yet provisioned).
 logs_pwd="$(read_key avtools_logs_pwd 2>/dev/null || true)"
 
-for pair in "DATABASE_URL:$db_url" "MONIT_PASSWORD:$monit_pwd" "MY_PASSWORD:$eam_pwd" "LANDB_CLIENT_SECRET:$landb_secret"; do
+for pair in "DATABASE_URL:$db_url" "MONIT_PASSWORD:$monit_pwd" "MY_PASSWORD:$eam_pwd" "LANDB_CLIENT_SECRET:$landb_secret"; do # pragma: allowlist secret
   if [[ -z "${pair#*:}" ]]; then
     echo "ERROR: tbag returned empty for ${pair%%:*}; refusing to write an incomplete secret." >&2
     exit 1
