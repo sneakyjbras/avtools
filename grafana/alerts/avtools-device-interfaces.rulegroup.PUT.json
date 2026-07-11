@@ -100,8 +100,8 @@
           "grafana_folder"
         ],
         "group_wait": "1m",
-        "group_interval": "1h",
-        "repeat_interval": "6h"
+        "group_interval": "168h",
+        "repeat_interval": "168h"
       },
       "record": null
     }

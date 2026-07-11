@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.8.10] — 2026-07-11 — codename: boros
+
+### Changed
+
+- **All alert notifications collapsed to a weekly cadence.** Both
+  `group_interval` and `repeat_interval` are set to `168h` (1 week) on every
+  rule across `grafana/alerts/*.rulegroup.PUT.json`, so no alert group can email
+  more than ~once per week regardless of how much its membership churns. This is
+  the agreed fallback after the per-family tuning in 1.8.8 (group_interval 1h,
+  repeat 6h/1w) did not reduce mail volume enough. The `for: 5m` flap damping
+  from 1.8.8 is retained.
+- **Note:** these settings live in Grafana and only change when the Grafana
+  alert deploy job actually runs (`deploy_grafana_alerts_qa` / `_prod`). Editing,
+  merging, or tagging does not itself push anything to Grafana — the manual
+  deploy button must be clicked (or `sync_grafana_rulegroup.sh` run with a token).
+
+
 ## [1.8.9] — 2026-07-11 — codename: boros
 
 ### Fixed

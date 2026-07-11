@@ -275,7 +275,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -394,7 +394,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -513,7 +513,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -788,7 +788,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -907,7 +907,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -1182,7 +1182,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -1457,7 +1457,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -1732,7 +1732,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -2007,7 +2007,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -2282,7 +2282,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -2557,7 +2557,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -2832,7 +2832,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -3107,7 +3107,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
@@ -3382,7 +3382,7 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "1h",
+        "group_interval": "168h",
         "repeat_interval": "168h"
       },
       "record": null
