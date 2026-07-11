@@ -1,5 +1,76 @@
 # Changelog
 
+## [1.8.9] — 2026-07-11 — codename: boros
+
+### Fixed
+
+- **QA Grafana deploys now also appear on tag pipelines.** In 1.8.8 the QA jobs
+  (`deploy_grafana_qa`, `deploy_grafana_alerts_qa`) were gated to
+  `$CI_COMMIT_BRANCH == "qa"`, which is empty on tag pipelines — so tagging a
+  release hid the QA deploy buttons. Added a `$CI_COMMIT_TAG` manual rule to
+  both, so a tagged release can be validated in QA before the PROD (tag-only)
+  buttons are used. PROD jobs unchanged.
+
+
+## [1.8.8] — 2026-07-11 — codename: boros
+
+### Changed
+
+- **Alert notification cadence retuned to stop the 5-minute mail flood.** Across
+  the `grafana/alerts/*.rulegroup.PUT.json` groups: `group_interval` `5m → 1h`
+  (caps re-mails on group-membership churn to hourly), `repeat_interval` split
+  by `av_alert_type` — operational/environmental/SLO `→ 6h`, inventory
+  (`eam-dq-weekly`, `not-networked`) `→ 168h` (weekly) — and `for` `0s → 5m` on
+  the flappy operational rules (`network-state` offline, `pdu-power-quality`,
+  `pdu-state`) to damp transient flaps at the source. Real outages still remind
+  every 6h; slow inventory conditions go quiet for a week. The QA patcher leaves
+  these timing fields untouched, so QA inherits the same cadence.
+- **CI: Grafana deploys are environment-per-trigger.** `deploy_grafana_qa` /
+  `deploy_grafana_alerts_qa` are offered as optional manual jobs on `qa`-branch
+  commits/merges; `deploy_grafana_prod` / `deploy_grafana_alerts_prod` appear
+  only on tag pipelines (promote-to-production). All four are `allow_failure:
+  true` so the manual buttons are non-blocking. (1.8.9 also surfaces the QA jobs
+  on tag pipelines.)
+
+
+## [1.8.7] — 2026-07-02 — codename: boros
+
+### Changed
+
+- **`cycle_summary` now splits `failed`** into `failed_equipment` (down devices that
+  carry an `equipmentno` — the actionable set that also emits `snmp_probe_failure`)
+  and `unreachable_targets` (down raw LanDB IP targets never SNMP-managed — structural
+  noise). `failed` is retained and always equals their sum, so existing consumers are
+  unaffected. Alerting should key on `failed_equipment`, not the raw `failed` total.
+
+
+## [1.8.6] — 2026-06-30 — codename: boros
+
+### Added
+
+- **Structured-log sink (`avtools.logsink`)** — the producer end of the OpenSearch
+  logging contract. structlog now renders to a JSON-lines file (tailed by Fluent
+  Bit → OTLP → `otel-logs_<tenant>`) **and** the console/journal at once. Envelope
+  fields (`service`, `host`, `submitter_environment`, `hostgroup`, `cycle_id`) are
+  bound as contextvars on every event; `--log-file` (env `AVTOOLS_LOG_FILE`,
+  default `/var/log/avtools/avtools.jsonl`) sets the path.
+- **`snmp_probe_failure` event** — per-device, with `equipmentno` / `reason` / `ip`.
+  Routed to a dedicated file-only logger so a mass-down period does not flood the
+  journal. SNMP failures are classified (`classify_snmp_failure`) into
+  `timeout | host_unreachable | network_unreachable | auth_failure | mib_error | unknown`.
+  NOTE: this stack is SNMPv2c, so a rotated community surfaces as **`timeout`**
+  (silent drop), not `auth_failure` — the rotated-credential alarm must therefore
+  key on a timeout-burst-while-ping-up, not on `auth_failure`.
+- **`cycle_summary` event** — one per SNMP cycle: `targeted` / `polled` / `failed` /
+  `duration_s` (+ `status`).
+
+### Changed
+
+- `AbstractDeviceHandler.probe()` now delegates to **`probe_with_reason()`**, which
+  returns `(ok, reason)`; `probe()` keeps its boolean contract. `ProbeResult` gained
+  a `reason` field (defaulted, so existing constructors are unaffected).
+
+
 ## [1.8.4] — 2026-06-26 — codename: boros
 
 ### Changed

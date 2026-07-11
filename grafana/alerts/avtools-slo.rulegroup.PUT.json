@@ -100,8 +100,8 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "5m",
-        "repeat_interval": "2h"
+        "group_interval": "1h",
+        "repeat_interval": "6h"
       },
       "record": null
     },
@@ -202,8 +202,8 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "5m",
-        "repeat_interval": "2h"
+        "group_interval": "1h",
+        "repeat_interval": "6h"
       },
       "record": null
     },
@@ -304,8 +304,8 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "5m",
-        "repeat_interval": "2h"
+        "group_interval": "1h",
+        "repeat_interval": "6h"
       },
       "record": null
     },
@@ -406,8 +406,8 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "5m",
-        "repeat_interval": "2h"
+        "group_interval": "1h",
+        "repeat_interval": "6h"
       },
       "record": null
     },
@@ -508,8 +508,8 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "5m",
-        "repeat_interval": "2h"
+        "group_interval": "1h",
+        "repeat_interval": "6h"
       },
       "record": null
     },
@@ -610,8 +610,8 @@
           "grafana_folder"
         ],
         "group_wait": "30s",
-        "group_interval": "5m",
-        "repeat_interval": "2h"
+        "group_interval": "1h",
+        "repeat_interval": "6h"
       },
       "record": null
     }

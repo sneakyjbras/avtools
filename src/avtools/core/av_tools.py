@@ -1095,6 +1095,10 @@ class AVTools:
 
         devices_total = 0
         samples_total = 0
+        polled_total: int | None = None
+        failed_total: int | None = None
+        failed_equipment: int | None = None
+        unreachable_targets: int | None = None
 
         self.logger.info(
             "avtools_run_snmp_timeseries_start",
@@ -1160,6 +1164,14 @@ class AVTools:
                 ping_results, probe_results, query_results, interface_results = asyncio_run(
                     self._get_snmp_raw(devices, max_workers)
                 )
+                polled_total = sum(1 for r in probe_results if r.up == 1)
+                failed_total = devices_total - polled_total
+                # Split the failures: equipment-mapped devices that are down (these emit
+                # snmp_probe_failure and are the actionable signal) vs. targets with no
+                # equipmentno (raw LanDB IPs never SNMP-managed — structural noise). The
+                # two always reconcile: failed_equipment + unreachable_targets == failed.
+                failed_equipment = sum(1 for r in probe_results if r.up == 0 and r.equipmentno)
+                unreachable_targets = failed_total - failed_equipment
             except KeyboardInterrupt:
                 status = "interrupted"
                 raise
@@ -1244,6 +1256,21 @@ class AVTools:
                 samples=samples_total,
                 otlp_endpoint=otlp_endpoint,
                 tasks=max_workers,
+            )
+
+            # Contract event (OpenSearch): one per cycle. polled/failed and the two
+            # breakdown counts are None if the cycle failed before the SNMP probe phase
+            # (status conveys that). `failed` = failed_equipment + unreachable_targets;
+            # alert on failed_equipment, not the raw failed total (see AVTOOLS-OPENSEARCH).
+            self.logger.info(
+                "cycle_summary",
+                status=status,
+                targeted=devices_total,
+                polled=polled_total,
+                failed=failed_total,
+                failed_equipment=failed_equipment,
+                unreachable_targets=unreachable_targets,
+                duration_s=round(duration_s, 3),
             )
 
     async def _get_snmp_raw(

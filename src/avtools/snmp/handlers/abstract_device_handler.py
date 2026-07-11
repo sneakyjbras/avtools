@@ -59,6 +59,47 @@ def _as_int(value: Any) -> int | None:
         return None
 
 
+def classify_snmp_failure(error_indication: object, error_status: object) -> str:
+    """Map a pysnmp ``(errorIndication, errorStatus)`` to a stable reason keyword.
+
+    Enum: ``timeout`` | ``host_unreachable`` | ``network_unreachable`` |
+    ``auth_failure`` | ``mib_error`` | ``unknown``.
+
+    NOTE: this stack is SNMPv2c, so a rotated/wrong community manifests as
+    ``timeout`` (the agent drops the request silently), not ``auth_failure``
+    (a v3/USM condition, matched here only for completeness).
+    """
+    if error_indication:
+        t = str(error_indication).lower()
+        if "timeout" in t or "timed out" in t or "timedout" in t or "no snmp response" in t:
+            return "timeout"
+        if "no route to host" in t or "host unreachable" in t or "host is unreachable" in t:
+            return "host_unreachable"
+        if "network is unreachable" in t or "network unreachable" in t:
+            return "network_unreachable"
+        if any(
+            s in t
+            for s in (
+                "unknown user",
+                "unknownuser",
+                "wrong digest",
+                "wrongdigest",
+                "authentication",
+                "decryption",
+                "security level",
+                "securitylevel",
+                "wrong security",
+                "wrongsecurity",
+            )
+        ):
+            return "auth_failure"
+        return "unknown"
+    if error_status:
+        # The agent answered but returned an SNMP-level error (noSuchName, genErr, ...).
+        return "mib_error"
+    return "unknown"
+
+
 class AbstractDeviceHandler(ABC):
     """
     Base class for all SNMP device handlers.
@@ -246,12 +287,34 @@ class AbstractDeviceHandler(ABC):
         """
         Check whether the device responds to a simple SNMP GET request.
         """
+        ok, _reason = self.probe_with_reason(oid, timeout=timeout, retries=retries)
+        return ok
+
+    def probe_with_reason(
+        self,
+        oid: str = _SYS_UPTIME_OID,
+        *,
+        timeout: int = 1,
+        retries: int = 1,
+    ) -> tuple[bool, str | None]:
+        """Probe SNMP availability, returning ``(ok, reason)``.
+
+        ``reason`` is None on success, else a stable failure classification
+        (see :func:`classify_snmp_failure`).
+
+        NOTE: this stack uses SNMPv2c (community strings). A wrong/rotated
+        community causes the agent to drop the request silently, which surfaces
+        here as ``"timeout"`` — there is no distinct ``auth_failure`` for v2c
+        (that is a v3/USM condition).
+        """
         error_indication, error_status, *_ = self._snmp_get(
             [oid],
             timeout=timeout,
             retries=retries,
         )
-        return not (error_indication or error_status)
+        if not (error_indication or error_status):
+            return True, None
+        return False, classify_snmp_failure(error_indication, error_status)
 
     def fetch_sysdescr(
         self,
