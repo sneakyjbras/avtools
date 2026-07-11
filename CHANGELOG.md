@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.9] — 2026-07-11 — codename: boros
+
+### Fixed
+
+- **QA Grafana deploys now also appear on tag pipelines.** In 1.8.8 the QA jobs
+  (`deploy_grafana_qa`, `deploy_grafana_alerts_qa`) were gated to
+  `$CI_COMMIT_BRANCH == "qa"`, which is empty on tag pipelines — so tagging a
+  release hid the QA deploy buttons. Added a `$CI_COMMIT_TAG` manual rule to
+  both, so a tagged release can be validated in QA before the PROD (tag-only)
+  buttons are used. PROD jobs unchanged.
+
+
 ## [1.8.8] — 2026-07-11 — codename: boros
 
 ### Changed
@@ -15,10 +27,10 @@
   these timing fields untouched, so QA inherits the same cadence.
 - **CI: Grafana deploys are environment-per-trigger.** `deploy_grafana_qa` /
   `deploy_grafana_alerts_qa` are offered as optional manual jobs on `qa`-branch
-  commits/merges **and on tag pipelines** (so a tagged release can be validated
-  in QA first); `deploy_grafana_prod` / `deploy_grafana_alerts_prod` appear only
-  on tag pipelines (promote-to-production). All four are `allow_failure: true`
-  so the manual buttons are non-blocking.
+  commits/merges; `deploy_grafana_prod` / `deploy_grafana_alerts_prod` appear
+  only on tag pipelines (promote-to-production). All four are `allow_failure:
+  true` so the manual buttons are non-blocking. (1.8.9 also surfaces the QA jobs
+  on tag pipelines.)
 
 
 ## [1.8.7] — 2026-07-02 — codename: boros
