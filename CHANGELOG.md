@@ -15,9 +15,10 @@
   these timing fields untouched, so QA inherits the same cadence.
 - **CI: Grafana deploys are environment-per-trigger.** `deploy_grafana_qa` /
   `deploy_grafana_alerts_qa` are offered as optional manual jobs on `qa`-branch
-  commits/merges; `deploy_grafana_prod` / `deploy_grafana_alerts_prod` appear
-  only on tag pipelines (promote-to-production). All four are `allow_failure:
-  true` so the manual buttons are non-blocking.
+  commits/merges **and on tag pipelines** (so a tagged release can be validated
+  in QA first); `deploy_grafana_prod` / `deploy_grafana_alerts_prod` appear only
+  on tag pipelines (promote-to-production). All four are `allow_failure: true`
+  so the manual buttons are non-blocking.
 
 
 ## [1.8.7] — 2026-07-02 — codename: boros
