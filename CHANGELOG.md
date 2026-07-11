@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.8.8] — 2026-07-11 — codename: boros
+
+### Changed
+
+- **Alert notification cadence retuned to stop the 5-minute mail flood.** Across
+  the `grafana/alerts/*.rulegroup.PUT.json` groups: `group_interval` `5m → 1h`
+  (caps re-mails on group-membership churn to hourly), `repeat_interval` split
+  by `av_alert_type` — operational/environmental/SLO `→ 6h`, inventory
+  (`eam-dq-weekly`, `not-networked`) `→ 168h` (weekly) — and `for` `0s → 5m` on
+  the flappy operational rules (`network-state` offline, `pdu-power-quality`,
+  `pdu-state`) to damp transient flaps at the source. Real outages still remind
+  every 6h; slow inventory conditions go quiet for a week. The QA patcher leaves
+  these timing fields untouched, so QA inherits the same cadence.
+- **CI: Grafana deploys are environment-per-trigger.** `deploy_grafana_qa` /
+  `deploy_grafana_alerts_qa` are offered as optional manual jobs on `qa`-branch
+  commits/merges; `deploy_grafana_prod` / `deploy_grafana_alerts_prod` appear
+  only on tag pipelines (promote-to-production). All four are `allow_failure:
+  true` so the manual buttons are non-blocking.
+
+
 ## [1.8.7] — 2026-07-02 — codename: boros
 
 ### Changed
