@@ -80,7 +80,7 @@
       ],
       "noDataState": "OK",
       "execErrState": "Error",
-      "for": "0s",
+      "for": "300s",
       "annotations": {
         "__dashboardUid__": "av_devices_dashboard",
         "__panelId__": "20",
@@ -99,8 +99,8 @@
           "grafana_folder"
         ],
         "group_wait": "1m",
-        "group_interval": "5m",
-        "repeat_interval": "4h"
+        "group_interval": "1h",
+        "repeat_interval": "6h"
       },
       "record": null
     },
@@ -201,8 +201,8 @@
           "grafana_folder"
         ],
         "group_wait": "1m",
-        "group_interval": "5m",
-        "repeat_interval": "4h"
+        "group_interval": "1h",
+        "repeat_interval": "6h"
       },
       "record": null
     }
