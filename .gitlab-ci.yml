@@ -493,17 +493,9 @@ docker_build_qa:
   # no artifact from any earlier stage. QA is the fast lane; check/lint/unit/
   # e2e still run in parallel on the same pipeline and surface failures there.
   needs: []
-  # Also build+publish the image directly from the k8s buildout feature branch,
-  # so the :qa image can be produced WITHOUT merging the branch into the
-  # protected qa/master release branches (image validation on the feature branch).
-  # Two rule lines are needed because of the workflow: block above (the standard
-  # "avoid duplicate pipelines" pattern): a plain BRANCH pipeline exposes
-  # $CI_COMMIT_BRANCH, but once an MR is open for the branch only a
-  # merge_request_event pipeline runs and $CI_COMMIT_BRANCH is unset there —
-  # so the feature branch is matched via $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME too.
+  # Build + publish the :qa image on the qa/master release branches.
   rules:
-    - if: '$CI_COMMIT_BRANCH == "qa" || $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "feature/k8s-image-build"'
-    - if: '$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "feature/k8s-image-build"'
+    - if: '$CI_COMMIT_BRANCH == "qa" || $CI_COMMIT_BRANCH == "master"'
   script:
     - |
       /kaniko/executor \
