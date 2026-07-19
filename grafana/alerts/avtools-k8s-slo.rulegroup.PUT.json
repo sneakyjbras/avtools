@@ -1,0 +1,313 @@
+{
+  "title": "avtools-k8s-slo",
+  "folderUid": "beuar1of5bo5cf",
+  "interval": 300,
+  "rules": [
+    {
+      "id": 0,
+      "uid": "avslok8sblindshard",
+      "orgID": 12,
+      "folderUID": "beuar1of5bo5cf",
+      "ruleGroup": "avtools-k8s-slo",
+      "title": "AV SLO: Blind Shard (Fewer Shards Reporting Than Recent Peak)",
+      "condition": "Active",
+      "data": [
+        {
+          "refId": "#BlindShard",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 3600,
+            "to": 0
+          },
+          "datasourceUid": "afcql1n10tnggc",
+          "model": {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "afcql1n10tnggc"
+            },
+            "editorMode": "code",
+            "expr": "count(count by (shard) (avtools_snmp_devices_targeted{submitter_environment=\"prod\"})) < max_over_time(count(count by (shard) (avtools_snmp_devices_targeted{submitter_environment=\"prod\"}))[1h:5m])",
+            "instant": true,
+            "range": false,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "#BlindShard"
+          }
+        },
+        {
+          "refId": "Active",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 0,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "conditions": [
+              {
+                "evaluator": {
+                  "params": [
+                    0
+                  ],
+                  "type": "gt"
+                },
+                "operator": {
+                  "type": "and"
+                },
+                "query": {
+                  "params": [
+                    "C"
+                  ]
+                },
+                "reducer": {
+                  "params": [],
+                  "type": "last"
+                },
+                "type": "query"
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "#BlindShard",
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "Active",
+            "type": "threshold"
+          }
+        }
+      ],
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "5m",
+      "annotations": {
+        "__dashboardUid__": "av_rooms_dashboard",
+        "__panelId__": "900",
+        "description": "- Blind-shard SLO (K8s availability)\n  The number of distinct `shard` values reporting `avtools_snmp_devices_targeted` fell below its trailing-hour peak. Under static hash-sharding a dead shard is NOT covered by the others, so its slice of the fleet goes silently unpolled. The fleet coverage ratio can still read ~1.0 (it only sums the shards that DID report), so this rule is the one that catches a missing shard. Self-calibrating: no hard-coded N.\n  Action: check the Indexed Job / CronJob for a failed or non-scheduled shard index; confirm `completions` == `--shard-total`.",
+        "summary": "A collection shard stopped reporting (blind spot in the fleet): {{ $values.C.Value }} shards vs recent peak"
+      },
+      "labels": {
+        "av_alert_type": "slo",
+        "severity": "critical",
+        "av_alert_family": "slo"
+      },
+      "isPaused": false,
+      "notification_settings": {
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "2h"
+      },
+      "record": null
+    },
+    {
+      "id": 0,
+      "uid": "avslok8ssweepbudget",
+      "orgID": 12,
+      "folderUID": "beuar1of5bo5cf",
+      "ruleGroup": "avtools-k8s-slo",
+      "title": "AV SLO: Sweep Over Freshness Budget (Slowest Shard > 60s)",
+      "condition": "Active",
+      "data": [
+        {
+          "refId": "#SweepBudget",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "afcql1n10tnggc",
+          "model": {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "afcql1n10tnggc"
+            },
+            "editorMode": "code",
+            "expr": "max(avtools_snmp_cycle_duration_seconds{submitter_environment=\"prod\"}) > 60",
+            "instant": true,
+            "range": false,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "#SweepBudget"
+          }
+        },
+        {
+          "refId": "Active",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 0,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "conditions": [
+              {
+                "evaluator": {
+                  "params": [
+                    0
+                  ],
+                  "type": "gt"
+                },
+                "operator": {
+                  "type": "and"
+                },
+                "query": {
+                  "params": [
+                    "C"
+                  ]
+                },
+                "reducer": {
+                  "params": [],
+                  "type": "last"
+                },
+                "type": "query"
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "#SweepBudget",
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "Active",
+            "type": "threshold"
+          }
+        }
+      ],
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "10m",
+      "annotations": {
+        "__dashboardUid__": "av_rooms_dashboard",
+        "__panelId__": "900",
+        "description": "- Sweep-budget SLO (freshness objective)\n  The slowest shard's collection (sweep) phase exceeded the 60s freshness budget for a sustained period. Freshness is bounded by the slowest shard, so this is the leading indicator that the sub-minute objective is regressing.\n  Action: check shard skew (below), device/UDP saturation, or raise `--shard-total` (more shards, smaller slices). Tune the 60s threshold to your actual freshness target.",
+        "summary": "Slowest shard sweep {{ $values.C.Value }}s exceeds the 60s freshness budget"
+      },
+      "labels": {
+        "av_alert_type": "slo",
+        "severity": "warning",
+        "av_alert_family": "slo"
+      },
+      "isPaused": false,
+      "notification_settings": {
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "2h"
+      },
+      "record": null
+    },
+    {
+      "id": 0,
+      "uid": "avslok8sshardskew",
+      "orgID": 12,
+      "folderUID": "beuar1of5bo5cf",
+      "ruleGroup": "avtools-k8s-slo",
+      "title": "AV SLO: Shard Skew (Slowest Shard > 2x the Average)",
+      "condition": "Active",
+      "data": [
+        {
+          "refId": "#ShardSkew",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 600,
+            "to": 0
+          },
+          "datasourceUid": "afcql1n10tnggc",
+          "model": {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "afcql1n10tnggc"
+            },
+            "editorMode": "code",
+            "expr": "(max(avtools_snmp_cycle_duration_seconds{submitter_environment=\"prod\"}) / avg(avtools_snmp_cycle_duration_seconds{submitter_environment=\"prod\"})) > 2",
+            "instant": true,
+            "range": false,
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "#ShardSkew"
+          }
+        },
+        {
+          "refId": "Active",
+          "queryType": "",
+          "relativeTimeRange": {
+            "from": 0,
+            "to": 0
+          },
+          "datasourceUid": "__expr__",
+          "model": {
+            "conditions": [
+              {
+                "evaluator": {
+                  "params": [
+                    0
+                  ],
+                  "type": "gt"
+                },
+                "operator": {
+                  "type": "and"
+                },
+                "query": {
+                  "params": [
+                    "C"
+                  ]
+                },
+                "reducer": {
+                  "params": [],
+                  "type": "last"
+                },
+                "type": "query"
+              }
+            ],
+            "datasource": {
+              "type": "__expr__",
+              "uid": "__expr__"
+            },
+            "expression": "#ShardSkew",
+            "intervalMs": 1000,
+            "maxDataPoints": 43200,
+            "refId": "Active",
+            "type": "threshold"
+          }
+        }
+      ],
+      "noDataState": "OK",
+      "execErrState": "Error",
+      "for": "10m",
+      "annotations": {
+        "__dashboardUid__": "av_rooms_dashboard",
+        "__panelId__": "900",
+        "description": "- Shard-skew SLO (K8s reliability)\n  The slowest shard's sweep took more than 2x the average shard's sweep. Because hash-mod-N balances device COUNTS but not TIME, a shard that happens to own a cluster of slow/dead devices (SNMP timeout waits) runs long while others idle. Static partitioning cannot rebalance mid-run; sustained skew is the signal to move from static shards toward a pull-based work queue.\n  Action: inspect which shard is hot and whether it owns a block of dead devices; consider a work-queue model if this persists.",
+        "summary": "Shard sweep skew {{ $values.C.Value }}x (slowest vs average) exceeds 2x"
+      },
+      "labels": {
+        "av_alert_type": "slo",
+        "severity": "warning",
+        "av_alert_family": "slo"
+      },
+      "isPaused": false,
+      "notification_settings": {
+        "receiver": "AV Tools",
+        "group_by": [
+          "alertname",
+          "grafana_folder"
+        ],
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "2h"
+      },
+      "record": null
+    }
+  ]
+}

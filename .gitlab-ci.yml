@@ -454,3 +454,121 @@ python-publish-stable:
     - poetry config http-basic.pypiserver "$PYPISERVER_USER" "$PYPISERVER_PASS"
     - poetry build
     - poetry publish -r pypiserver
+
+# ==================================================
+# CONTAINER IMAGE (Kubernetes / Magnum)
+#
+# Builds deploy/k8s/Dockerfile with kaniko and pushes to registry.cern.ch
+# (Harbor). QA and PROD pull from the matching ITDCIM PyPI index (build arg).
+# Moving env tags (:qa, :prod) let ArgoCD avoid per-SHA image-bump commits.
+#
+# Required CI/CD variables (masked+protected):
+#   REGISTRY_PASSWORD  – registry.cern.ch Harbor robot token
+#   (REGISTRY_USER is hardcoded in .kaniko-base: its literal '$' would be
+#    mangled by GitLab variable expansion.)
+# ==================================================
+.kaniko-base:
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  before_script:
+    - |
+      : "${REGISTRY_PASSWORD:?set REGISTRY_PASSWORD (Harbor robot token)}"
+      mkdir -p /kaniko/.docker
+      # Harbor robot username. CERN's Harbor uses the 'robot-<project>+<name>' form
+      # (a hyphen, no '$'). Hardcoded because it is not secret (only the token is),
+      # which also keeps it out of GitLab variable expansion. Only REGISTRY_PASSWORD
+      # stays a CI variable.
+      REGISTRY_USER='robot-avtools+avtools-ci'
+      AUTH=$(printf '%s:%s' "$REGISTRY_USER" "$REGISTRY_PASSWORD" | base64 | tr -d '\n')
+      printf '{"auths":{"registry.cern.ch":{"auth":"%s"}}}' "$AUTH" > /kaniko/.docker/config.json
+
+docker_build_qa:
+  extends: .kaniko-base
+  stage: docker_build
+  # Decouple from the stage-ordered pipeline: an empty `needs` lets this job
+  # start at pipeline creation instead of waiting for srpm/rpm/koji/test/.../
+  # docker_prepare (~14 stages). The image is a self-contained from-source
+  # build (kaniko runs `poetry build` inside the Dockerfile), so it consumes
+  # no artifact from any earlier stage. QA is the fast lane; check/lint/unit/
+  # e2e still run in parallel on the same pipeline and surface failures there.
+  needs: []
+  # Build + publish the :qa image on the qa/master release branches.
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "qa" || $CI_COMMIT_BRANCH == "master"'
+  script:
+    - |
+      /kaniko/executor \
+        --context "$CI_PROJECT_DIR" \
+        --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
+        --build-arg AVTOOLS_INDEX_URL=https://qa-pypi-itdcim.cern.ch/simple \
+        --destination registry.cern.ch/avtools/avtools:qa \
+        --destination registry.cern.ch/avtools/avtools:qa-$CI_COMMIT_SHORT_SHA
+
+docker_build_prod:
+  extends: .kaniko-base
+  stage: docker_build
+  # PROD publishes the moving :prod tag that ArgoCD auto-deploys to production,
+  # so gate it on the blocking e2e job rather than building unconditionally.
+  # This still skips every koji/rpm/srpm/integration stage. optional+artifacts:
+  # false keep it robust (no failure if e2e is absent) and avoid pulling the
+  # junit artifact into the kaniko build context.
+  # For a fully-immediate PROD build, replace the four lines below with:
+  #   needs: []
+  needs:
+    - job: e2e_tests
+      optional: true
+      artifacts: false
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+/'
+  script:
+    - |
+      /kaniko/executor \
+        --context "$CI_PROJECT_DIR" \
+        --dockerfile "$CI_PROJECT_DIR/Dockerfile" \
+        --build-arg AVTOOLS_INDEX_URL=https://pypi-itdcim.cern.ch/simple \
+        --destination registry.cern.ch/avtools/avtools:prod \
+        --destination registry.cern.ch/avtools/avtools:$CI_COMMIT_TAG
+
+# ==================================================
+# SENTRY RELEASES  (CERN Sentry SaaS, https://cern.sentry.io)
+#
+# GitLab has no native Sentry release integration, so we script sentry-cli:
+# create the release, associate commits, finalize, and mark the env deploy.
+# Skips cleanly until the project is created and its token is set.
+#
+# Required CI/CD variables (masked): SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT
+# ==================================================
+.sentry-release:
+  image: getsentry/sentry-cli:2
+  variables:
+    SENTRY_URL: "https://cern.sentry.io"
+  script:
+    - |
+      if [ -z "${SENTRY_AUTH_TOKEN:-}" ] || [ -z "${SENTRY_ORG:-}" ] || [ -z "${SENTRY_PROJECT:-}" ]; then
+        echo "Sentry vars not set — skipping release (request the project from IT-PW)."; exit 0
+      fi
+      sentry-cli releases new "$VERSION"
+      sentry-cli releases set-commits --auto "$VERSION" || true
+      sentry-cli releases finalize "$VERSION"
+      sentry-cli releases deploys "$VERSION" new -e "$SENTRY_ENV"
+
+sentry_release_qa:
+  extends: .sentry-release
+  stage: postqa
+  variables:
+    SENTRY_ENV: qa
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "qa" || $CI_COMMIT_BRANCH == "master"'
+  before_script:
+    - export VERSION="avtools@qa-$CI_COMMIT_SHORT_SHA"
+
+sentry_release_prod:
+  extends: .sentry-release
+  stage: postdeploy
+  variables:
+    SENTRY_ENV: prod
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+/'
+  before_script:
+    - export VERSION="avtools@$CI_COMMIT_TAG"
