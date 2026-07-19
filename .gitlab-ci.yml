@@ -12,9 +12,6 @@ variables:
   POETRY_VIRTUALENVS_IN_PROJECT: "true"
   POETRY_NO_INTERACTION: "1"
 
-  # Grafana (MonIT) base URL
-  GRAFANA_URL: "https://monit-grafana.cern.ch"
-
 cache:
   paths:
     - .cache/pip
@@ -26,7 +23,7 @@ cache:
 #
 # Root cause of "lint runs twice": with `rules: - when: always`, a push to a
 # branch that has an open MR produced BOTH a branch pipeline AND a merge-request
-# pipeline, so every always-on job (lint/check/grafana/mibs) ran in each.
+# pipeline, so every always-on job (lint/check/mibs) ran in each.
 #
 # This workflow runs the MR pipeline when an MR is open and suppresses the
 # redundant branch pipeline; branches without an MR still run a branch pipeline;
@@ -83,7 +80,7 @@ python-tests:
     - poetry install --with dev,lint
 
 # ==================================================
-# EVERY COMMIT — check + lint + grafana JSON
+# EVERY COMMIT — check + lint
 # Runs on all branch pushes, MR events, tags, and
 # scheduled/manual pipelines alike.
 # ==================================================
@@ -141,27 +138,6 @@ lint:
   script:
     - poetry run black --check src tests scripts
     - poetry run ruff check src tests scripts
-
-# Structural JSON validation for all Grafana dashboard and alert files.
-grafana_validate_json:
-  stage: lint
-  image: python:3.11-slim
-  rules:
-    - when: always
-  script:
-    - |
-      set -eu
-      fail=0
-      for f in grafana/alerts/*.json grafana/dashboard/prod/*.json grafana/dashboard/qa/*.json; do
-        [ -e "$f" ] || continue
-        if python -m json.tool "$f" >/dev/null 2>&1; then
-          echo "OK  $f"
-        else
-          echo "FAIL $f"
-          fail=1
-        fi
-      done
-      exit $fail
 
 # Ensure the committed MIB metadata matches a fresh compile of the vendored
 # sources (so handlers' MIB-backed mode never drifts from the .mib files).
@@ -245,158 +221,6 @@ e2e_tests:
     when: always
     reports:
       junit: pytest-e2e.xml
-
-# ==================================================
-# GRAFANA GITOPS
-#
-# Required CI/CD variables — set in:
-#   GitLab → Settings → CI/CD → Variables
-#
-#   GRAFANA_API_TOKEN_QA   – service account token for the QA Grafana org
-#   GRAFANA_API_TOKEN_PROD – service account token for the PROD Grafana org
-#
-# ⚠  COMMON CAUSE OF "Missing required CI/CD variable GRAFANA_API_TOKEN_PROD":
-#     The variable exists in GitLab but is flagged as "Protected".
-#     Protected variables are only injected into protected branches/tags.
-#     Fix (choose one):
-#       A) Uncheck "Protected" on the variable in GitLab → Settings → CI/CD → Variables
-#       B) Protect the tag that triggers this job:
-#          GitLab → Settings → Repository → Protected Tags → add your tag pattern (e.g. v*)
-# ==================================================
-deploy_grafana_qa:
-  stage: deploy_qa
-  image: python:3.11-slim
-  # QA deploys: optional manual job on commits/merges to `qa` AND on tag
-  # pipelines, so a tagged release can be validated in QA before the PROD
-  # (tag-only) buttons are used. allow_failure keeps it non-blocking.
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "qa"'
-      when: manual
-      allow_failure: true
-    - if: '$CI_COMMIT_TAG'
-      when: manual
-      allow_failure: true
-    - when: never
-  environment:
-    name: grafana/qa
-    url: https://monit-grafana.cern.ch/dashboards/f/7BZSQJX4z/?orgId=12
-  before_script:
-    - apt-get update -qq && apt-get install -y --no-install-recommends curl ca-certificates
-    - chmod +x scripts/sync_grafana_dashboards.sh scripts/sync_grafana_rulegroup.sh scripts/sync_grafana_rulegroup_qa.sh
-    - |
-      : "${GRAFANA_API_TOKEN_QA:?
-      GRAFANA_API_TOKEN_QA is not set or not visible to this pipeline.
-      → Go to GitLab → Settings → CI/CD → Variables and add GRAFANA_API_TOKEN_QA.
-      → If it is already there and marked Protected, either uncheck Protected
-        or protect the 'qa' branch (Settings → Repository → Protected Branches).}"
-    - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_QA"
-  script:
-    - ./scripts/sync_grafana_dashboards.sh put qa
-
-deploy_grafana_prod:
-  stage: deploy_stable
-  image: python:3.11-slim
-  # PROD deploys are release-time: offered as an optional manual job only on tag
-  # pipelines, since a tag is the promote-to-production signal. allow_failure
-  # keeps it non-blocking. Non-tag pipelines don't show this job at all.
-  rules:
-    - if: '$CI_COMMIT_TAG'
-      when: manual
-      allow_failure: true
-    - when: never
-  environment:
-    name: grafana/prod
-    url: https://monit-grafana.cern.ch/dashboards/f/beuar1of5bo5cf/?orgId=12
-  before_script:
-    - apt-get update -qq && apt-get install -y --no-install-recommends curl ca-certificates
-    - chmod +x scripts/sync_grafana_dashboards.sh scripts/sync_grafana_rulegroup.sh scripts/sync_grafana_rulegroup_qa.sh
-    - |
-      : "${GRAFANA_API_TOKEN_PROD:?
-      GRAFANA_API_TOKEN_PROD is not set or not visible to this pipeline.
-      → Go to GitLab → Settings → CI/CD → Variables and add GRAFANA_API_TOKEN_PROD.
-      → If it is already there and marked Protected, either uncheck Protected
-        or protect the tag that triggered this job
-        (Settings → Repository → Protected Tags → add your tag pattern, e.g. v*).}"
-    - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_PROD"
-  script:
-    - ./scripts/sync_grafana_dashboards.sh put prod
-
-# ==================================================
-# GRAFANA ALERT RULE GROUPS  (separate, manual)
-#
-# Publishing alert rule groups is intentionally split out from the dashboard
-# deploy jobs above so alerts can be shipped independently and only when
-# explicitly triggered. Both jobs are manual.
-#
-#   deploy_grafana_alerts_qa   -> QA org   (folder: playground / 7BZSQJX4z)
-#                                 receiver "AV Test",  Postgres dfaue906qonpcf
-#   deploy_grafana_alerts_prod -> PROD org (folder: av-dashboard / beuar1of5bo5cf)
-#                                 receiver "AV Tools", Postgres ed690575-...
-#
-# Each job publishes EVERY grafana/alerts/*.rulegroup.PUT.json. The QA payloads
-# are derived from the PROD sources at deploy time by patch_grafana_rulegroup.py
-# (no hand-maintained QA files).
-#
-# Same GRAFANA_API_TOKEN_QA / GRAFANA_API_TOKEN_PROD variables as the dashboard
-# jobs (see the Protected-variable note above).
-# ==================================================
-deploy_grafana_alerts_qa:
-  stage: deploy_qa
-  image: python:3.11-slim
-  # QA deploys: optional manual job on commits/merges to `qa` AND on tag
-  # pipelines, so a tagged release can be validated in QA before the PROD
-  # (tag-only) buttons are used. allow_failure keeps it non-blocking.
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "qa"'
-      when: manual
-      allow_failure: true
-    - if: '$CI_COMMIT_TAG'
-      when: manual
-      allow_failure: true
-    - when: never
-  environment:
-    name: grafana/qa
-    url: https://monit-grafana.cern.ch/dashboards/f/7BZSQJX4z/?orgId=12
-  before_script:
-    - apt-get update -qq && apt-get install -y --no-install-recommends curl ca-certificates python3
-    - chmod +x scripts/sync_grafana_rulegroup.sh scripts/sync_grafana_rulegroup_qa.sh
-    - |
-      : "${GRAFANA_API_TOKEN_QA:?
-      GRAFANA_API_TOKEN_QA is not set or not visible to this pipeline.
-      → Go to GitLab → Settings → CI/CD → Variables and add GRAFANA_API_TOKEN_QA.
-      → If it is already there and marked Protected, either uncheck Protected
-        or protect the 'qa' branch (Settings → Repository → Protected Branches).}"
-    - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_QA"
-  script:
-    - ./scripts/sync_grafana_rulegroup_qa.sh put
-
-deploy_grafana_alerts_prod:
-  stage: deploy_stable
-  image: python:3.11-slim
-  # PROD deploys are release-time: offered as an optional manual job only on tag
-  # pipelines, since a tag is the promote-to-production signal. allow_failure
-  # keeps it non-blocking. Non-tag pipelines don't show this job at all.
-  rules:
-    - if: '$CI_COMMIT_TAG'
-      when: manual
-      allow_failure: true
-    - when: never
-  environment:
-    name: grafana/prod
-    url: https://monit-grafana.cern.ch/dashboards/f/beuar1of5bo5cf/?orgId=12
-  before_script:
-    - apt-get update -qq && apt-get install -y --no-install-recommends curl ca-certificates python3
-    - chmod +x scripts/sync_grafana_rulegroup.sh scripts/sync_grafana_rulegroup_qa.sh
-    - |
-      : "${GRAFANA_API_TOKEN_PROD:?
-      GRAFANA_API_TOKEN_PROD is not set or not visible to this pipeline.
-      → Go to GitLab → Settings → CI/CD → Variables and add GRAFANA_API_TOKEN_PROD.
-      → If it is already there and marked Protected, either uncheck Protected
-        or protect the tag that triggered this job
-        (Settings → Repository → Protected Tags → add your tag pattern, e.g. v*).}"
-    - export GRAFANA_API_TOKEN="$GRAFANA_API_TOKEN_PROD"
-  script:
-    - ./scripts/sync_grafana_rulegroup.sh prod
 
 # ==================================================
 # PYPI PUBLISHING
