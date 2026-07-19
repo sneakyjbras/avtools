@@ -456,12 +456,11 @@ python-publish-stable:
     - |
       : "${REGISTRY_PASSWORD:?set REGISTRY_PASSWORD (Harbor robot token)}"
       mkdir -p /kaniko/.docker
-      # The Harbor robot username contains a literal '$' (robot$avtools+avtools-ci).
-      # Passing it via a GitLab CI variable makes GitLab expand '$avtools' (undefined)
-      # -> username becomes 'robot+avtools-ci' -> push denied (UNAUTHORIZED).
-      # It is not secret (only the token is), so hardcode it. Single quotes stop the
-      # shell from expanding the '$' too. Only REGISTRY_PASSWORD stays a CI variable.
-      REGISTRY_USER='robot$avtools+avtools-ci'
+      # Harbor robot username. CERN's Harbor uses the 'robot-<project>+<name>' form
+      # (a hyphen, no '$'). Hardcoded because it is not secret (only the token is),
+      # which also keeps it out of GitLab variable expansion. Only REGISTRY_PASSWORD
+      # stays a CI variable.
+      REGISTRY_USER='robot-avtools+avtools-ci'
       AUTH=$(printf '%s:%s' "$REGISTRY_USER" "$REGISTRY_PASSWORD" | base64 | tr -d '\n')
       printf '{"auths":{"registry.cern.ch":{"auth":"%s"}}}' "$AUTH" > /kaniko/.docker/config.json
 
