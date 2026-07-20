@@ -46,6 +46,12 @@ SNMP_DEVICES_TARGETED = METRIC_PREFIX + "snmp_devices_targeted"
 SNMP_DEVICES_POLLED = METRIC_PREFIX + "snmp_devices_polled"
 SNMP_COVERAGE_RATIO = METRIC_PREFIX + "snmp_coverage_ratio"
 
+# Wall-clock seconds of the collection (sweep) phase this cycle. Labelled by
+# `shard` (like the coverage guardrails) so per-shard sweep latency is visible.
+# This is the SLI behind the "sub-minute freshness" objective: when the fleet is
+# split across N shards, the slowest shard's sweep time is what bounds freshness.
+SNMP_CYCLE_DURATION_SECONDS = METRIC_PREFIX + "snmp_cycle_duration_seconds"
+
 # --- av-tools self-instrumentation (about the collector, not the fleet) ---
 # Heartbeat: unix-seconds timestamp written once at the end of a successful sync.
 # "Is the job alive?" -> time() - <metric> > threshold. Distinct metric class from
@@ -171,6 +177,10 @@ METRIC_META: dict[str, MetricMeta] = {
     SNMP_DEVICES_POLLED: MetricMeta("Devices that produced a result this cycle."),
     SNMP_COVERAGE_RATIO: MetricMeta(
         "Collection coverage (polled/targeted); ~1.0 healthy, a drop signals silent loss."
+    ),
+    SNMP_CYCLE_DURATION_SECONDS: MetricMeta(
+        "Wall-clock seconds of the collection (sweep) phase this cycle, per shard.",
+        unit="s",
     ),
     EAM_LAST_RUN_TIMESTAMP: MetricMeta(
         "Unix timestamp of the last successful EAM inventory sync (heartbeat)."

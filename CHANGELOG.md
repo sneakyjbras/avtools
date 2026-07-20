@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.9.0] — 2026-07-19 — codename: boros
+
+### Added
+
+- **Sharded SNMP collection** — the fleet is partitioned across N pods with no
+  coordinator: each shard keeps devices where `crc32(equipment_no) % shard_total
+  == shard_index` (`device_in_shard`). Driven by `--shard-index` / `--shard-total`
+  (`JOB_COMPLETION_INDEX` / `SHARD_TOTAL` env). `shard_total = 1` is a no-op, so
+  the single-machine monolith behaviour is unchanged. Only `snmp-timeseries`
+  shards; `run-eam` / `run-landb` stay single-node (reconciliation needs the
+  global inventory view).
+- **Container image built from source** for the Kubernetes (Magnum) deployment: a
+  non-root `Dockerfile` + a kaniko `docker_build` CI job publishing
+  `registry.cern.ch/avtools/avtools:{qa,prod}`.
+- **Sentry error tracking** (`avtools.observability.sentry`): a no-op unless
+  `SENTRY_DSN` is set; scrubs device IPs / equipment numbers; shipped as an
+  optional `[sentry]` extra so the monolith wheel is unaffected.
+- **Kubernetes reliability SLOs** (`grafana/alerts/avtools-k8s-slo.rulegroup`).
+- **`.env.example`** for local sharded-sweep testing.
+
+### Changed
+
+- **Deployment split into `itdcim/av-tools-infra`** (Terraform for the Magnum
+  cluster, Helm chart, ArgoCD, and the tbag→Secret bridge). This repo owns the
+  application and the container image it builds; the running deployment lives in
+  that GitOps repo.
+
+
+## [1.8.10] — 2026-07-11 — codename: boros
+
+### Changed
+
+- **All alert notifications collapsed to a weekly cadence.** Both
+  `group_interval` and `repeat_interval` are set to `168h` (1 week) on every
+  rule across `grafana/alerts/*.rulegroup.PUT.json`, so no alert group can email
+  more than ~once per week regardless of how much its membership churns. This is
+  the agreed fallback after the per-family tuning in 1.8.8 (group_interval 1h,
+  repeat 6h/1w) did not reduce mail volume enough. The `for: 5m` flap damping
+  from 1.8.8 is retained.
+- **Note:** these settings live in Grafana and only change when the Grafana
+  alert deploy job actually runs (`deploy_grafana_alerts_qa` / `_prod`). Editing,
+  merging, or tagging does not itself push anything to Grafana — the manual
+  deploy button must be clicked (or `sync_grafana_rulegroup.sh` run with a token).
+
+
 ## [1.8.9] — 2026-07-11 — codename: boros
 
 ### Fixed

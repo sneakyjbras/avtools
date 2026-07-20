@@ -8,6 +8,7 @@ import structlog
 from avtools.core.av_tools import AVTools
 from avtools.exception.errors import NoRecordsFound
 from avtools.logsink import DEFAULT_LOG_FILE, bind_envelope, configure_logging
+from avtools.observability import init_sentry
 from avtools.timeseries import metrics as m
 from avtools.timeseries.heartbeat import publish_heartbeat
 
@@ -137,6 +138,8 @@ logger = structlog.get_logger(__name__)
 def cli(ctx: click.Context, logs: bool, dbod_url: str, log_file: str) -> None:
     ctx.obj = {"logs": logs, "dbod_url": dbod_url}
     configure_logging(logs, log_file)
+    # No-op unless SENTRY_DSN is set (and sentry-sdk installed); safe on the monolith.
+    init_sentry()
 
 
 @cli.command("run-eam", help="Run EAM CRUD operations.")
@@ -296,6 +299,29 @@ def run_landb(
     show_default=True,
     help="CERN compute availability zone (availability_zone label).",
 )
+@click.option(
+    "--shard-index",
+    envvar="JOB_COMPLETION_INDEX",
+    default=0,
+    show_default=True,
+    type=int,
+    help=(
+        "This pod's shard number (0-based). On Kubernetes Indexed Jobs this is "
+        "set automatically from the JOB_COMPLETION_INDEX env var."
+    ),
+)
+@click.option(
+    "--shard-total",
+    envvar="SHARD_TOTAL",
+    default=1,
+    show_default=True,
+    type=int,
+    help=(
+        "Total number of shards N. MUST equal the Job's `completions`, or devices "
+        "whose index is not covered are silently never polled. Default 1 = no "
+        "sharding (unchanged single-process behaviour)."
+    ),
+)
 @click.pass_context
 def snmp_timeseries(
     ctx: click.Context,
@@ -309,7 +335,20 @@ def snmp_timeseries(
     environment: str,
     hostgroup: str,
     availability_zone: str,
+    shard_index: int,
+    shard_total: int,
 ) -> None:
+    # Fail fast on a misconfigured partition rather than silently leaving a gap:
+    # a wrong N (shard_total) or an out-of-range index means some devices are
+    # never polled with no error anywhere. Refuse to start instead.
+    if shard_total < 1:
+        raise click.BadParameter("--shard-total must be >= 1", param_hint="--shard-total")
+    if not (0 <= shard_index < shard_total):
+        raise click.BadParameter(
+            f"--shard-index {shard_index} is out of range [0, {shard_total})",
+            param_hint="--shard-index",
+        )
+
     bind_envelope("avtools", environment, hostgroup)
     dbod_url = ctx.obj["dbod_url"]
     tools = AVTools(dbod_url)
@@ -324,6 +363,8 @@ def snmp_timeseries(
         submitter_environment=environment,
         submitter_hostgroup=hostgroup,
         availability_zone=availability_zone,
+        shard_index=shard_index,
+        shard_total=shard_total,
     )
 
 
