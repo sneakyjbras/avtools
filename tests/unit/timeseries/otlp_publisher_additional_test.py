@@ -45,7 +45,7 @@ def test_publish_success_path_registers_gauge(monkeypatch: Any) -> None:
     )
 
     monkeypatch.setattr(mod.time, "sleep", lambda *_a, **_k: None)
-    monkeypatch.setattr(pub._provider, "force_flush", lambda: None)
+    monkeypatch.setattr(pub._provider, "force_flush", lambda **_k: True)
     monkeypatch.setattr(pub._provider, "shutdown", lambda: None)
 
     created: list[str] = []
@@ -72,7 +72,7 @@ def test_second_publish_does_not_re_register_same_gauge(monkeypatch: Any) -> Non
     )
 
     monkeypatch.setattr(mod.time, "sleep", lambda *_a, **_k: None)
-    monkeypatch.setattr(pub._provider, "force_flush", lambda: None)
+    monkeypatch.setattr(pub._provider, "force_flush", lambda **_k: True)
     monkeypatch.setattr(pub._provider, "shutdown", lambda: None)
 
     created: list[str] = []
@@ -88,3 +88,33 @@ def test_second_publish_does_not_re_register_same_gauge(monkeypatch: Any) -> Non
 
     # Registered only once.
     assert created.count("avtools_test_metric") == 1
+
+
+def test_publish_returns_false_and_retries_when_flush_unconfirmed(monkeypatch: Any) -> None:
+    """force_flush() returning False (MONIT unreachable / rate-limiting) must be
+    retried, logged, and reported as False — never silently swallowed and never
+    crash the collection cycle (the DB write already succeeded)."""
+    pub = mod.OTLPMetricsPublisher(
+        endpoint="host:4317",
+        tenant="t",
+        password="p",
+        insecure=True,
+    )
+    monkeypatch.setattr(mod.time, "sleep", lambda *_a, **_k: None)
+    monkeypatch.setattr(pub._provider, "shutdown", lambda: None)
+
+    calls = {"n": 0}
+
+    def never_confirms(**_kwargs: Any) -> bool:
+        calls["n"] += 1
+        return False
+
+    monkeypatch.setattr(pub._provider, "force_flush", never_confirms)
+    monkeypatch.setattr(pub._meter, "create_observable_gauge", lambda *_a, **_k: None)
+
+    result = pub.publish(
+        [MetricSample(name="avtools_test_metric", value=1, labels={"equipmentno": "EQ1"})]
+    )
+
+    assert result is False  # reported, not swallowed
+    assert calls["n"] == mod._FLUSH_ATTEMPTS  # exhausted the retry budget

@@ -197,7 +197,7 @@ def test_layer2_metric_labels_merged_into_observations(monkeypatch: Any) -> None
     )
 
     monkeypatch.setattr(mod.time, "sleep", lambda *_a, **_k: None)
-    monkeypatch.setattr(pub._provider, "force_flush", lambda: None)
+    monkeypatch.setattr(pub._provider, "force_flush", lambda **_k: True)
     monkeypatch.setattr(pub._provider, "shutdown", lambda: None)
 
     observed_attrs: list[dict] = []
@@ -242,7 +242,7 @@ def test_layer2_empty_metric_labels_no_extra_attrs(monkeypatch: Any) -> None:
     )
 
     monkeypatch.setattr(mod.time, "sleep", lambda *_a, **_k: None)
-    monkeypatch.setattr(pub._provider, "force_flush", lambda: None)
+    monkeypatch.setattr(pub._provider, "force_flush", lambda **_k: True)
     monkeypatch.setattr(pub._provider, "shutdown", lambda: None)
 
     from opentelemetry.metrics import CallbackOptions
@@ -278,11 +278,16 @@ def test_export_error_raises_otlp_publish_error(monkeypatch: Any) -> None:
         timeout_s=0.1,
     )
     monkeypatch.setattr(pub._provider, "shutdown", lambda: None)
+    monkeypatch.setattr(mod.time, "sleep", lambda *_a, **_k: None)
 
-    def boom():
+    def boom(**_kwargs):
         raise RuntimeError("export failed")
 
     monkeypatch.setattr(pub._provider, "force_flush", boom)
 
-    with pytest.raises(OTLPPublishError):
+    # A flush that keeps erroring no longer raises OTLPPublishError — collection
+    # already succeeded, so publish() retries, logs, and returns False.
+    assert (
         pub.publish([MetricSample(name="avtools_test", value=1, labels={"equipmentno": "EQ1"})])
+        is False
+    )

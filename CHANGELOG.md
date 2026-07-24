@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.9.1] — 2026-07-24
+
+### Fixed
+- **OTLP metric export no longer fails silently.** `OTLPMetricsPublisher.publish()`
+  now checks the `MeterProvider.force_flush()` result (which returns `False` on a
+  timed-out/rejected export instead of raising), retries with backoff, and returns
+  a boolean. An unconfirmed export is logged loudly (`otlp_export_unconfirmed` /
+  `otlp_publish_unconfirmed`) instead of being swallowed as `status=ok`. This was
+  the silent failure behind the ~1-hour gaps seen only on Kubernetes (8 shard pods
+  exporting to MONIT concurrently) and never on the single-stream Puppet VM. A
+  failed export is now visible and retried, **not** fatal to the collection cycle
+  (the DB write already succeeded).
+- **Reduced concurrent export load.** The periodic export interval now defaults to
+  well beyond a batch job's lifetime, so `force_flush()` is the sole deterministic
+  export — removing the per-second export churn multiplied across 8 concurrent
+  shard pods.
+
 ## [1.9.0] — 2026-07-19 — codename: boros
 
 ### Added

@@ -1512,8 +1512,18 @@ class AVTools:
                 ca_file=otlp_ca_file,
                 insecure=otlp_insecure,
             )
-            publisher.publish(samples)
-            self.logger.info("otlp_publish_ok", samples=len(samples))
+            confirmed = publisher.publish(samples)
+            if confirmed:
+                self.logger.info("otlp_publish_ok", samples=len(samples))
+            else:
+                # Export not confirmed by MONIT (the k8s-only gap). Collection +
+                # DB write succeeded, so do NOT fail the cycle — log it so the
+                # gap is visible/alertable instead of silent.
+                self.logger.error(
+                    "otlp_publish_unconfirmed",
+                    samples=len(samples),
+                    endpoint=otlp_endpoint,
+                )
         except OTLPPublishError as e:
             self.logger.exception("otlp_publish_failed", error=str(e))
             raise
