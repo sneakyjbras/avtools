@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.9.2] — 2026-07-25
+
+### Fixed
+- **Stable OTLP `service.instance.id` — the real fix for the k8s-only ~1h metric
+  gaps.** The instance id maps to the Prometheus/Mimir `instance` label (part of
+  every series' identity) and was `socket.gethostname()` — on Kubernetes that's
+  the *ephemeral pod name*, a new value every CronJob cycle × 8 shard pods. Each
+  run therefore minted a fresh set of series, exploding MONIT/Mimir's active-series
+  count until the tenant limit dropped samples — the ~1h on/off gaps seen only on
+  k8s (the Puppet VM's stable hostname never trips it). Cadence changes (`*/2`↔`*/5`)
+  never fixed it because the churn is per-cycle, not per-rate. Now a STABLE identity:
+  `$AVTOOLS_INSTANCE_ID` if set, else `<service>-shard-<JOB_COMPLETION_INDEX>` on an
+  Indexed Job, else the hostname (monolith unchanged). Also exposed as the new
+  `instance_id` constructor argument.
+
+## [1.9.1] — 2026-07-24
+
+### Fixed
+- **OTLP metric export no longer fails silently.** `OTLPMetricsPublisher.publish()`
+  now checks the `MeterProvider.force_flush()` result (which returns `False` on a
+  timed-out/rejected export instead of raising), retries with backoff, and returns
+  a boolean. An unconfirmed export is logged loudly (`otlp_export_unconfirmed` /
+  `otlp_publish_unconfirmed`) instead of being swallowed as `status=ok`. This was
+  the silent failure behind the ~1-hour gaps seen only on Kubernetes (8 shard pods
+  exporting to MONIT concurrently) and never on the single-stream Puppet VM. A
+  failed export is now visible and retried, **not** fatal to the collection cycle
+  (the DB write already succeeded).
+- **Reduced concurrent export load.** The periodic export interval now defaults to
+  well beyond a batch job's lifetime, so `force_flush()` is the sole deterministic
+  export — removing the per-second export churn multiplied across 8 concurrent
+  shard pods.
+
 ## [1.9.0] — 2026-07-19 — codename: boros
 
 ### Added

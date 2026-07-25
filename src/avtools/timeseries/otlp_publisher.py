@@ -2,7 +2,10 @@
 
 Layer 1 — OTel resource attributes (on every ResourceMetrics envelope):
     service.name        Identifies the service ("avtools" by default).
-    service.instance.id Hostname of the publishing process.
+    service.instance.id STABLE instance identity (maps to the `instance` label):
+                        an explicit override, else the shard for an Indexed Job,
+                        else the hostname. NOT the ephemeral k8s pod name — see
+                        `_stable_instance_id`.
     service.version     Package version from avtools.__version__.
     service.namespace   Top-level organisational grouping ("itdcim").
 
@@ -26,6 +29,7 @@ Strings:
 from __future__ import annotations
 
 import base64
+import os
 import socket
 import time
 from dataclasses import dataclass
@@ -39,10 +43,48 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 
+import structlog
+
 from avtools import __version__ as _AVTOOLS_VERSION
 from avtools.timeseries.models import MetricSample
 from avtools.timeseries.metrics import METRIC_META
 from avtools.exception.errors import OTLPPublishError
+
+_log = structlog.get_logger(__name__)
+
+# Batch-job export reliability. MeterProvider.force_flush() returns False (it
+# does NOT raise) when the export times out or MONIT rejects it. The old code
+# ignored that return, so a dropped batch still logged status=ok — the silent
+# failure mode behind the ~1h gaps seen only on k8s (8 shard pods exporting
+# concurrently) and never on the single-stream Puppet VM. Retry a bounded number
+# of times before giving up.
+_FLUSH_ATTEMPTS = 3
+_FLUSH_BACKOFF_S = 0.75
+_FLUSH_TIMEOUT_MS = 10_000
+
+
+def _stable_instance_id(service_name: str) -> str:
+    """Return a STABLE OTel ``service.instance.id`` (it maps to the Prometheus /
+    Mimir ``instance`` label, so it is part of every series' identity).
+
+    On Kubernetes ``socket.gethostname()`` is the *ephemeral pod name* — a new
+    value every CronJob cycle, times N shard pods. That mints a fresh set of
+    series on every run, so MONIT/Mimir's active-series count climbs until the
+    tenant limit is hit and samples get dropped (the ~1h on/off gaps seen ONLY on
+    k8s; the Puppet VM's stable hostname never trips it). Prefer a stable identity:
+
+      * ``$AVTOOLS_INSTANCE_ID`` if set (explicit override, e.g. per job),
+      * else the shard for an Indexed Job (``<service>-shard-<JOB_COMPLETION_INDEX>``),
+      * else the hostname (stable on the monolith VM -- behaviour unchanged there).
+    """
+    override = os.environ.get("AVTOOLS_INSTANCE_ID")
+    if override:
+        return override
+    shard = os.environ.get("JOB_COMPLETION_INDEX")  # auto-set on Indexed Jobs (snmp shards)
+    if shard not in (None, ""):
+        return f"{service_name}-shard-{shard}"
+    return socket.gethostname()
+
 
 # ---------------------------------------------------------------------------
 # Internal types
@@ -90,17 +132,24 @@ class OTLPMetricsPublisher:
         tenant: str,
         password: str,
         service_name: str = "avtools",
-        export_interval_s: float = 1.0,
+        # Batch job: the metrics are only ready after publish() runs, and the
+        # single export is driven by force_flush(). A short periodic interval
+        # just adds redundant, concurrent export traffic to MONIT (8 shard pods
+        # at once) for no benefit — so the reader interval is set well beyond a
+        # job's lifetime and force_flush() is the sole, deterministic export.
+        export_interval_s: float = 300.0,
         timeout_s: float = 10.0,
         ca_file: str | None = None,
         insecure: bool = False,
         metric_labels: Mapping[str, str] | None = None,
+        instance_id: str | None = None,
     ) -> None:
         if not endpoint or ":" not in endpoint:
             raise ValueError("OTLP endpoint must be in 'host:port' form")
 
         # Store global metric labels (Layer 2).
         self._metric_labels: dict[str, str] = dict(metric_labels or {})
+        self._endpoint = endpoint
 
         try:
             token = base64.b64encode(f"{tenant}:{password}".encode()).decode()
@@ -137,7 +186,9 @@ class OTLPMetricsPublisher:
         resource = Resource.create(
             {
                 "service.name": service_name,
-                "service.instance.id": socket.gethostname(),
+                # STABLE instance id (not the ephemeral k8s pod name) -> bounded
+                # `instance`-label cardinality in Mimir. See _stable_instance_id.
+                "service.instance.id": instance_id or _stable_instance_id(service_name),
                 "service.version": _AVTOOLS_VERSION,
                 "service.namespace": "itdcim",
             }
@@ -154,15 +205,23 @@ class OTLPMetricsPublisher:
     # Public API
     # ------------------------------------------------------------------
 
-    def publish(self, samples: Iterable[MetricSample]) -> None:
+    def publish(self, samples: Iterable[MetricSample]) -> bool:
         """Publish one batch of metric samples through OTLP/gRPC.
 
         Args:
             samples: Iterable of :class:`~avtools.timeseries.models.MetricSample`.
 
+        Returns:
+            True if the export to MONIT was confirmed (force_flush succeeded
+            within the retry budget); False if it could not be confirmed (MONIT
+            unreachable / rate-limiting). A False return is logged loudly
+            (``otlp_export_unconfirmed``) so the caller can surface it — the
+            collection + DB write already succeeded, so an unconfirmed metric
+            export must not crash the job.
+
         Raises:
             OTLPPublishError: If a global metric label key collides with a
-                per-device sample label key, or if the gRPC export fails.
+                per-device sample label key (a config error, fail loudly).
         """
         # Group samples by metric name, coercing label values to strings.
         grouped: Dict[str, Dict[_LabelsKey, float]] = {}
@@ -221,12 +280,34 @@ class OTLPMetricsPublisher:
                 )
                 self._instruments[metric_name] = True
 
-        # Force export and shutdown.
+        # Force a single, deterministic export and CONFIRM it landed. Retry a
+        # bounded number of times on a False/errored flush, then report the
+        # outcome. shutdown() always runs so the process can exit cleanly.
+        confirmed = False
+        last_exc: Exception | None = None
         try:
-            self._provider.force_flush()
-            time.sleep(1.1)
-            self._provider.force_flush()
-        except Exception as exc:
-            raise OTLPPublishError(str(exc)) from exc
+            for attempt in range(1, _FLUSH_ATTEMPTS + 1):
+                try:
+                    if self._provider.force_flush(timeout_millis=_FLUSH_TIMEOUT_MS):
+                        confirmed = True
+                        break
+                except Exception as exc:  # transient exporter / gRPC failure
+                    last_exc = exc
+                if attempt < _FLUSH_ATTEMPTS:
+                    time.sleep(_FLUSH_BACKOFF_S * attempt)
         finally:
             self._provider.shutdown()
+
+        if not confirmed:
+            _log.error(
+                "otlp_export_unconfirmed",
+                endpoint=self._endpoint,
+                attempts=_FLUSH_ATTEMPTS,
+                error=str(last_exc) if last_exc else None,
+                detail=(
+                    "force_flush did not confirm the export; MONIT may be "
+                    "unreachable or rate-limiting the concurrent shard exports — "
+                    "this cycle's metrics were likely dropped"
+                ),
+            )
+        return confirmed
