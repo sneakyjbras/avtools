@@ -2,7 +2,10 @@
 
 Layer 1 — OTel resource attributes (on every ResourceMetrics envelope):
     service.name        Identifies the service ("avtools" by default).
-    service.instance.id Hostname of the publishing process.
+    service.instance.id STABLE instance identity (maps to the `instance` label):
+                        an explicit override, else the shard for an Indexed Job,
+                        else the hostname. NOT the ephemeral k8s pod name — see
+                        `_stable_instance_id`.
     service.version     Package version from avtools.__version__.
     service.namespace   Top-level organisational grouping ("itdcim").
 
@@ -26,6 +29,7 @@ Strings:
 from __future__ import annotations
 
 import base64
+import os
 import socket
 import time
 from dataclasses import dataclass
@@ -57,6 +61,30 @@ _log = structlog.get_logger(__name__)
 _FLUSH_ATTEMPTS = 3
 _FLUSH_BACKOFF_S = 0.75
 _FLUSH_TIMEOUT_MS = 10_000
+
+
+def _stable_instance_id(service_name: str) -> str:
+    """Return a STABLE OTel ``service.instance.id`` (it maps to the Prometheus /
+    Mimir ``instance`` label, so it is part of every series' identity).
+
+    On Kubernetes ``socket.gethostname()`` is the *ephemeral pod name* — a new
+    value every CronJob cycle, times N shard pods. That mints a fresh set of
+    series on every run, so MONIT/Mimir's active-series count climbs until the
+    tenant limit is hit and samples get dropped (the ~1h on/off gaps seen ONLY on
+    k8s; the Puppet VM's stable hostname never trips it). Prefer a stable identity:
+
+      * ``$AVTOOLS_INSTANCE_ID`` if set (explicit override, e.g. per job),
+      * else the shard for an Indexed Job (``<service>-shard-<JOB_COMPLETION_INDEX>``),
+      * else the hostname (stable on the monolith VM -- behaviour unchanged there).
+    """
+    override = os.environ.get("AVTOOLS_INSTANCE_ID")
+    if override:
+        return override
+    shard = os.environ.get("JOB_COMPLETION_INDEX")  # auto-set on Indexed Jobs (snmp shards)
+    if shard not in (None, ""):
+        return f"{service_name}-shard-{shard}"
+    return socket.gethostname()
+
 
 # ---------------------------------------------------------------------------
 # Internal types
@@ -114,6 +142,7 @@ class OTLPMetricsPublisher:
         ca_file: str | None = None,
         insecure: bool = False,
         metric_labels: Mapping[str, str] | None = None,
+        instance_id: str | None = None,
     ) -> None:
         if not endpoint or ":" not in endpoint:
             raise ValueError("OTLP endpoint must be in 'host:port' form")
@@ -157,7 +186,9 @@ class OTLPMetricsPublisher:
         resource = Resource.create(
             {
                 "service.name": service_name,
-                "service.instance.id": socket.gethostname(),
+                # STABLE instance id (not the ephemeral k8s pod name) -> bounded
+                # `instance`-label cardinality in Mimir. See _stable_instance_id.
+                "service.instance.id": instance_id or _stable_instance_id(service_name),
                 "service.version": _AVTOOLS_VERSION,
                 "service.namespace": "itdcim",
             }
