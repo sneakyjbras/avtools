@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 import click
 import requests
 import structlog
@@ -212,6 +211,25 @@ def run_landb(
         raise click.ClickException(str(exc))
     # Heartbeat only after a successful sync (best-effort).
     _emit_heartbeat(m.LANDB_LAST_RUN_TIMESTAMP, **otlp)
+
+
+@cli.command(
+    "sync-rooms",
+    help=(
+        "Recompute the device->room mapping from the EAM inventory cache and "
+        "persist it into the eam_rooms cache table (reads Postgres only; no EAM/"
+        "LanDB credentials required)."
+    ),
+)
+@_otlp_heartbeat_options
+@click.pass_context
+def sync_rooms(ctx: click.Context, **otlp) -> None:
+    bind_envelope("sync-rooms", otlp["environment"], otlp["hostgroup"])
+    dbod_url = ctx.obj["dbod_url"]
+    tools = AVTools(dbod_url)
+    tools.sync_rooms()
+    # Heartbeat only after a successful sync (best-effort).
+    _emit_heartbeat(m.ROOMS_LAST_RUN_TIMESTAMP, **otlp)
 
 
 @cli.command(
