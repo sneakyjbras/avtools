@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from avtools.exception.errors import PostgresInventoryClientError
 from avtools.postgres.inventory.orm.eam_device import EAMDeviceORM
 from avtools.postgres.inventory.orm.eam_position import EAMPositionORM
+from avtools.postgres.inventory.orm.eam_room import EAMRoom, EAMRoomORM
 from avtools.postgres.inventory.orm.landb_ipaddress import (
     CachedIPAddress,
     LanDBIPAddressORM,
@@ -135,11 +136,28 @@ class PostgresClient:
         except Exception:
             logger.warning("eam_positions_schema_probe_failed", exc_info=True)
 
+        # `eam_rooms` is a precomputed device->room cache (drop & recreate on schema change).
+        try:
+            inspector = inspect(self.engine)
+            if "eam_rooms" in inspector.get_table_names():
+                cols = {c["name"] for c in inspector.get_columns("eam_rooms")}
+                expected = {"equipmentno", "parent_position", "room_no", "resolved_at"}
+                if not expected.issubset(cols):
+                    logger.warning(
+                        "eam_rooms_legacy_schema_detected_dropping_cache_table",
+                        existing_columns=sorted(cols),
+                    )
+                    with self.engine.begin() as conn:
+                        conn.exec_driver_sql("DROP TABLE eam_rooms")
+        except Exception:
+            logger.warning("eam_rooms_schema_probe_failed", exc_info=True)
+
         # Create all tables declared on Base metadata
         try:
             LanDBIPAddressORM.metadata.create_all(self.engine)
             EAMDeviceORM.metadata.create_all(self.engine)
             EAMPositionORM.metadata.create_all(self.engine)
+            EAMRoomORM.metadata.create_all(self.engine)
         except Exception as exc:
             raise PostgresInventoryClientError("Failed to create cache tables") from exc
 
@@ -234,31 +252,30 @@ class PostgresClient:
         mapper_cols = [c.key for c in inspect(orm_cls).column_attrs]
 
         try:
-            with self.Session() as session:
-                with session.begin():
-                    if to_delete:
-                        pk_col = getattr(orm_cls, pk_attr)
-                        stmt = delete(orm_cls).where(pk_col.in_(to_delete))
-                        session.execute(stmt)
+            with self.Session() as session, session.begin():
+                if to_delete:
+                    pk_col = getattr(orm_cls, pk_attr)
+                    stmt = delete(orm_cls).where(pk_col.in_(to_delete))
+                    session.execute(stmt)
 
-                    for domain_obj, _changes in to_update:
-                        pk = id_getter(domain_obj)
-                        orm_obj = session.get(orm_cls, pk)
-                        if not orm_obj:
+                for domain_obj, _changes in to_update:
+                    pk = id_getter(domain_obj)
+                    orm_obj = session.get(orm_cls, pk)
+                    if not orm_obj:
+                        continue
+
+                    mapped = from_domain(domain_obj)
+
+                    # Copy all mapped column attributes except the PK.
+                    for attr in mapper_cols:
+                        if attr == pk_attr:
                             continue
+                        if hasattr(mapped, attr):
+                            setattr(orm_obj, attr, getattr(mapped, attr))
 
-                        mapped = from_domain(domain_obj)
-
-                        # Copy all mapped column attributes except the PK.
-                        for attr in mapper_cols:
-                            if attr == pk_attr:
-                                continue
-                            if hasattr(mapped, attr):
-                                setattr(orm_obj, attr, getattr(mapped, attr))
-
-                    if to_insert:
-                        orm_objs = [from_domain(d) for d in to_insert]
-                        session.add_all(orm_objs)
+                if to_insert:
+                    orm_objs = [from_domain(d) for d in to_insert]
+                    session.add_all(orm_objs)
         except SQLAlchemyError as e:
             logger.error(
                 "postgres_sync_failed",
@@ -308,6 +325,52 @@ class PostgresClient:
             lambda row: (row.to_equipment()),
             "Error querying EAM positions",
         )
+
+    def get_all_eam_rooms(self) -> list[EAMRoom]:
+        """Return all cached device -> room mappings.
+
+        Returns:
+            List of ``EAMRoom`` domain objects reconstructed from the cache table.
+        """
+        return self._get_all(
+            EAMRoomORM,
+            lambda row: (row.to_room()),
+            "Error querying EAM rooms",
+        )
+
+    def get_eam_room_inputs(
+        self,
+    ) -> tuple[list[tuple[str, str | None]], list[tuple[str, str | None, str | None, str | None]]]:
+        """Return exactly the columns the room resolver needs (lean, no ORM hydration).
+
+        Selects only the join/climb columns rather than converting rows to heavy
+        domain objects (``to_equipment()``), because the resolver just needs device
+        anchors plus the position tree.
+
+        Returns:
+            A ``(devices, positions)`` tuple where:
+            - ``devices`` is a list of ``(equipmentno, position)`` for every device, and
+            - ``positions`` is a list of ``(equipmentno, parentasset, eqclass, category)``
+              for every position.
+        """
+        with self.Session() as session:
+            try:
+                device_stmt = select(EAMDeviceORM.equipment_no, EAMDeviceORM.position)
+                devices = [(row[0], row[1]) for row in session.execute(device_stmt).all()]
+
+                position_stmt = select(
+                    EAMPositionORM.equipment_no,
+                    EAMPositionORM.parent_asset,
+                    EAMPositionORM.eq_class,
+                    EAMPositionORM.category,
+                )
+                positions = [
+                    (row[0], row[1], row[2], row[3]) for row in session.execute(position_stmt).all()
+                ]
+                return devices, positions
+            except SQLAlchemyError as e:
+                logger.error("Error querying EAM room inputs", error=str(e), exc_info=True)
+                raise PostgresInventoryClientError("Error querying EAM room inputs") from e
 
     # --- Sync entrypoints ----------------------------------------------------
 
@@ -363,6 +426,32 @@ class PostgresClient:
             pk_attr="equipment_no",
         )
 
+    def sync_eam_rooms(
+        self,
+        to_insert: list[EAMRoom],
+        to_update: list[tuple[EAMRoom, dict[str, Any]]],
+        to_delete: list[str],
+    ) -> None:
+        """Persist the resolved device -> room diff into the cache table.
+
+        Args:
+            to_insert: Room mappings that should be inserted.
+            to_update: Room mappings that should be updated, along with a diff dict.
+            to_delete: Primary keys (equipment numbers) that should be deleted.
+
+        Returns:
+            None.
+        """
+        self._sync_devices(
+            EAMRoomORM,
+            EAMRoomORM.from_room,
+            lambda r: str(r.equipment_no),
+            to_insert,
+            to_update,
+            to_delete,
+            pk_attr="equipment_no",
+        )
+
     def sync_landb_devices(
         self,
         to_insert: list[CachedIPAddress],
@@ -386,7 +475,7 @@ class PostgresClient:
         self._sync_devices(
             LanDBIPAddressORM,
             LanDBIPAddressORM.from_ipaddress,
-            lambda ip: str(getattr(ip, "equipment_no")),
+            lambda ip: str(ip.equipment_no),
             to_insert,
             to_update,
             to_delete,

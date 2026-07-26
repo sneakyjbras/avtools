@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import zlib
 from asyncio import run as asyncio_run
-from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from time import time
 from typing import Any, TypeVar
 
@@ -21,8 +22,8 @@ from avtools.exception.errors import (
     PostgresInventoryClientError,
     PostgresMonitoringClientError,
     SNMPError,
-    SNMPQueryExecutionError,
     SNMPObserverRouterError,
+    SNMPQueryExecutionError,
     TimeseriesError,
     UtilsError,
 )
@@ -37,12 +38,12 @@ from avtools.exception.errors import (
 
 try:  # pragma: no cover
     from eam_rest_client.exceptions import (  # type: ignore
-        EamRestClientError,
         EamClientHTTPError,
         EamClientRetryableHTTPError,
         EamClientTimeoutError,
         EamClientTransportError,
         EamQueryError,
+        EamRestClientError,
     )
 except Exception:  # pragma: no cover
 
@@ -53,32 +54,20 @@ except Exception:  # pragma: no cover
         not expose typed exceptions.
         """
 
-        pass
-
     class EamClientHTTPError(Exception):
         """Fallback error for non-retryable HTTP failures from EAM REST client."""
-
-        pass
 
     class EamClientRetryableHTTPError(Exception):
         """Fallback error for retryable HTTP failures from EAM REST client."""
 
-        pass
-
     class EamClientTimeoutError(Exception):
         """Fallback error raised on EAM request timeouts."""
-
-        pass
 
     class EamClientTransportError(Exception):
         """Fallback error for low-level transport failures talking to EAM."""
 
-        pass
-
     class EamQueryError(Exception):
         """Fallback error for EAM query construction/execution issues."""
-
-        pass
 
 
 try:  # pragma: no cover
@@ -93,28 +82,22 @@ except Exception:  # pragma: no cover
     class TokenExpired(Exception):
         """Fallback error for expired OAuth tokens (LanDB REST client)."""
 
-        pass
-
     class QuerySetError(Exception):
         """Fallback error for LanDB query/filter issues."""
-
-        pass
 
     class LanDBRestError(Exception):
         """Fallback base error for LanDB REST client failures."""
 
-        pass
-
     class DataAwareValidationError(Exception):
         """Fallback error for validation problems in LanDB REST client models."""
 
-        pass
 
-
-from avtools.postgres.client import PostgresClient, PostgresMonitoringClient
-from avtools.postgres.inventory.orm.landb_ipaddress import CachedIPAddress
-from avtools.snmp.client import SNMPClient, InterfaceResult, PingResult, ProbeResult, QueryResult
+from avtools.algorithms.room_resolver import RoomResolver
 from avtools.pipeline import SNMPObserverRouter
+from avtools.postgres.client import PostgresClient, PostgresMonitoringClient
+from avtools.postgres.inventory.orm.eam_room import EAMRoom
+from avtools.postgres.inventory.orm.landb_ipaddress import CachedIPAddress
+from avtools.snmp.client import InterfaceResult, PingResult, ProbeResult, QueryResult, SNMPClient
 from avtools.timeseries.models import MetricSample
 from avtools.timeseries.otlp_publisher import OTLPMetricsPublisher, OTLPPublishError
 from avtools.utils.eam_sanitizer import EAMTextSanitizer
@@ -525,6 +508,137 @@ class AVTools:
             sync_func=self.dbod_helper.sync_eam_positions,
             name="EAM Positions",
         )
+
+    # ---------------------------------------------------------------------
+    # Rooms (precomputed device -> room mapping)
+    # ---------------------------------------------------------------------
+
+    def sync_rooms(self) -> None:
+        """Recompute the device -> room mapping and persist the diff into eam_rooms.
+
+        Reads only the Postgres inventory cache (no EAM/LanDB credentials needed):
+        it loads device anchors + the position tree, runs the pure RoomResolver
+        over ALL devices in memory, then writes only the rows that changed. This
+        full-recompute + diff-write satisfies the "new device / moved position"
+        triggers AND catches upstream position-tree changes that alter a resolved
+        room, while writing only diffs. Devices no longer present in ``eam_devices``
+        are deleted from ``eam_rooms``.
+
+        Returns:
+            None.
+
+        Notes:
+            Logs a start/end envelope with a concrete ``status`` string, mirroring
+            run_eam / run_landb.
+        """
+        run_started = time()
+        status: str = "started"
+        had_errors = False
+
+        devices_total = 0
+        positions_total = 0
+        resolved_total = 0
+
+        self.logger.info("avtools_sync_rooms_start")
+
+        try:
+            try:
+                device_rows, position_rows = self.dbod_helper.get_eam_room_inputs()
+                devices_total = len(device_rows)
+                positions_total = len(position_rows)
+            except PostgresError as e:
+                status = "failed_load_inputs_postgres_error"
+                self.logger.exception("rooms_load_inputs_postgres_error", error=str(e))
+                return
+            except Exception:
+                status = "failed_load_inputs"
+                self.logger.exception("rooms_load_inputs_failed")
+                return
+
+            if not device_rows:
+                status = "skipped_no_devices"
+                self.logger.info("No EAM devices—skipping rooms sync")
+                return
+
+            resolver = RoomResolver.from_rows(position_rows)
+            resolved_rooms = self._resolve_rooms(resolver, device_rows)
+            resolved_total = len(resolved_rooms)
+
+            try:
+                cached_rooms = self.dbod_helper.get_all_eam_rooms()
+            except PostgresError as e:
+                status = "failed_load_cached_rooms_postgres_error"
+                self.logger.exception("rooms_load_cached_rooms_postgres_error", error=str(e))
+                return
+            except Exception:
+                status = "failed_load_cached_rooms"
+                self.logger.exception("rooms_load_cached_rooms_failed")
+                return
+
+            try:
+                self._sync_entities(
+                    api_items=resolved_rooms,
+                    cached_items=cached_rooms,
+                    get_id=lambda r: str(r.equipment_no),
+                    sync_func=self.dbod_helper.sync_eam_rooms,
+                    name="EAM Rooms",
+                )
+            except PostgresError as e:
+                had_errors = True
+                status = "failed_sync_postgres_error"
+                self.logger.exception("rooms_sync_postgres_error", error=str(e))
+                return
+            except UtilsError as e:
+                had_errors = True
+                status = "failed_sync_utils_error"
+                self.logger.exception("rooms_sync_utils_error", error=str(e))
+                return
+            except Exception:
+                had_errors = True
+                status = "failed_sync"
+                self.logger.exception("rooms_sync_failed")
+                return
+
+            status = "ok" if not had_errors else "completed_with_errors"
+
+        except KeyboardInterrupt:
+            status = "interrupted"
+            raise
+        finally:
+            duration_s = time() - run_started
+            self.logger.info(
+                "avtools_sync_rooms_end",
+                status=status,
+                duration_s=round(duration_s, 3),
+                duration_ms=int(duration_s * 1000),
+                devices=devices_total,
+                positions=positions_total,
+                resolved=resolved_total,
+            )
+
+    def _resolve_rooms(
+        self, resolver: RoomResolver, device_rows: list[tuple[str, str | None]]
+    ) -> list[EAMRoom]:
+        """Build an :class:`EAMRoom` for every device using the resolver.
+
+        Args:
+            resolver: In-memory room resolver built from the position tree.
+            device_rows: ``(equipmentno, position)`` pairs for every device.
+
+        Returns:
+            One :class:`EAMRoom` per device, all stamped with the same
+            resolution time.
+        """
+        resolved_at = datetime.utcnow()
+        return [
+            EAMRoom(
+                equipment_no=str(equipment_no),
+                parent_position=position,
+                room_no=resolver.resolve_one(position),
+                resolved_at=resolved_at,
+            )
+            for equipment_no, position in device_rows
+        ]
 
     # ---------------------------------------------------------------------
     # LanDB
@@ -1328,9 +1442,7 @@ class AVTools:
 
     async def _get_snmp_raw(
         self, devices: list[CachedIPAddress], max_workers: int
-    ) -> tuple[
-        list["PingResult"], list["ProbeResult"], list["QueryResult"], list["InterfaceResult"]
-    ]:
+    ) -> tuple[list[PingResult], list[ProbeResult], list[QueryResult], list[InterfaceResult]]:
         """Collect raw ping/probe/query results with global barriers between phases.
 
         This keeps the existing, efficient 3-phase pipeline:

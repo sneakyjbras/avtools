@@ -184,6 +184,10 @@ class LanDBIPAddressORMError(PostgresError):
     """Errors originating from avtools.postgres.orm.landb_ipaddress."""
 
 
+class EAMRoomORMError(PostgresError):
+    """Errors originating from avtools.postgres.inventory.orm.eam_room."""
+
+
 # New Postgres subpackages (inventory/monitoring)
 
 

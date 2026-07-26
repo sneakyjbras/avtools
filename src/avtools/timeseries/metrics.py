@@ -20,7 +20,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 METRIC_PREFIX = "avtools_"
 
 # ---------------------------------------------------------------------------
@@ -58,6 +57,7 @@ SNMP_CYCLE_DURATION_SECONDS = METRIC_PREFIX + "snmp_cycle_duration_seconds"
 # the device-telemetry metrics above; keep the avtools_<job>_last_run_* naming.
 EAM_LAST_RUN_TIMESTAMP = METRIC_PREFIX + "eam_last_run_timestamp"
 LANDB_LAST_RUN_TIMESTAMP = METRIC_PREFIX + "landb_last_run_timestamp"
+ROOMS_LAST_RUN_TIMESTAMP = METRIC_PREFIX + "rooms_last_run_timestamp"
 
 # ---------------------------------------------------------------------------
 # MIB-II interfaces (universal; Phase C) — labelled by ifindex
@@ -187,6 +187,9 @@ METRIC_META: dict[str, MetricMeta] = {
     ),
     LANDB_LAST_RUN_TIMESTAMP: MetricMeta(
         "Unix timestamp of the last successful LanDB inventory sync (heartbeat)."
+    ),
+    ROOMS_LAST_RUN_TIMESTAMP: MetricMeta(
+        "Unix timestamp of the last successful device->room mapping sync (heartbeat)."
     ),
     DEVICE_IF_OPER_STATUS: MetricMeta(
         "MIB-II interface operational status (1=up, 2=down, ...) per ifindex."
