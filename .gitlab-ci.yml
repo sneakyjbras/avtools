@@ -228,9 +228,14 @@ e2e_tests:
 # Publishes the avtools package to the internal CERN PyPI servers.
 #
 #   python-publish-qa     → QA PyPI   (https://qa-pypi-itdcim.cern.ch)
-#                           triggers on every push to the 'qa' branch
+#                           MANUAL job, offered on 'qa'-branch pushes, on
+#                           v* tags, and on web pipelines. Manual (not
+#                           automatic) because the package version is static
+#                           in pyproject.toml: an unconditional publish would
+#                           409 on an unchanged version. Bump the version,
+#                           push to qa, then click the job.
 #   python-publish-stable → PROD PyPI (https://pypi-itdcim.cern.ch)
-#                           triggers on every Git tag
+#                           MANUAL job, offered on every v* Git tag
 #
 # Required CI/CD variables — set in GitLab → Settings → CI/CD → Variables.
 # Poetry reads these automatically based on the repository name:
@@ -251,6 +256,8 @@ python-publish-qa:
   extends: .python-test-base
   stage: deploy_qa
   rules:
+    - if: '$CI_COMMIT_BRANCH == "qa"'
+      when: manual
     - if: '$CI_COMMIT_TAG =~ /^v\d+/'
       when: manual
     - if: '$CI_PIPELINE_SOURCE == "web"'
