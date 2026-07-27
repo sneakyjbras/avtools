@@ -5,6 +5,16 @@
 ### Changed
 - **License & Maintainers update**: Updated project license specification to MIT in `pyproject.toml` and updated maintainer/contributor guidelines in `CONTRIBUTING.md` setting José Bras (`jose.bras@cern.ch` / `j.eduardo.bras@outlook.com`, `@jsapinat` / `@sneakyjbras`) as the sole core author and maintainer.
 
+## [1.10.0] — 2026-07-27
+
+### Added
+- **`eam_rooms` precompute service**: Precomputes device→room mapping to support simplified room-based querying.
+
+## [1.9.3] — 2026-07-26
+
+### Changed
+- Miscellaneous fixes and version bump.
+
 ## [1.9.2] — 2026-07-25
 
 ### Fixed
