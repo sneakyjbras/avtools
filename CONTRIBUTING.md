@@ -6,13 +6,18 @@ The following is a set of guidelines for contributing to `avtools`. These are mo
 
 ---
 
-## 👥 Maintainers
+## 👥 Maintainers & Contributors
 
-If you have any questions or need guidance, feel free to reach out to the core maintainers:
+If you have any questions or need guidance, feel free to reach out to the project maintainer:
 
 *   **José Bras** 
     *   GitLab/GitHub: @jsapinat / @sneakyjbras
     *   Email: jose.bras@cern.ch / j.eduardo.bras@outlook.com
+
+---
+
+## 🔍 Reviewers
+
 *   **Jarek Polok**
     *   Email: jarek.polok@cern.ch
 *   **Pawel Zembrzuski**

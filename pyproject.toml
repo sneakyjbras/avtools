@@ -3,14 +3,12 @@ name        = "avtools"
 version     = "1.10.0"
 description = "Monitoring tools for the AV infrastructure of CERN."
 readme      = "README.md"
-license     = "Proprietary"
+license     = "MIT"
 homepage    = "https://gitlab.cern.ch/itdcim/av-tools"
 repository  = "https://gitlab.cern.ch/itdcim/av-tools.git"
 
 authors = [
     "jsapinat <jose.bras@cern.ch>",
-    "zembrzus <pawel.zembrzuski@cern.ch>",
-    "jpolok <jarek.polok@cern.ch>",
 ]
 
 # Ship vendored MIB sources + the compiled metadata the resolver loads at runtime.
