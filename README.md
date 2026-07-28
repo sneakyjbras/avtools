@@ -339,6 +339,67 @@ export INFLUX_DB='...'
 poetry run avtools snmp-influx --threads 16
 ```
 
+#### `snmp-timeseries`
+
+Loads cached LanDB targets from Postgres, performs ping + SNMP collection, and
+publishes Prometheus metrics to CERN **MONIT** via OTLP/gRPC (stored in Mimir).
+This is the current production path (the InfluxDB sink above is legacy).
+
+```bash
+export DATABASE_URL='postgresql://<USER>:<PASS>@<HOST>:<PORT>/<DB>'
+export MONIT_TENANT='...'
+export MONIT_PASSWORD='...'
+
+poetry run avtools snmp-timeseries --threads 16
+```
+
+##### `--priority` (priority tiers)
+
+Metrics are classified into **priority tiers** so different metrics can be
+published at different cadences by separate CronJobs. `--priority`
+(env `AVTOOLS_PRIORITY`, default `all`) is a **publish-time filter**: collection
+is unchanged every cycle — only the emitted subset changes.
+
+| `--priority` | Publishes |
+|---|---|
+| `all` (default) | Every metric — identical to today's behaviour. |
+| `critical` | The CRITICAL tier **plus** the ALWAYS guardrails. |
+| `high` | The HIGH tier **plus** the ALWAYS guardrails. |
+| `medium` | The MEDIUM tier **plus** the ALWAYS guardrails. |
+| `low` | The LOW tier **plus** the ALWAYS guardrails. |
+
+Tiers are **exact, not cumulative**: `--priority critical` publishes only
+CRITICAL ∪ ALWAYS — it does **not** also emit HIGH/MEDIUM/LOW. The taxonomy is
+the single source of truth in `src/avtools/timeseries/metrics.py`
+(`Priority` / `MetricMeta.priority`):
+
+- **CRITICAL** — up/down and threshold-status signals: ping status, SNMP probe
+  status, interface oper-status, PDU health/input-status/pq-severity, the PDU
+  device-evaluated status codes (active-power/power-factor/balance/load), and PDU
+  environmental temperature/humidity.
+- **HIGH** — live electrical/actionable readings: ping RTT, PDU active power,
+  line current, current-utilized %, voltage, outlet on/off state, projector
+  power status.
+- **MEDIUM** — trends & counters: energy, frequency, power factor, apparent
+  power, out-of-balance %, per-outlet current/power/energy, interface
+  octets/errors, and all uptime/lamp-hours gauges.
+- **LOW** — all `*_info` string-as-label gauges (firmware, status labels, sensor/
+  outlet/interface identity).
+- **ALWAYS** — collector self-instrumentation that must emit on **every** run
+  regardless of tier: the cycle guardrails (`snmp_devices_targeted`,
+  `snmp_devices_polled`, `snmp_coverage_ratio`, `snmp_cycle_duration_seconds`)
+  and the per-job heartbeats (`*_last_run_timestamp`).
+
+**Guardrail `tier` label (for Grafana):** when `--priority != all`, the ALWAYS
+cycle guardrails carry a `tier` label equal to the `--priority` value (mirroring
+the conditional `shard` label). Once collection is split into per-tier CronJobs,
+all four jobs emit the same guardrails every cycle; the `tier` label keeps their
+series from colliding on one identity. **Grafana SLO/watchdog alerts must
+`group by (tier)`** (and `shard` when sharded) so each tier's coverage/freshness
+is evaluated independently. The label is omitted under `all` so the current
+untiered series identity is unchanged, and it is deliberately **not** added to
+device metrics (that would multiply device cardinality).
+
 
 ## Testing & Coverage
 
