@@ -80,6 +80,7 @@ class DummyRouter:
         shard_index=0,
         shard_total=1,
         cycle_duration_s=None,
+        priority="all",
     ):
         self.calls.append(
             {
@@ -91,6 +92,7 @@ class DummyRouter:
                 "shard_index": shard_index,
                 "shard_total": shard_total,
                 "cycle_duration_s": cycle_duration_s,
+                "priority": priority,
             }
         )
 

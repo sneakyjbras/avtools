@@ -59,6 +59,7 @@ class DummyAVTools:
         availability_zone: str = "cern-geneva-b",
         shard_index: int = 0,
         shard_total: int = 1,
+        priority: str = "all",
     ) -> None:
         type(self).calls.append(
             (
@@ -77,6 +78,7 @@ class DummyAVTools:
                     "availability_zone": availability_zone,
                     "shard_index": shard_index,
                     "shard_total": shard_total,
+                    "priority": priority,
                 },
             )
         )
@@ -168,6 +170,7 @@ def test_snmp_timeseries_uses_envvars_for_required_and_optional_flags() -> None:
                 "availability_zone": "cern-geneva-b",
                 "shard_index": 0,
                 "shard_total": 1,
+                "priority": "all",
             },
         )
     ]

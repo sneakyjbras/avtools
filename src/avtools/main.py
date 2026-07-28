@@ -340,6 +340,20 @@ def sync_rooms(ctx: click.Context, **otlp) -> None:
         "sharding (unchanged single-process behaviour)."
     ),
 )
+@click.option(
+    "--priority",
+    envvar="AVTOOLS_PRIORITY",
+    type=click.Choice(["all", "critical", "high", "medium", "low"]),
+    default="all",
+    show_default=True,
+    help=(
+        "Publish-time priority tier filter. 'all' (default) publishes every metric "
+        "(today's behaviour). A tier (critical/high/medium/low) publishes only that "
+        "tier's device metrics plus the ALWAYS cycle guardrails; tiers are EXACT, "
+        "not cumulative. Collection is unchanged — this filters at publish time so "
+        "separate CronJobs can emit different tiers at different cadences."
+    ),
+)
 @click.pass_context
 def snmp_timeseries(
     ctx: click.Context,
@@ -355,6 +369,7 @@ def snmp_timeseries(
     availability_zone: str,
     shard_index: int,
     shard_total: int,
+    priority: str,
 ) -> None:
     # Fail fast on a misconfigured partition rather than silently leaving a gap:
     # a wrong N (shard_total) or an out-of-range index means some devices are
@@ -383,6 +398,7 @@ def snmp_timeseries(
         availability_zone=availability_zone,
         shard_index=shard_index,
         shard_total=shard_total,
+        priority=priority,
     )
 
 

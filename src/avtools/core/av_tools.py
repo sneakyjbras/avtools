@@ -1191,6 +1191,7 @@ class AVTools:
         availability_zone: str = "cern-geneva-b",
         shard_index: int = 0,
         shard_total: int = 1,
+        priority: str = "all",
     ) -> None:
         """Collect ping/SNMP metrics and publish to Prometheus via MONIT OTLP.
 
@@ -1221,6 +1222,13 @@ class AVTools:
                                     Exposed as the ``submitter_hostgroup`` label.
             availability_zone:      CERN compute zone (e.g. "cern-geneva-b").
                                     Exposed as the ``availability_zone`` label.
+            priority:               Publish-time priority tier filter. ``"all"``
+                                    (default) publishes every metric — today's
+                                    behaviour. A tier ("critical"/"high"/"medium"/
+                                    "low") publishes only that tier's device
+                                    metrics plus the ALWAYS guardrails; collection
+                                    is unchanged. Passed to
+                                    :meth:`SNMPObserverRouter.process`.
 
         Returns:
             None.
@@ -1241,6 +1249,7 @@ class AVTools:
             "avtools_run_snmp_timeseries_start",
             otlp_endpoint=otlp_endpoint,
             tasks=max_workers,
+            priority=priority,
         )
 
         try:
@@ -1379,6 +1388,7 @@ class AVTools:
                     shard_index=shard_index,
                     shard_total=shard_total,
                     cycle_duration_s=collect_duration_s,
+                    priority=priority,
                 )
 
                 samples_total = routing_stats.ts_samples

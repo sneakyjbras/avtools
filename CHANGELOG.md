@@ -5,6 +5,34 @@
 ### Changed
 - **License & Maintainers update**: Updated project license specification to MIT in `pyproject.toml` and updated maintainer/contributor guidelines in `CONTRIBUTING.md` setting José Bras (`jose.bras@cern.ch` / `j.eduardo.bras@outlook.com`, `@jsapinat` / `@sneakyjbras`) as the sole core author and maintainer.
 
+## [1.11.0] — 2026-07-28
+
+### Added
+- **Metric priority tiers + `--priority` publish filter** — foundation for
+  collecting/publishing metrics at different cadences from separate CronJobs.
+  - **Taxonomy (single source of truth)** in `src/avtools/timeseries/metrics.py`:
+    a `Priority` enum (`CRITICAL`/`HIGH`/`MEDIUM`/`LOW`/`ALWAYS`) and a mandatory
+    `MetricMeta.priority` field classifying **every** metric in `METRIC_META`
+    (a contract test guards that no metric is left unclassified). Helpers
+    `metrics_for_priority()`, `publishable_metrics()`, `should_publish()`.
+  - **`snmp-timeseries --priority`** (`click.Choice(all/critical/high/medium/low)`,
+    default `all`, env `AVTOOLS_PRIORITY`), threaded through
+    `AVTools.run_snmp_timeseries()` to `SNMPObserverRouter.process()`.
+  - **Publish-filter only (v1):** collection is unchanged every cycle; the filter
+    is applied at publish time in `SNMPObserverRouter.process` (the single
+    enforcement point). Tiers are **exact, not cumulative** — `--priority critical`
+    publishes only CRITICAL ∪ ALWAYS, never HIGH/MEDIUM/LOW. `--priority all`
+    (default) is byte-for-byte back-compat: no filtering.
+  - **Guardrail `tier` label (downstream contract):** when `--priority != all`,
+    the ALWAYS cycle guardrails (`snmp_devices_targeted`, `snmp_devices_polled`,
+    `snmp_coverage_ratio`, `snmp_cycle_duration_seconds`) gain a `tier` label
+    (value = the `--priority` token), mirroring the existing conditional `shard`
+    label. This prevents the per-tier CronJobs' guardrail series from colliding on
+    one identity. **Grafana SLO/watchdog alerts must `group by (tier)`** (and
+    `shard` when sharded). The label is omitted under `all` (unchanged series
+    identity) and is deliberately **not** added to device metrics to avoid
+    multiplying device cardinality.
+
 ## [1.10.0] — 2026-07-27
 
 ### Added
