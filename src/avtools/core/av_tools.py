@@ -17,6 +17,7 @@ from landb_rest_client import register_credentials as landb_register_credentials
 from landb_rest_client.models import Device, IPAddress
 
 from avtools.exception.errors import (
+    MassDeleteRefused,
     PipelineError,
     PostgresError,
     PostgresInventoryClientError,
@@ -93,7 +94,7 @@ except Exception:  # pragma: no cover
 
 
 from avtools.algorithms.room_resolver import RoomResolver
-from avtools.pipeline import SNMPObserverRouter
+from avtools.pipeline import SNMPObserverRouter, cycle_guardrail_samples
 from avtools.postgres.client import PostgresClient, PostgresMonitoringClient
 from avtools.postgres.inventory.orm.eam_room import EAMRoom
 from avtools.postgres.inventory.orm.landb_ipaddress import CachedIPAddress
@@ -104,6 +105,49 @@ from avtools.utils.eam_sanitizer import EAMTextSanitizer
 from avtools.utils.sync_reporting import SyncReportLogger
 
 Model = TypeVar("Model")
+
+# ---------------------------------------------------------------------------
+# LanDB request-parameter budget  (why we chunk every `__in` lookup)
+# ---------------------------------------------------------------------------
+# LanDB is served by Tomcat, which HARD-REJECTS any request carrying more than
+# 1000 HTTP parameters (GET plus POST) with:
+#
+#   requests.exceptions.HTTPError: 422 Client Error: More than the maximum
+#   number of request parameters (GET plus POST) for a single request ([1,000])
+#   were detected.
+#
+# `landb_rest_client` encodes an `__in` filter as ONE query parameter PER VALUE
+# (`serialNumber.in=AAA&serialNumber.in=BBB&...`) and always adds `_limit` and
+# `_offset`, so a single `filter(field__in=values)` call costs
+# ``len(values) + 2`` request parameters — it does NOT matter how long the
+# individual values are.
+#
+# With ~4.5k EAM devices (3749 serials / 3231 names in production on
+# 2026-07-30) one un-chunked call is ~3.7k parameters: every LanDB fetch 422s,
+# the failure is swallowed as a warning, the reconciler sees an EMPTY API result
+# and deletes the entire fleet cache. Hence every `__in` lookup is split into
+# chunks of LANDB_IN_CHUNK_SIZE and the results merged.
+#
+# 800 — and NOT 998, and definitely not 5000 — deliberately keeps ~200
+# parameters of headroom under the ceiling for `_limit`/`_offset` and for any
+# extra filter a future caller may add to the same query. Do not raise it
+# without re-verifying the server-side limit below.
+LANDB_MAX_REQUEST_PARAMS = 1000
+LANDB_IN_CHUNK_SIZE = 800
+
+# ---------------------------------------------------------------------------
+# Mass-delete circuit breaker
+# ---------------------------------------------------------------------------
+# `_sync_entities` derives deletes from `cached_ids - api_ids`, so ANY upstream
+# fetch that comes back empty or near-empty is indistinguishable from "the whole
+# fleet was decommissioned" — and on 2026-07-30 that wiped the entire
+# landb_ipaddresses table while the job still logged status=ok.
+#
+# Refuse to delete more than this fraction of the existing cache in a single run.
+# A genuine mass decommission is rare, and re-running it deliberately with
+# ``allow_mass_delete=True`` costs minutes; a silent wipe costs the whole
+# monitoring signal until someone notices the blank dashboards.
+SYNC_MAX_DELETE_FRACTION = 0.5
 
 
 def device_in_shard(equipment_no: str, shard_index: int, shard_total: int) -> bool:
@@ -143,6 +187,10 @@ class AVTools:
         self.logs = logs
         self.logger = structlog.get_logger(self.__class__.__name__)
         self._landb_initialized = False
+        # True when the last _get_landb_ipaddresses() call returned a PARTIAL view
+        # of LanDB (at least one chunked lookup failed). run_landb() reads it and
+        # refuses to delete cached rows in that case.
+        self._landb_fetch_degraded = False
         self._eam_sanitizer = EAMTextSanitizer()
 
     # ---------------------------------------------------------------------
@@ -651,7 +699,7 @@ class AVTools:
         audience: str,
         *,
         base_url: str = "https://landb.cern.ch/api/",
-    ) -> None:
+    ) -> str:
         """Sync LanDB IP targets into Postgres by enriching the EAM snapshot.
 
         The LanDB sync uses the **current EAM devices snapshot** in Postgres as the
@@ -669,10 +717,19 @@ class AVTools:
             base_url: LanDB API base URL.
 
         Returns:
-            None.
+            The terminal status string, identical to the ``status`` field of the
+            ``avtools_run_landb_end`` event: ``"ok"``, ``"skipped_no_eam_devices"``
+            or one of the ``failed_*`` values. The CLI uses it to decide the process
+            exit code and whether to publish the LanDB heartbeat — errors are handled
+            here, so a plain ``return`` would tell the caller nothing.
 
         Notes:
             Only devices with a usable SNMP target IP (IPv4 or IPv6) are written.
+
+            A DEGRADED fetch (``failed_landb_fetch_degraded``) means at least one
+            chunked LanDB lookup failed, so the API view is partial. Such a run
+            still applies inserts/updates but deletes NOTHING, because
+            ``cached_ids - api_ids`` on a partial view deletes live devices.
         """
         run_started = time()
         status: str = "started"
@@ -696,16 +753,16 @@ class AVTools:
             except PostgresError as e:
                 status = "failed_load_eam_devices_postgres_error"
                 self.logger.exception("landb_load_eam_devices_postgres_error", error=str(e))
-                return
+                return status
             except Exception:
                 status = "failed_load_eam_devices"
                 self.logger.exception("landb_load_eam_devices_failed")
-                return
+                return status
 
             if not eam_list:
                 status = "skipped_no_eam_devices"
                 self.logger.info("No EAM devices—skipping LanDB sync")
-                return
+                return status
 
             try:
                 self._init_landb_rest_client(
@@ -717,27 +774,30 @@ class AVTools:
             except TokenExpired as e:
                 status = "failed_client_init_token_expired"
                 self.logger.error("landb_token_expired", error=str(e))
-                return
+                return status
             except QuerySetError as e:
                 status = "failed_client_init_queryset_error"
                 self.logger.error("landb_client_init_queryset_error", error=str(e))
-                return
+                return status
             except LanDBRestError as e:
                 status = "failed_client_init"
                 self.logger.error("landb_client_init_failed", error=str(e))
-                return
+                return status
             except Exception:
                 status = "failed_client_init_unexpected"
                 self.logger.exception("landb_client_init_failed_unexpected")
-                return
+                return status
 
+            # Cleared before the fetch so a partially-failed lookup cannot be
+            # inherited from a previous run on the same instance.
+            self._landb_fetch_degraded = False
             try:
                 landb_ips = self._get_landb_ipaddresses(eam_list)
                 enriched_ip_count = len(landb_ips)
             except TokenExpired as e:
                 status = "failed_fetch_token_expired"
                 self.logger.error("landb_token_expired", error=str(e))
-                return
+                return status
             except DataAwareValidationError as e:
                 status = "failed_fetch_validation_error"
                 err_count = None
@@ -750,19 +810,32 @@ class AVTools:
                     error=str(e),
                     error_count=err_count,
                 )
-                return
+                return status
             except QuerySetError as e:
                 status = "failed_fetch_queryset_error"
                 self.logger.error("landb_queryset_error", error=str(e))
-                return
+                return status
             except LanDBRestError as e:
                 status = "failed_fetch"
                 self.logger.error("landb_fetch_failed", error=str(e))
-                return
+                return status
             except Exception:
                 status = "failed_fetch_unexpected"
                 self.logger.exception("landb_fetch_failed_unexpected")
-                return
+                return status
+
+            # A degraded fetch means the LanDB view we just built is PARTIAL: rows
+            # are missing because requests failed, not because the devices are gone.
+            # Reconciling that destructively is what emptied the fleet table.
+            fetch_degraded = bool(getattr(self, "_landb_fetch_degraded", False))
+            if fetch_degraded:
+                self.logger.error(
+                    "landb_fetch_degraded",
+                    eam_devices=eam_count,
+                    enriched_ipaddresses=enriched_ip_count,
+                    reason="one_or_more_landb_lookups_failed",
+                    action="deletes_suppressed_run_marked_failed",
+                )
 
             try:
                 cache_list = self.dbod_helper.get_all_landb_devices()
@@ -770,11 +843,11 @@ class AVTools:
             except PostgresError as e:
                 status = "failed_load_cached_devices_postgres_error"
                 self.logger.exception("landb_load_cached_devices_postgres_error", error=str(e))
-                return
+                return status
             except Exception:
                 status = "failed_load_cached_devices"
                 self.logger.exception("landb_load_cached_devices_failed")
-                return
+                return status
 
             try:
                 self._sync_entities(
@@ -783,22 +856,36 @@ class AVTools:
                     get_id=self._landb_get_id,
                     sync_func=self.dbod_helper.sync_landb_devices,
                     name="LanDB IPAddress",
+                    # Freshness is expendable, the inventory is not.
+                    allow_deletes=not fetch_degraded,
                 )
+            except MassDeleteRefused as e:
+                had_errors = True
+                status = "failed_sync_mass_delete_refused"
+                self.logger.exception("landb_sync_mass_delete_refused", error=str(e))
+                return status
             except PostgresError as e:
                 had_errors = True
                 status = "failed_sync_postgres_error"
                 self.logger.exception("landb_sync_postgres_error", error=str(e))
-                return
+                return status
             except UtilsError as e:
                 had_errors = True
                 status = "failed_sync_utils_error"
                 self.logger.exception("landb_sync_utils_error", error=str(e))
-                return
+                return status
             except Exception:
                 had_errors = True
                 status = "failed_sync"
                 self.logger.exception("landb_sync_failed")
-                return
+                return status
+
+            if fetch_degraded:
+                # Inserts/updates were applied, deletes were not: this run did NOT
+                # produce a trustworthy snapshot, so it must not read as `ok` and
+                # must not refresh the LanDB heartbeat (the CLI keys off this).
+                status = "failed_landb_fetch_degraded"
+                return status
 
             status = "ok" if not had_errors else "completed_with_errors"
 
@@ -819,6 +906,8 @@ class AVTools:
                 base_url=base_url,
                 audience=audience,
             )
+
+        return status
 
     def _landb_get_id(self, obj: Any) -> str:
         """Get the stable identifier used for LanDB cached rows.
@@ -870,8 +959,93 @@ class AVTools:
 
         self._landb_initialized = True
 
+    def _landb_fetch_in_chunks(
+        self,
+        *,
+        model: Any,
+        filter_key: str,
+        values: Sequence[str],
+        key_of: Callable[[Any], str | None],
+        failure_event: str,
+        count_field: str,
+        chunk_size: int = LANDB_IN_CHUNK_SIZE,
+    ) -> tuple[dict[str, Any], bool]:
+        """Run one ``field__in`` LanDB lookup in chunks and merge the results.
+
+        Splitting is mandatory, not an optimisation: see LANDB_IN_CHUNK_SIZE for
+        the 1000-request-parameter Tomcat ceiling that a single large ``__in``
+        list blows through.
+
+        Args:
+            model:         LanDB REST model class exposing ``.objects.filter``
+                           (``Device`` / ``IPAddress``). Accessed lazily so an
+                           empty ``values`` list performs no API work at all.
+            filter_key:    Filter kwarg to use, e.g. ``"serial_number__in"``.
+            values:        Full list of values to look up (already de-duplicated
+                           and normalized by the caller).
+            key_of:        Extracts the merge key from a returned record. Records
+                           with a falsy key are dropped, exactly as before.
+            failure_event: Log event name emitted (warning) for a failed chunk.
+                           Kept identical to the pre-chunking event names.
+            count_field:   Field name carrying the TOTAL value count on that
+                           warning event (``serial_count`` / ``name_count``),
+                           again identical to the pre-chunking payload.
+            chunk_size:    Values per request (default LANDB_IN_CHUNK_SIZE).
+
+        Returns:
+            ``(results, degraded)``:
+
+            * ``results`` maps ``key_of(record)`` -> record. Chunks are processed
+              in order and a key already present is never overwritten, so the
+              "first wins" de-duplication of the un-chunked code is preserved
+              across chunk boundaries as well.
+            * ``degraded`` is True when AT LEAST ONE chunk failed. A degraded
+              lookup is NOT the same as "no rows for those values": the merged
+              result is a partial view and callers must not treat it as
+              authoritative (see :meth:`run_landb`, which suppresses deletes).
+        """
+        results: dict[str, Any] = {}
+        if not values:
+            return results, False
+
+        chunks = [list(values[i : i + chunk_size]) for i in range(0, len(values), chunk_size)]
+        chunk_count = len(chunks)
+        degraded = False
+
+        for chunk_index, chunk in enumerate(chunks):
+            try:
+                for rec in model.objects.filter(**{filter_key: chunk}).all():
+                    k = key_of(rec)
+                    if k and k not in results:
+                        results[k] = rec
+            except Exception:
+                degraded = True
+                self.logger.warning(
+                    failure_event,
+                    exc_info=True,
+                    **{
+                        count_field: len(values),
+                        "chunk_index": chunk_index,
+                        "chunk_count": chunk_count,
+                        "chunk_values": len(chunk),
+                        "chunk_size": chunk_size,
+                    },
+                )
+
+        self.logger.info(
+            "landb_chunked_fetch_done",
+            filter_key=filter_key,
+            values=len(values),
+            chunk_count=chunk_count,
+            chunk_size=chunk_size,
+            matched=len(results),
+            degraded=degraded,
+        )
+
+        return results, degraded
+
     def _get_landb_ipaddresses(self, eam_records: list[Equipment]) -> list[CachedIPAddress]:
-        """Bulk LanDB lookup in <=4 API calls.
+        """Bulk LanDB lookup in 4 logical queries (each chunked into N requests).
 
         Strategy:
         1) Fetch LanDB Devices by EAM serial_number (Device.serial_number__in).
@@ -880,14 +1054,27 @@ class AVTools:
         3) Using the matched LanDB Devices, fetch IPAddresses by device serial_number, then
            fallback by device name.
 
+        Every one of those four ``__in`` lookups is executed in chunks of
+        LANDB_IN_CHUNK_SIZE values via :meth:`_landb_fetch_in_chunks` because
+        LanDB/Tomcat rejects requests with more than 1000 parameters and the REST
+        client spends one parameter per ``__in`` value (see LANDB_IN_CHUNK_SIZE).
+
         Output:
         - List[CachedIPAddress] enriched with EAM keys (equipment_no, class_code, etc.).
         - Only includes devices that have a usable SNMP target IP (LanDB ipv4 or ipv6).
+
+        Side effect:
+        - Sets ``self._landb_fetch_degraded`` to True when any chunk of any of the
+          four lookups failed, i.e. the returned list is a PARTIAL view of LanDB
+          rather than an authoritative one. :meth:`run_landb` reads that flag and
+          refuses to delete cached rows on a degraded fetch.
 
         IMPORTANT CORRELATION:
         - (EAM) Equipment.serial_number == (LanDB) Device.serial_number
         - (LanDB) Device.name == (LanDB) IPAddress.device   (NOT IPAddress.name)
         """
+        # Reset per call; every chunked lookup below ORs its own failure into it.
+        self._landb_fetch_degraded = False
 
         def norm(v: Any) -> str | None:
             """Normalize a value into a trimmed string.
@@ -920,20 +1107,15 @@ class AVTools:
                 eam_serials.append(s)
 
         # --- (1) Devices by serial_number --------------------------------
-        devices_by_serial: dict[str, Device] = {}
-        try:
-            if eam_serials:
-                devs = Device.objects.filter(serial_number__in=eam_serials).all()
-                for d in devs:
-                    s = norm(getattr(d, "serial_number", None))
-                    if s and s not in devices_by_serial:
-                        devices_by_serial[s] = d
-        except Exception:
-            self.logger.warning(
-                "landb_device_fetch_by_serial_failed",
-                serial_count=len(eam_serials),
-                exc_info=True,
-            )
+        devices_by_serial, degraded = self._landb_fetch_in_chunks(
+            model=Device,
+            filter_key="serial_number__in",
+            values=eam_serials,
+            key_of=lambda d: norm(getattr(d, "serial_number", None)),
+            failure_event="landb_device_fetch_by_serial_failed",
+            count_field="serial_count",
+        )
+        self._landb_fetch_degraded = self._landb_fetch_degraded or degraded
 
         # Determine which EAM records still need a name-based lookup.
         # (includes missing serials AND serials not present in LanDB)
@@ -952,20 +1134,15 @@ class AVTools:
                 names_set.add(n)
                 names_to_query.append(n)
 
-        devices_by_name: dict[str, Device] = {}
-        try:
-            if names_to_query:
-                devs = Device.objects.filter(name__in=names_to_query).all()
-                for d in devs:
-                    n = norm(getattr(d, "name", None))
-                    if n and n not in devices_by_name:
-                        devices_by_name[n] = d
-        except Exception:
-            self.logger.warning(
-                "landb_device_fetch_by_name_failed",
-                name_count=len(names_to_query),
-                exc_info=True,
-            )
+        devices_by_name, degraded = self._landb_fetch_in_chunks(
+            model=Device,
+            filter_key="name__in",
+            values=names_to_query,
+            key_of=lambda d: norm(getattr(d, "name", None)),
+            failure_event="landb_device_fetch_by_name_failed",
+            count_field="name_count",
+        )
+        self._landb_fetch_degraded = self._landb_fetch_degraded or degraded
 
         # --- Match EAM -> LanDB Device (prefer serial match) --------------
         matched: list[tuple[Equipment, Device, str]] = []
@@ -1025,37 +1202,33 @@ class AVTools:
                 device_names.append(n)
 
         # Key by IPAddress.device so we can correlate Device.name == IPAddress.device.
-        ips_by_device: dict[str, IPAddress] = {}
-
-        try:
-            if device_serials:
-                ips = IPAddress.objects.filter(device__serial_number__in=device_serials).all()
-                for ip in ips:
-                    k = norm(getattr(ip, "device", None))
-                    if k and k not in ips_by_device:
-                        ips_by_device[k] = ip
-        except Exception:
-            self.logger.warning(
-                "landb_ipaddress_fetch_by_serial_failed",
-                serial_count=len(device_serials),
-                exc_info=True,
-            )
+        ips_by_device, degraded = self._landb_fetch_in_chunks(
+            model=IPAddress,
+            filter_key="device__serial_number__in",
+            values=device_serials,
+            key_of=lambda ip: norm(getattr(ip, "device", None)),
+            failure_event="landb_ipaddress_fetch_by_serial_failed",
+            count_field="serial_count",
+        )
+        self._landb_fetch_degraded = self._landb_fetch_degraded or degraded
 
         # --- (4) Fallback IPAddresses by device name ----------------------
         missing_ip_names = [n for n in device_names if n not in ips_by_device]
-        try:
-            if missing_ip_names:
-                ips = IPAddress.objects.filter(device__name__in=missing_ip_names).all()
-                for ip in ips:
-                    k = norm(getattr(ip, "device", None))
-                    if k and k not in ips_by_device:
-                        ips_by_device[k] = ip
-        except Exception:
-            self.logger.warning(
-                "landb_ipaddress_fetch_by_name_failed",
-                name_count=len(missing_ip_names),
-                exc_info=True,
-            )
+        ips_by_name, degraded = self._landb_fetch_in_chunks(
+            model=IPAddress,
+            filter_key="device__name__in",
+            values=missing_ip_names,
+            key_of=lambda ip: norm(getattr(ip, "device", None)),
+            failure_event="landb_ipaddress_fetch_by_name_failed",
+            count_field="name_count",
+        )
+        self._landb_fetch_degraded = self._landb_fetch_degraded or degraded
+
+        # Merge the fallback in: keys already resolved by the serial lookup win,
+        # matching the previous single-dict "first wins" behaviour.
+        for k, ip_rec in ips_by_name.items():
+            if k not in ips_by_device:
+                ips_by_device[k] = ip_rec
 
         # --- Correlate EAM -> Device -> IPAddress, enrich, return ---------
         out: list[CachedIPAddress] = []
@@ -1325,6 +1498,25 @@ class AVTools:
             if not devices:
                 status = "skipped_no_targets"
                 self.logger.info("No LanDB IP targets to monitor")
+                # This return is BEFORE snmp_router.process, so the cycle
+                # guardrails would never be published and the series would VANISH
+                # from MonIT instead of going to zero. Four Grafana SLO alerts read
+                # absence as health, which is why an empty fleet table looked
+                # healthy on every dashboard. Publish the same three ALWAYS series
+                # (same builder, same conditional shard/tier labels) with zeros so
+                # the series stays continuous and the alerts can fire.
+                self._publish_zero_cycle_guardrails(
+                    otlp_endpoint=otlp_endpoint,
+                    monit_tenant=monit_tenant,
+                    monit_password=monit_password,
+                    service_name=service_name,
+                    otlp_ca_file=otlp_ca_file,
+                    otlp_insecure=otlp_insecure,
+                    metric_labels=metric_labels,
+                    shard_index=shard_index,
+                    shard_total=shard_total,
+                    priority=priority,
+                )
                 return
 
             self.logger.info("Fetching LanDB IP targets", total=devices_total, tasks=max_workers)
@@ -1449,6 +1641,82 @@ class AVTools:
                 shard_index=shard_index,
                 shard_total=shard_total,
             )
+
+    def _publish_zero_cycle_guardrails(
+        self,
+        *,
+        otlp_endpoint: str,
+        monit_tenant: str,
+        monit_password: str,
+        service_name: str,
+        otlp_ca_file: str | None,
+        otlp_insecure: bool,
+        metric_labels: dict[str, str],
+        shard_index: int,
+        shard_total: int,
+        priority: str,
+    ) -> None:
+        """Publish the cycle coverage guardrails with value 0 for a skipped cycle.
+
+        Used on the ``skipped_no_targets`` path, which returns before the router
+        runs. Without this the ``avtools_snmp_devices_targeted`` /
+        ``_devices_polled`` / ``_coverage_ratio`` series simply stop being written:
+        MonIT/Mimir then has no data points at all rather than zeros, and Grafana
+        SLO alerts built on those series read the absence as health.
+
+        Samples come from the SAME builder the normal path uses
+        (:func:`~avtools.pipeline.snmp_router.cycle_guardrail_samples`), so the
+        metric set and the conditional ``shard`` / ``tier`` labels cannot drift
+        apart. Only the OTLP publisher is constructed — no Postgres monitoring
+        client, since a skipped cycle has no text rows to write.
+
+        Failures are logged and swallowed: a missing guardrail must not turn a
+        "nothing to do" cycle into a crash.
+
+        Args:
+            otlp_endpoint:  MONIT OTLP gRPC endpoint.
+            monit_tenant:   MONIT tenant (Basic auth user).
+            monit_password: MONIT tenant password.
+            service_name:   OTel resource service.name.
+            otlp_ca_file:   Optional CA bundle for gRPC TLS.
+            otlp_insecure:  Use plaintext OTLP/gRPC.
+            metric_labels:  Layer-2 global labels (same dict as the normal path).
+            shard_index:    This pod's shard index.
+            shard_total:    Total shards (1 = unsharded).
+            priority:       ``--priority`` token in force this cycle.
+
+        Returns:
+            None.
+        """
+        try:
+            publisher = OTLPMetricsPublisher(
+                endpoint=otlp_endpoint,
+                tenant=monit_tenant,
+                password=monit_password,
+                service_name=service_name,
+                ca_file=otlp_ca_file,
+                insecure=otlp_insecure,
+                metric_labels=metric_labels,
+            )
+            # targeted=0/polled=0: the guardrails are Priority.ALWAYS, so they are
+            # published under every --priority tier by definition.
+            samples = cycle_guardrail_samples(
+                targeted=0,
+                polled=0,
+                shard_index=shard_index,
+                shard_total=shard_total,
+                priority=priority,
+            )
+            publisher.publish(samples)
+            self.logger.info(
+                "snmp_zero_guardrails_published",
+                samples=len(samples),
+                shard_index=shard_index,
+                shard_total=shard_total,
+                priority=priority,
+            )
+        except Exception:
+            self.logger.exception("snmp_zero_guardrail_publish_failed")
 
     async def _get_snmp_raw(
         self, devices: list[CachedIPAddress], max_workers: int
@@ -1664,6 +1932,9 @@ class AVTools:
         get_id: Callable[[Model], str],
         sync_func: Callable[..., None],
         name: str,
+        *,
+        allow_deletes: bool = True,
+        allow_mass_delete: bool = False,
     ) -> None:
         """Reconcile API items vs cached items and persist the changes.
 
@@ -1676,9 +1947,22 @@ class AVTools:
             get_id: Function that returns a stable id for an item.
             sync_func: DB-layer function that applies inserts/updates/deletes.
             name: Human label used in logs/reporting.
+            allow_deletes: When False, inserts/updates are applied but NOTHING is
+                deleted. Callers set this when they know the API view they just
+                fetched is incomplete (e.g. a degraded LanDB fetch): a partial
+                snapshot must never be reconciled destructively.
+            allow_mass_delete: Explicit opt-out of the mass-delete circuit breaker
+                below. Only pass True for a deliberate, verified mass
+                decommission.
 
         Returns:
             None.
+
+        Raises:
+            MassDeleteRefused: If the computed delete set exceeds
+                SYNC_MAX_DELETE_FRACTION of the cache and ``allow_mass_delete`` is
+                False. Inserts/updates are still applied first; the raise exists so
+                the caller records the run as failed instead of ``ok``.
         """
         start_time = time()
 
@@ -1702,6 +1986,42 @@ class AVTools:
         to_delete: list[str] = list(cache_ids - api_ids)
         to_insert: list[Model] = [api_map[i] for i in api_ids - cache_ids]
         to_update: list[tuple[Model, dict[str, Any]]] = []
+
+        # --- Delete guards -------------------------------------------------
+        # (1) The caller knows the API view is partial: apply freshness, never
+        #     destruction. Losing an update is recoverable next cycle; losing the
+        #     inventory table takes the whole SNMP collection down with it.
+        if to_delete and not allow_deletes:
+            self.logger.warning(
+                "sync_deletes_suppressed",
+                entity=name,
+                would_delete=len(to_delete),
+                cached=len(cache_ids),
+                api_items=len(api_ids),
+                reason="upstream_fetch_degraded",
+            )
+            to_delete = []
+
+        # (2) Circuit breaker, independent of (1) and of any caller flag: a delete
+        #     set covering most of the cache is far more likely to be an upstream
+        #     fetch failure than a real mass decommission. Refuse it, apply only
+        #     inserts/updates, and fail the run (raise below, after the normal
+        #     reporting so the diff is still observable).
+        refused_mass_delete = 0
+        if to_delete and not allow_mass_delete:
+            delete_fraction = len(to_delete) / len(cache_ids)
+            if delete_fraction > SYNC_MAX_DELETE_FRACTION:
+                refused_mass_delete = len(to_delete)
+                self.logger.error(
+                    "sync_mass_delete_refused",
+                    entity=name,
+                    would_delete=refused_mass_delete,
+                    cached=len(cache_ids),
+                    api_items=len(api_ids),
+                    delete_fraction=round(delete_fraction, 4),
+                    max_delete_fraction=SYNC_MAX_DELETE_FRACTION,
+                )
+                to_delete = []
 
         reporter = (
             SyncReportLogger(
@@ -1750,6 +2070,14 @@ class AVTools:
             updated=len(to_update),
             deleted=len(to_delete),
         )
+
+        if refused_mass_delete:
+            raise MassDeleteRefused(
+                f"{name}: refused to delete {refused_mass_delete} of {len(cache_ids)} cached "
+                f"rows (> {SYNC_MAX_DELETE_FRACTION:.0%} of the cache). Inserts/updates were "
+                "applied, deletes were not. Re-run with allow_mass_delete=True if this "
+                "decommission is intentional."
+            )
 
     def _diff_models(self, old: Any, new: Any) -> dict[str, Any]:
         """Compute field-level differences between a cached model and a fresh model.

@@ -17,6 +17,7 @@ from typing import Any
 import avtools.core.av_tools as av_mod
 from avtools.core.av_tools import AVTools
 from avtools.snmp.client import PingResult, ProbeResult, QueryResult
+from avtools.timeseries import metrics
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +174,15 @@ def test_skips_when_no_targets(monkeypatch):
 
     monkeypatch.setattr(AVTools, "_get_snmp_raw", fake_get_raw)
 
+    publishers_created: list[DummyPublisher] = []
+
+    def make_publisher(**kw):
+        p = DummyPublisher(**kw)
+        publishers_created.append(p)
+        return p
+
+    monkeypatch.setattr(av_mod, "OTLPMetricsPublisher", make_publisher)
+
     av.run_snmp_timeseries(
         otlp_endpoint="monit-otlp.cern.ch:4316",
         monit_tenant="t",
@@ -181,6 +191,119 @@ def test_skips_when_no_targets(monkeypatch):
     )
 
     assert called_get is False
+    assert any(
+        ev == "avtools_run_snmp_timeseries_end" and kw.get("status") == "skipped_no_targets"
+        for ev, kw in av.logger.info_events
+    )
+    # W4a: the cycle guardrails are still published (with zeros) on this path.
+    assert len(publishers_created) == 1
+
+
+# ---------------------------------------------------------------------------
+# W4a — the guardrail series must never vanish on a skipped cycle
+#
+# The `skipped_no_targets` return happens before snmp_router.process, so
+# avtools_snmp_devices_targeted/_polled/_coverage_ratio used to stop being
+# written at all. MonIT then has NO datapoints instead of zeros, and four
+# Grafana SLO alerts read that absence as health.
+# ---------------------------------------------------------------------------
+
+
+def _run_skipped(monkeypatch, av, **kwargs) -> list[DummyPublisher]:
+    monkeypatch.setattr(AVTools, "_load_timeseries_targets_from_landb_ipaddresses", lambda self: [])
+
+    publishers_created: list[DummyPublisher] = []
+
+    def make_publisher(**kw):
+        p = DummyPublisher(**kw)
+        publishers_created.append(p)
+        return p
+
+    monkeypatch.setattr(av_mod, "OTLPMetricsPublisher", make_publisher)
+
+    av.run_snmp_timeseries(
+        otlp_endpoint="x:1",
+        monit_tenant="t",
+        monit_password="p",
+        **kwargs,
+    )
+    return publishers_created
+
+
+def test_skipped_cycle_publishes_zero_guardrails(monkeypatch):
+    av = make_avtools()
+
+    publishers = _run_skipped(monkeypatch, av)
+
+    assert len(publishers) == 1
+    assert len(publishers[0].published) == 1
+    by_name = {s.name: s for s in publishers[0].published[0]}
+
+    assert by_name[metrics.SNMP_DEVICES_TARGETED].value == 0
+    assert by_name[metrics.SNMP_DEVICES_POLLED].value == 0
+    assert by_name[metrics.SNMP_COVERAGE_RATIO].value == 0.0
+
+    # Default (unsharded, untiered) run keeps the current series identity.
+    for sample in publishers[0].published[0]:
+        assert sample.labels == {}
+
+    # Layer-2 global labels are attached exactly like on the normal path.
+    assert publishers[0].kwargs["metric_labels"]["job"] == "avtools"
+
+
+def test_skipped_cycle_zero_guardrails_carry_shard_and_tier_labels(monkeypatch):
+    """Same conditional label conventions as the normal emission path."""
+    av = make_avtools()
+
+    publishers = _run_skipped(
+        monkeypatch,
+        av,
+        shard_index=2,
+        shard_total=4,
+        priority="critical",
+    )
+
+    samples = publishers[0].published[0]
+    assert {s.name for s in samples} == {
+        metrics.SNMP_DEVICES_TARGETED,
+        metrics.SNMP_DEVICES_POLLED,
+        metrics.SNMP_COVERAGE_RATIO,
+    }
+    for sample in samples:
+        assert sample.labels == {"shard": "2", "tier": "critical"}
+
+
+def test_skipped_cycle_does_not_touch_postgres_monitoring(monkeypatch):
+    """A no-op cycle must not open a monitoring DB connection just to emit zeros."""
+    av = make_avtools()
+
+    def boom(*_a, **_k):  # pragma: no cover - must never run
+        raise AssertionError("PostgresMonitoringClient must not be constructed")
+
+    monkeypatch.setattr(av_mod, "PostgresMonitoringClient", boom)
+
+    publishers = _run_skipped(monkeypatch, av)
+
+    assert len(publishers[0].published) == 1
+
+
+def test_skipped_cycle_guardrail_publish_failure_is_not_fatal(monkeypatch):
+    """A MONIT outage must not turn "nothing to do" into a crash."""
+    av = make_avtools()
+    monkeypatch.setattr(AVTools, "_load_timeseries_targets_from_landb_ipaddresses", lambda self: [])
+
+    class ExplodingPublisher:
+        def __init__(self, **kwargs):
+            pass
+
+        def publish(self, samples):
+            raise RuntimeError("monit down")
+
+    monkeypatch.setattr(av_mod, "OTLPMetricsPublisher", ExplodingPublisher)
+
+    av.run_snmp_timeseries(otlp_endpoint="x:1", monit_tenant="t", monit_password="p")
+
+    assert any(ev == "snmp_zero_guardrail_publish_failed" for ev, _kw in av.logger.exception_events)
     assert any(
         ev == "avtools_run_snmp_timeseries_end" and kw.get("status") == "skipped_no_targets"
         for ev, kw in av.logger.info_events

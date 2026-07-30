@@ -478,3 +478,268 @@ def test_get_landb_ipaddresses_does_not_mutate_eam_records(monkeypatch):
     after = [_dump_model(r) for r in eam_records]
 
     assert after == before
+
+
+# ---------------------------------------------------------------------------
+# W1 — `__in` chunking (LanDB/Tomcat 1000-request-parameter ceiling)
+#
+# The REST client spends ONE query parameter per `__in` value plus `_limit` and
+# `_offset`, so a single un-chunked call with the production fleet (3749 serials)
+# is rejected with HTTP 422 and the whole fetch comes back empty.
+# ---------------------------------------------------------------------------
+
+
+class ChunkRecordingManager:
+    """`.objects` double that records each chunk and replays canned responses.
+
+    Unlike DummyObjects this does not filter: each call returns the pre-canned
+    response for that call index, which lets tests place specific records in
+    specific chunks (merge / first-wins / partial-failure coverage).
+    """
+
+    def __init__(
+        self,
+        responses: list[list[Any]] | None = None,
+        *,
+        fail_at: set[int] | None = None,
+    ) -> None:
+        self.responses = responses or []
+        self.fail_at = fail_at or set()
+        self.chunks: list[list[Any]] = []
+
+    def filter(self, **kwargs: Any) -> DummyQuery:
+        assert len(kwargs) == 1, "chunked lookups must send exactly one filter kwarg"
+        (values,) = kwargs.values()
+        idx = len(self.chunks)
+        self.chunks.append(list(values))
+
+        if idx in self.fail_at:
+            raise RuntimeError(f"boom chunk {idx}")
+
+        if idx < len(self.responses):
+            return DummyQuery(self.responses[idx])
+        return DummyQuery([])
+
+
+def _model_with(manager: Any) -> Any:
+    """Build a throwaway LanDB-ish model class exposing ``.objects``."""
+    return type("DummyModel", (), {"objects": manager})
+
+
+def _fetch_serials(
+    av: AVTools,
+    manager: Any,
+    values: list[str],
+    **kwargs: Any,
+) -> tuple[dict[str, Any], bool]:
+    return av._landb_fetch_in_chunks(
+        model=_model_with(manager),
+        filter_key="serial_number__in",
+        values=values,
+        key_of=lambda d: getattr(d, "serial_number", None),
+        failure_event="landb_device_fetch_by_serial_failed",
+        count_field="serial_count",
+        **kwargs,
+    )
+
+
+def _av_with_dummy_logger() -> tuple[AVTools, DummyLogger]:
+    av = make_avtools_for_tests()
+    logger = DummyLogger()
+    av.logger = logger  # type: ignore[assignment]
+    return av, logger
+
+
+def test_chunk_size_default_leaves_headroom_under_the_tomcat_limit():
+    """800 + _limit + _offset must stay well under the 1000-parameter ceiling."""
+    assert core.LANDB_MAX_REQUEST_PARAMS == 1000
+    assert core.LANDB_IN_CHUNK_SIZE == 800
+    # +2 for _limit/_offset, plus room for a future extra filter.
+    assert core.LANDB_IN_CHUNK_SIZE + 2 < core.LANDB_MAX_REQUEST_PARAMS
+
+
+def test_fetch_in_chunks_zero_values_makes_no_request():
+    av, _logger = _av_with_dummy_logger()
+    mgr = ChunkRecordingManager()
+
+    results, degraded = _fetch_serials(av, mgr, [])
+
+    assert results == {}
+    assert degraded is False
+    assert mgr.chunks == []
+
+
+def test_fetch_in_chunks_single_value_is_one_request():
+    av, _logger = _av_with_dummy_logger()
+    mgr = ChunkRecordingManager([[DummyDevice(serial_number="SN-1", name="LAN-1")]])
+
+    results, degraded = _fetch_serials(av, mgr, ["SN-1"])
+
+    assert mgr.chunks == [["SN-1"]]
+    assert degraded is False
+    assert list(results) == ["SN-1"]
+
+
+def test_fetch_in_chunks_exactly_chunk_size_is_one_request():
+    av, _logger = _av_with_dummy_logger()
+    mgr = ChunkRecordingManager()
+    values = [f"SN-{i}" for i in range(core.LANDB_IN_CHUNK_SIZE)]
+
+    _results, degraded = _fetch_serials(av, mgr, values)
+
+    assert [len(c) for c in mgr.chunks] == [800]
+    assert degraded is False
+
+
+def test_fetch_in_chunks_chunk_size_plus_one_splits_into_two_requests():
+    av, _logger = _av_with_dummy_logger()
+    mgr = ChunkRecordingManager()
+    values = [f"SN-{i}" for i in range(core.LANDB_IN_CHUNK_SIZE + 1)]
+
+    _results, degraded = _fetch_serials(av, mgr, values)
+
+    assert [len(c) for c in mgr.chunks] == [800, 1]
+    assert degraded is False
+    # No value is lost or duplicated by the split.
+    assert [v for chunk in mgr.chunks for v in chunk] == values
+
+
+def test_fetch_in_chunks_production_fleet_size_never_exceeds_the_budget():
+    """3749 serials (the live count on the outage day) must be split, in order."""
+    av, _logger = _av_with_dummy_logger()
+    mgr = ChunkRecordingManager()
+    values = [f"SN-{i}" for i in range(3749)]
+
+    _results, degraded = _fetch_serials(av, mgr, values)
+
+    assert [len(c) for c in mgr.chunks] == [800, 800, 800, 800, 549]
+    assert degraded is False
+    assert [v for chunk in mgr.chunks for v in chunk] == values
+    # The property that actually matters: every request stays under Tomcat's cap.
+    for chunk in mgr.chunks:
+        assert len(chunk) + 2 < core.LANDB_MAX_REQUEST_PARAMS
+
+
+def test_fetch_in_chunks_merges_results_across_chunks_first_wins():
+    av, _logger = _av_with_dummy_logger()
+    mgr = ChunkRecordingManager(
+        [
+            [DummyDevice(serial_number="SN-A", name="FIRST")],
+            [
+                DummyDevice(serial_number="SN-A", name="DUPLICATE"),
+                DummyDevice(serial_number="SN-B", name="LAN-B"),
+            ],
+            # Falsy keys are dropped, as in the un-chunked code.
+            [DummyDevice(serial_number=None, name="NO-KEY")],
+        ],
+    )
+
+    results, degraded = _fetch_serials(av, mgr, ["SN-A", "SN-B", "SN-C"], chunk_size=1)
+
+    assert degraded is False
+    assert sorted(results) == ["SN-A", "SN-B"]
+    # First occurrence wins across chunk boundaries (matches `if k not in dict`).
+    assert results["SN-A"].name == "FIRST"
+
+
+def test_fetch_in_chunks_one_chunk_fails_others_still_merge():
+    av, logger = _av_with_dummy_logger()
+    mgr = ChunkRecordingManager(
+        [
+            [DummyDevice(serial_number="SN-A", name="LAN-A")],
+            [],  # never reached: this chunk raises
+            [DummyDevice(serial_number="SN-C", name="LAN-C")],
+        ],
+        fail_at={1},
+    )
+
+    results, degraded = _fetch_serials(av, mgr, ["SN-A", "SN-B", "SN-C"], chunk_size=1)
+
+    # The surviving chunks' rows are kept ...
+    assert sorted(results) == ["SN-A", "SN-C"]
+    # ... but the caller is told the view is partial, NOT "no rows for SN-B".
+    assert degraded is True
+
+    events = logger.events("landb_device_fetch_by_serial_failed")
+    assert len(events) == 1
+    assert events[0]["serial_count"] == 3
+    assert events[0]["chunk_index"] == 1
+    assert events[0]["chunk_count"] == 3
+
+
+def test_fetch_in_chunks_all_chunks_fail_is_degraded_and_empty():
+    av, logger = _av_with_dummy_logger()
+    mgr = ChunkRecordingManager(fail_at={0, 1, 2})
+
+    results, degraded = _fetch_serials(av, mgr, ["SN-A", "SN-B", "SN-C"], chunk_size=1)
+
+    assert results == {}
+    assert degraded is True
+    assert len(logger.events("landb_device_fetch_by_serial_failed")) == 3
+
+
+def test_get_landb_ipaddresses_chunks_all_four_lookups(monkeypatch):
+    """End-to-end: 3749 EAM records must not produce any oversized request."""
+    av, logger = _av_with_dummy_logger()
+
+    monkeypatch.setattr(core, "Device", DummyDevice)
+    monkeypatch.setattr(core, "IPAddress", DummyIPAddress)
+
+    total = 3749
+    eam_records = [
+        DummyEAM(code=f"DEV-{i}", serial_number=f"SN-{i}", description=f"DESC-{i}")
+        for i in range(total)
+    ]
+    devices = [DummyDevice(serial_number=f"SN-{i}", name=f"LAN-{i}") for i in range(total)]
+    ips = [
+        DummyIPAddress(
+            device=f"LAN-{i}",
+            ip=f"10.0.0.{i}",
+            device_serial_number=f"SN-{i}",
+            device_name=f"LAN-{i}",
+        )
+        for i in range(total)
+    ]
+
+    dev_objects = DummyObjects(devices)
+    ip_objects = DummyObjects(ips)
+    DummyDevice.objects = dev_objects  # type: ignore[attr-defined]
+    DummyIPAddress.objects = ip_objects  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(
+        AVTools,
+        "_enrich_ipaddress_with_eam_keys",
+        lambda self, ip, eam_rec, *, landb_device=None: DummyCachedIPAddress(
+            equipmentno=str(eam_rec.code),
+            serialnumber=eam_rec.serial_number,
+            ip=ip.ip,
+            name=ip.device,
+        ),
+    )
+
+    out = av._get_landb_ipaddresses(eam_records)
+
+    # Every device is resolved even though the lookup spanned several requests.
+    assert len(out) == total
+    assert av._landb_fetch_degraded is False
+
+    # Devices by serial: 3749 -> 5 requests, none over the parameter budget.
+    serial_chunks = [
+        len(c["serial_number__in"]) for c in dev_objects.filter_calls if "serial_number__in" in c
+    ]
+    assert serial_chunks == [800, 800, 800, 800, 549]
+
+    # IPAddresses by device serial: same split (all devices matched by serial, so
+    # the two name-based fallbacks are not needed at all).
+    ip_chunks = [
+        len(c["device__serial_number__in"])
+        for c in ip_objects.filter_calls
+        if "device__serial_number__in" in c
+    ]
+    assert ip_chunks == [800, 800, 800, 800, 549]
+
+    for call in dev_objects.filter_calls + ip_objects.filter_calls:
+        for value_list in call.values():
+            assert len(value_list) + 2 < core.LANDB_MAX_REQUEST_PARAMS
+
+    assert logger.events("landb_chunked_fetch_done")
