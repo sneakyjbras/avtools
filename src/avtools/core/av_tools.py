@@ -17,6 +17,7 @@ from landb_rest_client import register_credentials as landb_register_credentials
 from landb_rest_client.models import Device, IPAddress
 
 from avtools.exception.errors import (
+    MassDeleteRefused,
     PipelineError,
     PostgresError,
     PostgresInventoryClientError,
@@ -133,6 +134,20 @@ Model = TypeVar("Model")
 # without re-verifying the server-side limit below.
 LANDB_MAX_REQUEST_PARAMS = 1000
 LANDB_IN_CHUNK_SIZE = 800
+
+# ---------------------------------------------------------------------------
+# Mass-delete circuit breaker
+# ---------------------------------------------------------------------------
+# `_sync_entities` derives deletes from `cached_ids - api_ids`, so ANY upstream
+# fetch that comes back empty or near-empty is indistinguishable from "the whole
+# fleet was decommissioned" — and on 2026-07-30 that wiped the entire
+# landb_ipaddresses table while the job still logged status=ok.
+#
+# Refuse to delete more than this fraction of the existing cache in a single run.
+# A genuine mass decommission is rare, and re-running it deliberately with
+# ``allow_mass_delete=True`` costs minutes; a silent wipe costs the whole
+# monitoring signal until someone notices the blank dashboards.
+SYNC_MAX_DELETE_FRACTION = 0.5
 
 
 def device_in_shard(equipment_no: str, shard_index: int, shard_total: int) -> bool:
@@ -684,7 +699,7 @@ class AVTools:
         audience: str,
         *,
         base_url: str = "https://landb.cern.ch/api/",
-    ) -> None:
+    ) -> str:
         """Sync LanDB IP targets into Postgres by enriching the EAM snapshot.
 
         The LanDB sync uses the **current EAM devices snapshot** in Postgres as the
@@ -702,10 +717,19 @@ class AVTools:
             base_url: LanDB API base URL.
 
         Returns:
-            None.
+            The terminal status string, identical to the ``status`` field of the
+            ``avtools_run_landb_end`` event: ``"ok"``, ``"skipped_no_eam_devices"``
+            or one of the ``failed_*`` values. The CLI uses it to decide the process
+            exit code and whether to publish the LanDB heartbeat — errors are handled
+            here, so a plain ``return`` would tell the caller nothing.
 
         Notes:
             Only devices with a usable SNMP target IP (IPv4 or IPv6) are written.
+
+            A DEGRADED fetch (``failed_landb_fetch_degraded``) means at least one
+            chunked LanDB lookup failed, so the API view is partial. Such a run
+            still applies inserts/updates but deletes NOTHING, because
+            ``cached_ids - api_ids`` on a partial view deletes live devices.
         """
         run_started = time()
         status: str = "started"
@@ -729,16 +753,16 @@ class AVTools:
             except PostgresError as e:
                 status = "failed_load_eam_devices_postgres_error"
                 self.logger.exception("landb_load_eam_devices_postgres_error", error=str(e))
-                return
+                return status
             except Exception:
                 status = "failed_load_eam_devices"
                 self.logger.exception("landb_load_eam_devices_failed")
-                return
+                return status
 
             if not eam_list:
                 status = "skipped_no_eam_devices"
                 self.logger.info("No EAM devices—skipping LanDB sync")
-                return
+                return status
 
             try:
                 self._init_landb_rest_client(
@@ -750,27 +774,30 @@ class AVTools:
             except TokenExpired as e:
                 status = "failed_client_init_token_expired"
                 self.logger.error("landb_token_expired", error=str(e))
-                return
+                return status
             except QuerySetError as e:
                 status = "failed_client_init_queryset_error"
                 self.logger.error("landb_client_init_queryset_error", error=str(e))
-                return
+                return status
             except LanDBRestError as e:
                 status = "failed_client_init"
                 self.logger.error("landb_client_init_failed", error=str(e))
-                return
+                return status
             except Exception:
                 status = "failed_client_init_unexpected"
                 self.logger.exception("landb_client_init_failed_unexpected")
-                return
+                return status
 
+            # Cleared before the fetch so a partially-failed lookup cannot be
+            # inherited from a previous run on the same instance.
+            self._landb_fetch_degraded = False
             try:
                 landb_ips = self._get_landb_ipaddresses(eam_list)
                 enriched_ip_count = len(landb_ips)
             except TokenExpired as e:
                 status = "failed_fetch_token_expired"
                 self.logger.error("landb_token_expired", error=str(e))
-                return
+                return status
             except DataAwareValidationError as e:
                 status = "failed_fetch_validation_error"
                 err_count = None
@@ -783,19 +810,32 @@ class AVTools:
                     error=str(e),
                     error_count=err_count,
                 )
-                return
+                return status
             except QuerySetError as e:
                 status = "failed_fetch_queryset_error"
                 self.logger.error("landb_queryset_error", error=str(e))
-                return
+                return status
             except LanDBRestError as e:
                 status = "failed_fetch"
                 self.logger.error("landb_fetch_failed", error=str(e))
-                return
+                return status
             except Exception:
                 status = "failed_fetch_unexpected"
                 self.logger.exception("landb_fetch_failed_unexpected")
-                return
+                return status
+
+            # A degraded fetch means the LanDB view we just built is PARTIAL: rows
+            # are missing because requests failed, not because the devices are gone.
+            # Reconciling that destructively is what emptied the fleet table.
+            fetch_degraded = bool(getattr(self, "_landb_fetch_degraded", False))
+            if fetch_degraded:
+                self.logger.error(
+                    "landb_fetch_degraded",
+                    eam_devices=eam_count,
+                    enriched_ipaddresses=enriched_ip_count,
+                    reason="one_or_more_landb_lookups_failed",
+                    action="deletes_suppressed_run_marked_failed",
+                )
 
             try:
                 cache_list = self.dbod_helper.get_all_landb_devices()
@@ -803,11 +843,11 @@ class AVTools:
             except PostgresError as e:
                 status = "failed_load_cached_devices_postgres_error"
                 self.logger.exception("landb_load_cached_devices_postgres_error", error=str(e))
-                return
+                return status
             except Exception:
                 status = "failed_load_cached_devices"
                 self.logger.exception("landb_load_cached_devices_failed")
-                return
+                return status
 
             try:
                 self._sync_entities(
@@ -816,22 +856,36 @@ class AVTools:
                     get_id=self._landb_get_id,
                     sync_func=self.dbod_helper.sync_landb_devices,
                     name="LanDB IPAddress",
+                    # Freshness is expendable, the inventory is not.
+                    allow_deletes=not fetch_degraded,
                 )
+            except MassDeleteRefused as e:
+                had_errors = True
+                status = "failed_sync_mass_delete_refused"
+                self.logger.exception("landb_sync_mass_delete_refused", error=str(e))
+                return status
             except PostgresError as e:
                 had_errors = True
                 status = "failed_sync_postgres_error"
                 self.logger.exception("landb_sync_postgres_error", error=str(e))
-                return
+                return status
             except UtilsError as e:
                 had_errors = True
                 status = "failed_sync_utils_error"
                 self.logger.exception("landb_sync_utils_error", error=str(e))
-                return
+                return status
             except Exception:
                 had_errors = True
                 status = "failed_sync"
                 self.logger.exception("landb_sync_failed")
-                return
+                return status
+
+            if fetch_degraded:
+                # Inserts/updates were applied, deletes were not: this run did NOT
+                # produce a trustworthy snapshot, so it must not read as `ok` and
+                # must not refresh the LanDB heartbeat (the CLI keys off this).
+                status = "failed_landb_fetch_degraded"
+                return status
 
             status = "ok" if not had_errors else "completed_with_errors"
 
@@ -852,6 +906,8 @@ class AVTools:
                 base_url=base_url,
                 audience=audience,
             )
+
+        return status
 
     def _landb_get_id(self, obj: Any) -> str:
         """Get the stable identifier used for LanDB cached rows.
@@ -1781,6 +1837,9 @@ class AVTools:
         get_id: Callable[[Model], str],
         sync_func: Callable[..., None],
         name: str,
+        *,
+        allow_deletes: bool = True,
+        allow_mass_delete: bool = False,
     ) -> None:
         """Reconcile API items vs cached items and persist the changes.
 
@@ -1793,9 +1852,22 @@ class AVTools:
             get_id: Function that returns a stable id for an item.
             sync_func: DB-layer function that applies inserts/updates/deletes.
             name: Human label used in logs/reporting.
+            allow_deletes: When False, inserts/updates are applied but NOTHING is
+                deleted. Callers set this when they know the API view they just
+                fetched is incomplete (e.g. a degraded LanDB fetch): a partial
+                snapshot must never be reconciled destructively.
+            allow_mass_delete: Explicit opt-out of the mass-delete circuit breaker
+                below. Only pass True for a deliberate, verified mass
+                decommission.
 
         Returns:
             None.
+
+        Raises:
+            MassDeleteRefused: If the computed delete set exceeds
+                SYNC_MAX_DELETE_FRACTION of the cache and ``allow_mass_delete`` is
+                False. Inserts/updates are still applied first; the raise exists so
+                the caller records the run as failed instead of ``ok``.
         """
         start_time = time()
 
@@ -1819,6 +1891,42 @@ class AVTools:
         to_delete: list[str] = list(cache_ids - api_ids)
         to_insert: list[Model] = [api_map[i] for i in api_ids - cache_ids]
         to_update: list[tuple[Model, dict[str, Any]]] = []
+
+        # --- Delete guards -------------------------------------------------
+        # (1) The caller knows the API view is partial: apply freshness, never
+        #     destruction. Losing an update is recoverable next cycle; losing the
+        #     inventory table takes the whole SNMP collection down with it.
+        if to_delete and not allow_deletes:
+            self.logger.warning(
+                "sync_deletes_suppressed",
+                entity=name,
+                would_delete=len(to_delete),
+                cached=len(cache_ids),
+                api_items=len(api_ids),
+                reason="upstream_fetch_degraded",
+            )
+            to_delete = []
+
+        # (2) Circuit breaker, independent of (1) and of any caller flag: a delete
+        #     set covering most of the cache is far more likely to be an upstream
+        #     fetch failure than a real mass decommission. Refuse it, apply only
+        #     inserts/updates, and fail the run (raise below, after the normal
+        #     reporting so the diff is still observable).
+        refused_mass_delete = 0
+        if to_delete and not allow_mass_delete:
+            delete_fraction = len(to_delete) / len(cache_ids)
+            if delete_fraction > SYNC_MAX_DELETE_FRACTION:
+                refused_mass_delete = len(to_delete)
+                self.logger.error(
+                    "sync_mass_delete_refused",
+                    entity=name,
+                    would_delete=refused_mass_delete,
+                    cached=len(cache_ids),
+                    api_items=len(api_ids),
+                    delete_fraction=round(delete_fraction, 4),
+                    max_delete_fraction=SYNC_MAX_DELETE_FRACTION,
+                )
+                to_delete = []
 
         reporter = (
             SyncReportLogger(
@@ -1867,6 +1975,14 @@ class AVTools:
             updated=len(to_update),
             deleted=len(to_delete),
         )
+
+        if refused_mass_delete:
+            raise MassDeleteRefused(
+                f"{name}: refused to delete {refused_mass_delete} of {len(cache_ids)} cached "
+                f"rows (> {SYNC_MAX_DELETE_FRACTION:.0%} of the cache). Inserts/updates were "
+                "applied, deletes were not. Re-run with allow_mass_delete=True if this "
+                "decommission is intentional."
+            )
 
     def _diff_models(self, old: Any, new: Any) -> dict[str, Any]:
         """Compute field-level differences between a cached model and a fresh model.

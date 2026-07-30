@@ -6,7 +6,8 @@ import pytest
 import structlog
 from pydantic.v1 import BaseModel
 
-from avtools.core.av_tools import AVTools
+from avtools.core.av_tools import SYNC_MAX_DELETE_FRACTION, AVTools
+from avtools.exception.errors import MassDeleteRefused
 
 
 class DummyModel(BaseModel):
@@ -44,8 +45,15 @@ def make_avtools_for_tests() -> AVTools:
 def run_sync(
     api_items: list[DummyModel],
     cached_items: list[DummyModel],
+    **kwargs: Any,
 ) -> dict[str, Any]:
-    """Helper to run _sync_entities and capture inserts/updates/deletes."""
+    """Helper to run _sync_entities and capture inserts/updates/deletes.
+
+    Extra kwargs (``allow_deletes`` / ``allow_mass_delete``) are forwarded. Tests
+    that deliberately exercise the raw set-difference on a tiny fixture pass
+    ``allow_mass_delete=True``, since deleting 2 of 3 rows trips the mass-delete
+    circuit breaker by design.
+    """
     av = make_avtools_for_tests()
     captured: dict[str, Any] = {}
 
@@ -60,6 +68,7 @@ def run_sync(
         get_id=lambda m: m.equipment_no,
         sync_func=fake_sync,
         name="Dummy",
+        **kwargs,
     )
     return captured
 
@@ -110,7 +119,8 @@ def test_sync_entities_delete_when_api_empty():
     ]
     api_items: list[DummyModel] = []
 
-    captured = run_sync(api_items, cached_items)
+    # Wiping the whole cache is only reachable with the circuit breaker bypassed.
+    captured = run_sync(api_items, cached_items, allow_mass_delete=True)
 
     assert captured["insert"] == []
     assert captured["update"] == []
@@ -132,7 +142,9 @@ def test_sync_entities_multiple_inserts_and_deletes():
         DummyModel(equipment_no="DEV-2137", value=2137, year=1978),
     ]
 
-    captured = run_sync(api_items, cached_items)
+    # 2 of 3 cached rows deleted is above SYNC_MAX_DELETE_FRACTION, so the raw
+    # set-difference behaviour is asserted with the breaker explicitly bypassed.
+    captured = run_sync(api_items, cached_items, allow_mass_delete=True)
 
     # Inserts: DEV-404 and DEV-2137 (order not guaranteed)
     insert_ids = {m.equipment_no for m in captured["insert"]}
@@ -295,6 +307,7 @@ class StructuredLoggerRecorder:
     def __init__(self) -> None:
         self.infos: list[tuple[str, dict[str, Any]]] = []
         self.warnings: list[tuple[str, dict[str, Any]]] = []
+        self.errors: list[tuple[str, dict[str, Any]]] = []
         self.exceptions: list[tuple[str, dict[str, Any]]] = []
 
     def info(self, event: str, *args: Any, **kwargs: Any) -> None:
@@ -302,6 +315,9 @@ class StructuredLoggerRecorder:
 
     def warning(self, event: str, *args: Any, **kwargs: Any) -> None:
         self.warnings.append((str(event), dict(kwargs)))
+
+    def error(self, event: str, *args: Any, **kwargs: Any) -> None:
+        self.errors.append((str(event), dict(kwargs)))
 
     def exception(self, event: str, *args: Any, **kwargs: Any) -> None:
         self.exceptions.append((str(event), dict(kwargs)))
@@ -379,6 +395,8 @@ def test_sync_entities_logs_summary_with_counts():
         get_id=lambda m: m.equipment_no,
         sync_func=fake_sync,
         name="Dummy",
+        # 2 of 3 rows deleted would otherwise trip the mass-delete breaker.
+        allow_mass_delete=True,
     )
 
     insert_ids = {m.equipment_no for m in captured["insert"]}
@@ -457,3 +475,209 @@ def test_sync_entities_sync_func_exception_propagates_and_skips_summary_log():
 
     # No info logs (sync_done happens after sync_func returns).
     assert logger.infos == []
+
+
+# ---------------------------------------------------------------------------
+# W2 — delete guards: allow_deletes + mass-delete circuit breaker
+#
+# `to_delete = cached_ids - api_ids` makes an empty/partial API result
+# indistinguishable from "the whole fleet was decommissioned". These guards make
+# a silent wipe impossible.
+# ---------------------------------------------------------------------------
+
+
+def _run_sync_capturing(
+    api_items: list[DummyModel],
+    cached_items: list[DummyModel],
+    **kwargs: Any,
+) -> tuple[dict[str, Any], StructuredLoggerRecorder, AVTools]:
+    av = make_avtools_for_tests()
+    logger = StructuredLoggerRecorder()
+    av.logger = logger  # type: ignore[assignment]
+
+    captured: dict[str, Any] = {}
+
+    def fake_sync(*, to_insert, to_update, to_delete) -> None:
+        captured["insert"] = list(to_insert)
+        captured["update"] = list(to_update)
+        captured["delete"] = list(to_delete)
+
+    av._sync_entities(
+        api_items=api_items,
+        cached_items=cached_items,
+        get_id=lambda m: m.equipment_no,
+        sync_func=fake_sync,
+        name="Dummy",
+        **kwargs,
+    )
+    return captured, logger, av
+
+
+def _fleet(n: int, *, start: int = 0) -> list[DummyModel]:
+    return [DummyModel(equipment_no=f"DEV-{i}", value=i) for i in range(start, start + n)]
+
+
+def test_sync_entities_allow_deletes_false_suppresses_every_delete():
+    """A degraded upstream view must never delete, however large the diff."""
+    cached_items = _fleet(10)
+    api_items: list[DummyModel] = []
+
+    captured, logger, _av = _run_sync_capturing(api_items, cached_items, allow_deletes=False)
+
+    assert captured["delete"] == []
+    assert captured["insert"] == []
+    assert captured["update"] == []
+
+    suppressed = [kw for ev, kw in logger.warnings if ev == "sync_deletes_suppressed"]
+    assert len(suppressed) == 1
+    assert suppressed[0]["would_delete"] == 10
+    assert suppressed[0]["cached"] == 10
+
+
+def test_sync_entities_allow_deletes_false_still_applies_inserts_and_updates():
+    """Freshness is kept even when deletes are withheld."""
+    cached_items = [
+        DummyModel(equipment_no="DEV-0", value=0),
+        DummyModel(equipment_no="DEV-1", value=1),
+    ]
+    api_items = [
+        DummyModel(equipment_no="DEV-0", value=999),  # update
+        DummyModel(equipment_no="DEV-NEW", value=5),  # insert
+    ]
+
+    captured, _logger, _av = _run_sync_capturing(api_items, cached_items, allow_deletes=False)
+
+    assert {m.equipment_no for m in captured["insert"]} == {"DEV-NEW"}
+    assert len(captured["update"]) == 1
+    # DEV-1 is absent from the partial API view but must survive.
+    assert captured["delete"] == []
+
+
+def test_sync_entities_mass_delete_is_refused_and_marks_the_run_failed():
+    """Deleting most of the cache is refused, logged, and raises."""
+    cached_items = _fleet(10)
+    api_items = [
+        DummyModel(equipment_no="DEV-0", value=999),  # update
+        DummyModel(equipment_no="DEV-NEW", value=1),  # insert
+    ]
+
+    av = make_avtools_for_tests()
+    logger = StructuredLoggerRecorder()
+    av.logger = logger  # type: ignore[assignment]
+
+    captured: dict[str, Any] = {}
+
+    def fake_sync(*, to_insert, to_update, to_delete) -> None:
+        captured["insert"] = list(to_insert)
+        captured["update"] = list(to_update)
+        captured["delete"] = list(to_delete)
+
+    with pytest.raises(MassDeleteRefused):
+        av._sync_entities(
+            api_items=api_items,
+            cached_items=cached_items,
+            get_id=lambda m: m.equipment_no,
+            sync_func=fake_sync,
+            name="Dummy",
+        )
+
+    # Inserts/updates were applied; the 9 deletes were NOT.
+    assert {m.equipment_no for m in captured["insert"]} == {"DEV-NEW"}
+    assert len(captured["update"]) == 1
+    assert captured["delete"] == []
+
+    refused = [kw for ev, kw in logger.errors if ev == "sync_mass_delete_refused"]
+    assert len(refused) == 1
+    assert refused[0]["would_delete"] == 9
+    assert refused[0]["cached"] == 10
+    assert refused[0]["delete_fraction"] == 0.9
+    assert refused[0]["max_delete_fraction"] == SYNC_MAX_DELETE_FRACTION
+
+    # The diff is still fully observable before the raise.
+    assert any(ev == "sync_done" for ev, _ in logger.infos)
+
+
+def test_sync_entities_mass_delete_can_be_bypassed_explicitly():
+    """A deliberate mass decommission is still possible, opt-in only."""
+    cached_items = _fleet(10)
+    api_items: list[DummyModel] = []
+
+    captured, logger, _av = _run_sync_capturing(api_items, cached_items, allow_mass_delete=True)
+
+    assert len(captured["delete"]) == 10
+    assert [ev for ev, _ in logger.errors] == []
+
+
+def test_sync_entities_delete_exactly_at_threshold_is_allowed():
+    """The breaker trips ABOVE the fraction, not at it (50% of 4 = 2 deletes)."""
+    cached_items = _fleet(4)
+    api_items = _fleet(2)  # DEV-0, DEV-1 survive; DEV-2, DEV-3 deleted
+
+    captured, logger, _av = _run_sync_capturing(api_items, cached_items)
+
+    assert set(captured["delete"]) == {"DEV-2", "DEV-3"}
+    assert [ev for ev, _ in logger.errors] == []
+
+
+def test_sync_entities_delete_just_over_threshold_is_refused():
+    """3 of 5 cached rows (60%) is above the threshold."""
+    cached_items = _fleet(5)
+    api_items = _fleet(2)
+
+    av = make_avtools_for_tests()
+    logger = StructuredLoggerRecorder()
+    av.logger = logger  # type: ignore[assignment]
+
+    captured: dict[str, Any] = {}
+
+    def fake_sync(*, to_insert, to_update, to_delete) -> None:
+        captured["delete"] = list(to_delete)
+
+    with pytest.raises(MassDeleteRefused):
+        av._sync_entities(
+            api_items=api_items,
+            cached_items=cached_items,
+            get_id=lambda m: m.equipment_no,
+            sync_func=fake_sync,
+            name="Dummy",
+        )
+
+    assert captured["delete"] == []
+
+
+def test_sync_entities_breaker_also_protects_the_eam_reconcilers():
+    """_sync_entities is shared: EAM Devices/Positions/Rooms get the same guard."""
+    for entity in ("EAM Devices", "EAM Positions", "EAM Rooms"):
+        av = make_avtools_for_tests()
+        logger = StructuredLoggerRecorder()
+        av.logger = logger  # type: ignore[assignment]
+
+        captured: dict[str, Any] = {}
+
+        def fake_sync(*, to_insert, to_update, to_delete) -> None:
+            captured["delete"] = list(to_delete)
+
+        with pytest.raises(MassDeleteRefused):
+            av._sync_entities(
+                api_items=[],
+                cached_items=_fleet(10),
+                get_id=lambda m: m.equipment_no,
+                sync_func=fake_sync,
+                name=entity,
+            )
+
+        assert captured["delete"] == []
+        assert [kw["entity"] for ev, kw in logger.errors if ev == "sync_mass_delete_refused"] == [
+            entity
+        ]
+
+
+def test_sync_entities_first_run_is_unaffected_by_the_guards():
+    """Empty cache: everything inserted, no deletes to guard, no raise."""
+    api_items = _fleet(5)
+
+    captured, logger, _av = _run_sync_capturing(api_items, [], allow_deletes=False)
+
+    assert captured["insert"] == api_items
+    assert captured["delete"] == []
+    assert any(ev == "sync_first_run" for ev, _ in logger.infos)
