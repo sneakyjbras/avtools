@@ -39,6 +39,90 @@ from avtools.exception.errors import SNMPObserverRouterError
 logger = structlog.get_logger(__name__)
 
 
+def guardrail_labels(
+    *,
+    shard_index: int = 0,
+    shard_total: int = 1,
+    priority: str = m.PRIORITY_ALL,
+) -> dict[str, str]:
+    """Label set shared by every cycle-level (ALWAYS) guardrail metric.
+
+    Two disambiguation labels are attached CONDITIONALLY, each omitted for its
+    single-emitter default so the current unsharded/untiered series identity is
+    unchanged:
+
+      ``shard`` — when the fleet is split across N shards (``shard_total > 1``),
+        every shard emits its own copy; without ``shard`` the N series collide on
+        one identity and the SLO sums/counts across shards read garbage.
+
+      ``tier``  — when the collection is split into per-priority CronJobs
+        (``priority != "all"``), each of the critical/high/medium/low jobs emits
+        the SAME ALWAYS guardrails every cycle. Without ``tier`` those 4 emitters
+        collide on one identity exactly like the shard case. The value is the
+        ``--priority`` token (e.g. "critical"). DOWNSTREAM: Grafana SLO/watchdog
+        alerts MUST ``group by (tier)`` (and, when sharded, also ``shard``) so
+        each tier's freshness/coverage is evaluated independently. The ``tier``
+        label is deliberately NOT added to device metrics — device series stay
+        tiered purely by *which* CronJob emits them, so cardinality does not
+        multiply.
+
+    Args:
+        shard_index: This pod's shard index.
+        shard_total: Total number of shards (1 = unsharded).
+        priority:    The ``--priority`` token in force for this cycle.
+
+    Returns:
+        Label dict to attach to each guardrail sample.
+    """
+    labels: dict[str, str] = {}
+    if shard_total > 1:
+        labels["shard"] = str(shard_index)
+    if priority != m.PRIORITY_ALL:
+        labels["tier"] = priority
+    return labels
+
+
+def cycle_guardrail_samples(
+    *,
+    targeted: int,
+    polled: int,
+    shard_index: int = 0,
+    shard_total: int = 1,
+    priority: str = m.PRIORITY_ALL,
+) -> list[MetricSample]:
+    """Build the per-cycle coverage guardrail samples (targeted/polled/ratio).
+
+    Single source of truth for the guardrail metric set, their values and their
+    labels, so that a cycle which collects nothing can publish the very same
+    series with zeros instead of dropping them. A guardrail series that VANISHES
+    is worse than one that reads zero: Grafana's SLO alerts treat absence as
+    health, so the fleet going to zero looked exactly like the fleet being fine.
+
+    Args:
+        targeted:    Devices targeted this cycle (0 on a no-targets cycle).
+        polled:      Devices that produced a result this cycle.
+        shard_index: This pod's shard index.
+        shard_total: Total number of shards (1 = unsharded).
+        priority:    The ``--priority`` token in force for this cycle.
+
+    Returns:
+        The three ``Priority.ALWAYS`` coverage samples. ``coverage_ratio`` is 0.0
+        when nothing was targeted (undefined division, and "no targets" is not
+        coverage).
+    """
+    labels = guardrail_labels(
+        shard_index=shard_index,
+        shard_total=shard_total,
+        priority=priority,
+    )
+    ratio = round(polled / targeted, 4) if targeted > 0 else 0.0
+    return [
+        MetricSample(name=m.SNMP_DEVICES_TARGETED, value=targeted, labels=dict(labels)),
+        MetricSample(name=m.SNMP_DEVICES_POLLED, value=polled, labels=dict(labels)),
+        MetricSample(name=m.SNMP_COVERAGE_RATIO, value=ratio, labels=dict(labels)),
+    ]
+
+
 @dataclass(frozen=True, slots=True)
 class SNMPRoutingStats:
     """Per-sink counters returned by :meth:`SNMPObserverRouter.process`."""
@@ -131,46 +215,31 @@ class SNMPObserverRouter:
         # Coverage guardrail: every targeted device should produce a ping result.
         # polled/targeted < 1.0 signals silent loss (e.g. over-concurrency / UDP drops).
         #
-        # These are cycle-level (not per-device) ALWAYS metrics. Two disambiguation
-        # labels are conditionally attached, each omitted for its single-emitter
-        # default so the current unsharded/untiered series identity is unchanged:
-        #
-        #   `shard` — when the fleet is split across N shards (shard_total > 1),
-        #     every shard emits its own copy; without `shard` the N series collide
-        #     on one identity and the SLO sums/counts across shards read garbage.
-        #
-        #   `tier`  — when the collection is split into per-priority CronJobs
-        #     (priority != "all"), each of the critical/high/medium/low jobs emits
-        #     the SAME ALWAYS guardrails every cycle. Without `tier` those 4 emitters
-        #     collide on one identity exactly like the shard case. The value is the
-        #     `--priority` token (e.g. "critical"). DOWNSTREAM: Grafana SLO/watchdog
-        #     alerts MUST `group by (tier)` (and, when sharded, also `shard`) so each
-        #     tier's freshness/coverage is evaluated independently. The `tier` label
-        #     is deliberately NOT added to device metrics — device series stay tiered
-        #     purely by *which* CronJob emits them, so cardinality does not multiply.
-        shard_labels: dict[str, str] = {"shard": str(shard_index)} if shard_total > 1 else {}
-        tier_labels: dict[str, str] = {"tier": priority} if priority != m.PRIORITY_ALL else {}
-        guardrail_labels: dict[str, str] = {**shard_labels, **tier_labels}
+        # These are cycle-level (not per-device) ALWAYS metrics; see
+        # `cycle_guardrail_samples` / `guardrail_labels` for the metric set and the
+        # conditional `shard` / `tier` labels. A cycle with no targets at all does
+        # NOT come through here — the orchestrator publishes the same three series
+        # with zeros itself, so they never disappear from MonIT.
+        cycle_labels = guardrail_labels(
+            shard_index=shard_index,
+            shard_total=shard_total,
+            priority=priority,
+        )
         polled = len(ping_l)
         if targeted > 0:
-            ratio = polled / targeted
-            samples = list(samples) + [
-                MetricSample(
-                    name=m.SNMP_DEVICES_TARGETED, value=targeted, labels=dict(guardrail_labels)
-                ),
-                MetricSample(
-                    name=m.SNMP_DEVICES_POLLED, value=polled, labels=dict(guardrail_labels)
-                ),
-                MetricSample(
-                    name=m.SNMP_COVERAGE_RATIO, value=round(ratio, 4), labels=dict(guardrail_labels)
-                ),
-            ]
+            samples = list(samples) + cycle_guardrail_samples(
+                targeted=targeted,
+                polled=polled,
+                shard_index=shard_index,
+                shard_total=shard_total,
+                priority=priority,
+            )
         if cycle_duration_s is not None:
             samples = list(samples) + [
                 MetricSample(
                     name=m.SNMP_CYCLE_DURATION_SECONDS,
                     value=round(cycle_duration_s, 3),
-                    labels=dict(guardrail_labels),
+                    labels=dict(cycle_labels),
                 ),
             ]
 

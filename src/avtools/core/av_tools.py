@@ -94,7 +94,7 @@ except Exception:  # pragma: no cover
 
 
 from avtools.algorithms.room_resolver import RoomResolver
-from avtools.pipeline import SNMPObserverRouter
+from avtools.pipeline import SNMPObserverRouter, cycle_guardrail_samples
 from avtools.postgres.client import PostgresClient, PostgresMonitoringClient
 from avtools.postgres.inventory.orm.eam_room import EAMRoom
 from avtools.postgres.inventory.orm.landb_ipaddress import CachedIPAddress
@@ -1498,6 +1498,25 @@ class AVTools:
             if not devices:
                 status = "skipped_no_targets"
                 self.logger.info("No LanDB IP targets to monitor")
+                # This return is BEFORE snmp_router.process, so the cycle
+                # guardrails would never be published and the series would VANISH
+                # from MonIT instead of going to zero. Four Grafana SLO alerts read
+                # absence as health, which is why an empty fleet table looked
+                # healthy on every dashboard. Publish the same three ALWAYS series
+                # (same builder, same conditional shard/tier labels) with zeros so
+                # the series stays continuous and the alerts can fire.
+                self._publish_zero_cycle_guardrails(
+                    otlp_endpoint=otlp_endpoint,
+                    monit_tenant=monit_tenant,
+                    monit_password=monit_password,
+                    service_name=service_name,
+                    otlp_ca_file=otlp_ca_file,
+                    otlp_insecure=otlp_insecure,
+                    metric_labels=metric_labels,
+                    shard_index=shard_index,
+                    shard_total=shard_total,
+                    priority=priority,
+                )
                 return
 
             self.logger.info("Fetching LanDB IP targets", total=devices_total, tasks=max_workers)
@@ -1622,6 +1641,82 @@ class AVTools:
                 shard_index=shard_index,
                 shard_total=shard_total,
             )
+
+    def _publish_zero_cycle_guardrails(
+        self,
+        *,
+        otlp_endpoint: str,
+        monit_tenant: str,
+        monit_password: str,
+        service_name: str,
+        otlp_ca_file: str | None,
+        otlp_insecure: bool,
+        metric_labels: dict[str, str],
+        shard_index: int,
+        shard_total: int,
+        priority: str,
+    ) -> None:
+        """Publish the cycle coverage guardrails with value 0 for a skipped cycle.
+
+        Used on the ``skipped_no_targets`` path, which returns before the router
+        runs. Without this the ``avtools_snmp_devices_targeted`` /
+        ``_devices_polled`` / ``_coverage_ratio`` series simply stop being written:
+        MonIT/Mimir then has no data points at all rather than zeros, and Grafana
+        SLO alerts built on those series read the absence as health.
+
+        Samples come from the SAME builder the normal path uses
+        (:func:`~avtools.pipeline.snmp_router.cycle_guardrail_samples`), so the
+        metric set and the conditional ``shard`` / ``tier`` labels cannot drift
+        apart. Only the OTLP publisher is constructed — no Postgres monitoring
+        client, since a skipped cycle has no text rows to write.
+
+        Failures are logged and swallowed: a missing guardrail must not turn a
+        "nothing to do" cycle into a crash.
+
+        Args:
+            otlp_endpoint:  MONIT OTLP gRPC endpoint.
+            monit_tenant:   MONIT tenant (Basic auth user).
+            monit_password: MONIT tenant password.
+            service_name:   OTel resource service.name.
+            otlp_ca_file:   Optional CA bundle for gRPC TLS.
+            otlp_insecure:  Use plaintext OTLP/gRPC.
+            metric_labels:  Layer-2 global labels (same dict as the normal path).
+            shard_index:    This pod's shard index.
+            shard_total:    Total shards (1 = unsharded).
+            priority:       ``--priority`` token in force this cycle.
+
+        Returns:
+            None.
+        """
+        try:
+            publisher = OTLPMetricsPublisher(
+                endpoint=otlp_endpoint,
+                tenant=monit_tenant,
+                password=monit_password,
+                service_name=service_name,
+                ca_file=otlp_ca_file,
+                insecure=otlp_insecure,
+                metric_labels=metric_labels,
+            )
+            # targeted=0/polled=0: the guardrails are Priority.ALWAYS, so they are
+            # published under every --priority tier by definition.
+            samples = cycle_guardrail_samples(
+                targeted=0,
+                polled=0,
+                shard_index=shard_index,
+                shard_total=shard_total,
+                priority=priority,
+            )
+            publisher.publish(samples)
+            self.logger.info(
+                "snmp_zero_guardrails_published",
+                samples=len(samples),
+                shard_index=shard_index,
+                shard_total=shard_total,
+                priority=priority,
+            )
+        except Exception:
+            self.logger.exception("snmp_zero_guardrail_publish_failed")
 
     async def _get_snmp_raw(
         self, devices: list[CachedIPAddress], max_workers: int
