@@ -360,10 +360,10 @@ METRIC_META: dict[str, MetricMeta] = {
         "PDU outlet power state (0=off, 1=on, 2=other) per outlet.", priority=Priority.HIGH
     ),
     PDU_QUERY_OUTLET_CURRENT_AMPS: MetricMeta(
-        "PDU outlet current draw.", priority=Priority.MEDIUM, unit="A"
+        "PDU outlet current draw.", priority=Priority.HIGH, unit="A"
     ),
     PDU_QUERY_OUTLET_POWER_WATTS: MetricMeta(
-        "PDU outlet active power.", priority=Priority.MEDIUM, unit="W"
+        "PDU outlet active power.", priority=Priority.HIGH, unit="W"
     ),
     PDU_QUERY_OUTLET_ENERGY_WH: MetricMeta(
         "PDU outlet accumulated energy (counter).", priority=Priority.MEDIUM, unit="W.h"

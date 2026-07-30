@@ -378,11 +378,11 @@ the single source of truth in `src/avtools/timeseries/metrics.py`
   device-evaluated status codes (active-power/power-factor/balance/load), and PDU
   environmental temperature/humidity.
 - **HIGH** — live electrical/actionable readings: ping RTT, PDU active power,
-  line current, current-utilized %, voltage, outlet on/off state, projector
-  power status.
+  line current, current-utilized %, voltage, outlet on/off state, per-outlet
+  current/power, projector power status.
 - **MEDIUM** — trends & counters: energy, frequency, power factor, apparent
-  power, out-of-balance %, per-outlet current/power/energy, interface
-  octets/errors, and all uptime/lamp-hours gauges.
+  power, out-of-balance %, per-outlet energy, interface octets/errors, and all
+  uptime/lamp-hours gauges.
 - **LOW** — all `*_info` string-as-label gauges (firmware, status labels, sensor/
   outlet/interface identity).
 - **ALWAYS** — collector self-instrumentation that must emit on **every** run
