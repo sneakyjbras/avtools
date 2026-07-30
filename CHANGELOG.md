@@ -7,6 +7,53 @@
 
 ## [1.11.0] — 2026-07-28
 
+### Fixed
+- **Total collection outage: chunk every LanDB `__in` lookup (1000-parameter
+  ceiling).** `run-landb` sent every EAM serial in a single LanDB GET. The client
+  encodes an `__in` list as **one query parameter per value**, so ~3,749 serials
+  became ~3,751 parameters and LanDB rejected the request with
+  `422 … maximum number of request parameters (GET plus POST) … ([1,000])`.
+  All four `__in` lookups (`serial_number`, `name`, `device__serial_number`,
+  `device__name`) now go through `_landb_fetch_in_chunks` at
+  `LANDB_IN_CHUNK_SIZE = 800`, preserving first-wins de-duplication across chunk
+  boundaries. Chunk size verified against the production LanDB API with real
+  serials: 800 values → 21,155-byte request line, accepted (the only ceiling is
+  parameter count, not URL length).
+- **A failed upstream fetch can no longer wipe the fleet.** Both fetches failing
+  were swallowed as warnings, so `_sync_entities` received an empty API list and
+  computed `to_delete = cache_ids - api_ids` — deleting **every** cached row —
+  while the run still reported `status=ok` and exit 0. `snmp-timeseries` then
+  saw `devices_fleet=0` and reported `skipped_no_targets` with `samples=0`, so
+  every dashboard went blank with all Kubernetes Jobs green. A degraded fetch now
+  applies inserts/updates but **never deletes**, reports
+  `failed_landb_fetch_degraded`, and exits non-zero so the Job is marked failed.
+- **Heartbeat now means what it says.** `main.py` documented "heartbeat only after
+  a successful sync" but `run_landb` swallowed its own errors and returned
+  normally, so `avtools_landb_last_run_timestamp` was published even on a run
+  that fetched nothing — which is what defeated the existing
+  "LanDB Inventory Sync Stale" alert. The heartbeat is now gated on the run's
+  actual terminal status.
+- **Mass-delete circuit breaker** (`SYNC_MAX_DELETE_FRACTION = 0.5`) in the shared
+  `_sync_entities`, so no reconciler — LanDB, EAM Devices, EAM Positions or EAM
+  Rooms — can silently delete more than half its cache. Deliberate
+  mass-decommissions pass `allow_mass_delete=True`.
+- **Cycle guardrails no longer vanish on a skipped cycle.** The
+  `skipped_no_targets` path returned before `snmp_router.process`, so
+  `avtools_snmp_devices_targeted` / `_polled` / `_coverage_ratio` stopped being
+  emitted entirely. Absence — rather than zero — is why four Grafana SLO rules
+  read the outage as healthy. Those three guardrails are now published as
+  explicit zeros, with the conditional `shard`/`tier` labels preserved.
+
+### Changed
+- **Container image builds reproducibly from `poetry.lock`.** The runtime stage's
+  `pip install <wheel>` re-resolved every dependency at build time, bypassing the
+  lock: it pinned `landb-rest-client 26.3.5.post1` while the production image
+  actually shipped `26.7.2.post1`. The builder stage now exports a constraints
+  file from the lock which the runtime `pip install` honours via `-c`.
+  `eam-rest-client` and `landb-rest-client` are capped at `<27` (matching the
+  existing `cern-oauthlib` cap), and the lock now records the versions verified
+  running in production.
+
 ### Added
 - **Metric priority tiers + `--priority` publish filter** — foundation for
   collecting/publishing metrics at different cadences from separate CronJobs.
