@@ -19,8 +19,45 @@ to Prometheus via MONIT OTLP.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 
 METRIC_PREFIX = "avtools_"
+
+
+# ---------------------------------------------------------------------------
+# Priority taxonomy (single source of truth)
+# ---------------------------------------------------------------------------
+#
+# Metrics are classified into priority TIERS so that different metrics can be
+# collected/published at different frequencies by separate CronJobs (the infra
+# fan-out is a separate task). This module is the single source of truth for
+# that taxonomy; the publish-time ``--priority`` filter and every downstream
+# consumer (infra CronJob fan-out, Grafana SLO/watchdog alerts) key off it.
+#
+# Tiers are EXACT, not cumulative: ``--priority critical`` publishes only the
+# CRITICAL tier plus ALWAYS; it does NOT also emit HIGH/MEDIUM/LOW. ``ALWAYS``
+# is a dedicated tier for collector self-instrumentation (cycle guardrails +
+# per-job heartbeats) that must emit on every run regardless of the requested
+# tier.
+
+
+class Priority(str, Enum):
+    """Collection/publish priority tier for a metric.
+
+    A ``str`` enum so its value doubles as the ``--priority`` CLI token and the
+    ``tier`` Prometheus label value (e.g. ``Priority.CRITICAL == "critical"``).
+    """
+
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    ALWAYS = "always"
+
+
+# CLI sentinel meaning "no filtering — publish every tier" (today's behaviour).
+# Not a ``Priority`` member: it is the absence of a tier filter, not a tier.
+PRIORITY_ALL = "all"
 
 # ---------------------------------------------------------------------------
 # ping_check
@@ -164,106 +201,218 @@ MATRIX_QUERY_UPTIME_SECONDS = METRIC_PREFIX + "matrix_query_uptime_seconds"
 @dataclass(frozen=True, slots=True)
 class MetricMeta:
     description: str
+    # ``priority`` is mandatory (no default): every metric MUST be classified.
+    # A new metric added without a tier fails fast at construction time, and the
+    # contract test guards it too.
+    priority: Priority
     unit: str | None = None
 
 
 METRIC_META: dict[str, MetricMeta] = {
-    PING_CHECK_STATUS: MetricMeta("Ping status (1=online, 0=offline)."),
-    PING_CHECK_RTT_MS: MetricMeta("Ping round-trip time in milliseconds.", unit="ms"),
-    SNMP_PROBE_STATUS: MetricMeta(
-        "SNMP probe status (1=SNMP OK, 0=SNMP not responding / not supported)."
+    PING_CHECK_STATUS: MetricMeta("Ping status (1=online, 0=offline).", priority=Priority.CRITICAL),
+    PING_CHECK_RTT_MS: MetricMeta(
+        "Ping round-trip time in milliseconds.", priority=Priority.HIGH, unit="ms"
     ),
-    SNMP_DEVICES_TARGETED: MetricMeta("Devices targeted for collection this cycle."),
-    SNMP_DEVICES_POLLED: MetricMeta("Devices that produced a result this cycle."),
+    SNMP_PROBE_STATUS: MetricMeta(
+        "SNMP probe status (1=SNMP OK, 0=SNMP not responding / not supported).",
+        priority=Priority.CRITICAL,
+    ),
+    SNMP_DEVICES_TARGETED: MetricMeta(
+        "Devices targeted for collection this cycle.", priority=Priority.ALWAYS
+    ),
+    SNMP_DEVICES_POLLED: MetricMeta(
+        "Devices that produced a result this cycle.", priority=Priority.ALWAYS
+    ),
     SNMP_COVERAGE_RATIO: MetricMeta(
-        "Collection coverage (polled/targeted); ~1.0 healthy, a drop signals silent loss."
+        "Collection coverage (polled/targeted); ~1.0 healthy, a drop signals silent loss.",
+        priority=Priority.ALWAYS,
     ),
     SNMP_CYCLE_DURATION_SECONDS: MetricMeta(
         "Wall-clock seconds of the collection (sweep) phase this cycle, per shard.",
+        priority=Priority.ALWAYS,
         unit="s",
     ),
     EAM_LAST_RUN_TIMESTAMP: MetricMeta(
-        "Unix timestamp of the last successful EAM inventory sync (heartbeat)."
+        "Unix timestamp of the last successful EAM inventory sync (heartbeat).",
+        priority=Priority.ALWAYS,
     ),
     LANDB_LAST_RUN_TIMESTAMP: MetricMeta(
-        "Unix timestamp of the last successful LanDB inventory sync (heartbeat)."
+        "Unix timestamp of the last successful LanDB inventory sync (heartbeat).",
+        priority=Priority.ALWAYS,
     ),
     ROOMS_LAST_RUN_TIMESTAMP: MetricMeta(
-        "Unix timestamp of the last successful device->room mapping sync (heartbeat)."
+        "Unix timestamp of the last successful device->room mapping sync (heartbeat).",
+        priority=Priority.ALWAYS,
     ),
     DEVICE_IF_OPER_STATUS: MetricMeta(
-        "MIB-II interface operational status (1=up, 2=down, ...) per ifindex."
+        "MIB-II interface operational status (1=up, 2=down, ...) per ifindex.",
+        priority=Priority.CRITICAL,
     ),
-    DEVICE_IF_IN_OCTETS: MetricMeta("MIB-II interface inbound octets (64-bit counter).", unit="By"),
+    DEVICE_IF_IN_OCTETS: MetricMeta(
+        "MIB-II interface inbound octets (64-bit counter).", priority=Priority.MEDIUM, unit="By"
+    ),
     DEVICE_IF_OUT_OCTETS: MetricMeta(
-        "MIB-II interface outbound octets (64-bit counter).", unit="By"
+        "MIB-II interface outbound octets (64-bit counter).", priority=Priority.MEDIUM, unit="By"
     ),
-    DEVICE_IF_IN_ERRORS: MetricMeta("MIB-II interface inbound errors (counter)."),
-    DEVICE_IF_OUT_ERRORS: MetricMeta("MIB-II interface outbound errors (counter)."),
-    DEVICE_IF_INFO: MetricMeta("MIB-II interface description (ifdescr label) as an info metric."),
-    PROJECTOR_QUERY_LAMP_HOURS: MetricMeta("Projector lamp usage in hours.", unit="h"),
+    DEVICE_IF_IN_ERRORS: MetricMeta(
+        "MIB-II interface inbound errors (counter).", priority=Priority.MEDIUM
+    ),
+    DEVICE_IF_OUT_ERRORS: MetricMeta(
+        "MIB-II interface outbound errors (counter).", priority=Priority.MEDIUM
+    ),
+    DEVICE_IF_INFO: MetricMeta(
+        "MIB-II interface description (ifdescr label) as an info metric.", priority=Priority.LOW
+    ),
+    PROJECTOR_QUERY_LAMP_HOURS: MetricMeta(
+        "Projector lamp usage in hours.", priority=Priority.MEDIUM, unit="h"
+    ),
     PROJECTOR_QUERY_UPTIME_SECONDS: MetricMeta(
-        "Projector uptime in seconds (from sysUpTime).", unit="s"
+        "Projector uptime in seconds (from sysUpTime).", priority=Priority.MEDIUM, unit="s"
     ),
-    PROJECTOR_QUERY_POWER_STATUS: MetricMeta("Projector power status (numeric code)."),
+    PROJECTOR_QUERY_POWER_STATUS: MetricMeta(
+        "Projector power status (numeric code).", priority=Priority.HIGH
+    ),
     PROJECTOR_QUERY_FIRMWARE_INFO: MetricMeta(
-        "Projector firmware version (label) as an info metric."
+        "Projector firmware version (label) as an info metric.", priority=Priority.LOW
     ),
     PDU_QUERY_INPUT_STATUS: MetricMeta(
-        "PDU input-feed status (raw vendor code; enum differs by Sentry MIB generation)."
+        "PDU input-feed status (raw vendor code; enum differs by Sentry MIB generation).",
+        priority=Priority.CRITICAL,
     ),
     PDU_QUERY_STATUS_INFO: MetricMeta(
-        "PDU input-feed status label (from MIB enum) as an info metric."
+        "PDU input-feed status label (from MIB enum) as an info metric.", priority=Priority.LOW
     ),
     PDU_QUERY_HEALTHY: MetricMeta(
-        "PDU input-feed health (1=nominal, 0=not nominal). MIB-agnostic."
+        "PDU input-feed health (1=nominal, 0=not nominal). MIB-agnostic.",
+        priority=Priority.CRITICAL,
     ),
-    PDU_QUERY_ACTIVE_POWER_WATTS: MetricMeta("PDU input-feed active power.", unit="W"),
-    PDU_QUERY_LINE_CURRENT_AMPS: MetricMeta("PDU line current.", unit="A"),
+    PDU_QUERY_ACTIVE_POWER_WATTS: MetricMeta(
+        "PDU input-feed active power.", priority=Priority.HIGH, unit="W"
+    ),
+    PDU_QUERY_LINE_CURRENT_AMPS: MetricMeta("PDU line current.", priority=Priority.HIGH, unit="A"),
     PDU_QUERY_CURRENT_UTILIZED_PCT: MetricMeta(
-        "PDU line current as a percentage of capacity.", unit="%"
+        "PDU line current as a percentage of capacity.", priority=Priority.HIGH, unit="%"
     ),
-    PDU_QUERY_VOLTAGE_VOLTS: MetricMeta("PDU input / phase voltage.", unit="V"),
-    PDU_QUERY_UPTIME_SECONDS: MetricMeta("PDU uptime in seconds (from sysUpTime).", unit="s"),
-    PDU_QUERY_FIRMWARE_INFO: MetricMeta("PDU firmware version (label) as an info metric."),
-    PDU_QUERY_ENERGY_KWH: MetricMeta("PDU input-feed accumulated energy (counter).", unit="kWh"),
-    PDU_QUERY_FREQUENCY_HZ: MetricMeta("PDU input-feed line frequency.", unit="Hz"),
-    PDU_QUERY_POWER_FACTOR: MetricMeta("PDU input-feed power factor (0-1 ratio)."),
-    PDU_QUERY_APPARENT_POWER_VA: MetricMeta("PDU input-feed apparent power.", unit="VA"),
+    PDU_QUERY_VOLTAGE_VOLTS: MetricMeta(
+        "PDU input / phase voltage.", priority=Priority.HIGH, unit="V"
+    ),
+    PDU_QUERY_UPTIME_SECONDS: MetricMeta(
+        "PDU uptime in seconds (from sysUpTime).", priority=Priority.MEDIUM, unit="s"
+    ),
+    PDU_QUERY_FIRMWARE_INFO: MetricMeta(
+        "PDU firmware version (label) as an info metric.", priority=Priority.LOW
+    ),
+    PDU_QUERY_ENERGY_KWH: MetricMeta(
+        "PDU input-feed accumulated energy (counter).", priority=Priority.MEDIUM, unit="kWh"
+    ),
+    PDU_QUERY_FREQUENCY_HZ: MetricMeta(
+        "PDU input-feed line frequency.", priority=Priority.MEDIUM, unit="Hz"
+    ),
+    PDU_QUERY_POWER_FACTOR: MetricMeta(
+        "PDU input-feed power factor (0-1 ratio).", priority=Priority.MEDIUM
+    ),
+    PDU_QUERY_APPARENT_POWER_VA: MetricMeta(
+        "PDU input-feed apparent power.", priority=Priority.MEDIUM, unit="VA"
+    ),
     PDU_QUERY_OUT_OF_BALANCE_PCT: MetricMeta(
-        "PDU input-feed phase current out-of-balance.", unit="%"
+        "PDU input-feed phase current out-of-balance.", priority=Priority.MEDIUM, unit="%"
     ),
     PDU_QUERY_ACTIVE_POWER_STATUS: MetricMeta(
-        "PDU active-power threshold status (DeviceStatus code)."
+        "PDU active-power threshold status (DeviceStatus code).", priority=Priority.CRITICAL
     ),
     PDU_QUERY_POWER_FACTOR_STATUS: MetricMeta(
-        "PDU power-factor threshold status (DeviceStatus code)."
+        "PDU power-factor threshold status (DeviceStatus code).", priority=Priority.CRITICAL
     ),
     PDU_QUERY_BALANCE_STATUS: MetricMeta(
-        "PDU out-of-balance threshold status (DeviceStatus code)."
+        "PDU out-of-balance threshold status (DeviceStatus code).", priority=Priority.CRITICAL
     ),
-    PDU_QUERY_LOAD_STATUS: MetricMeta("PDU line-current/load threshold status code."),
-    PDU_QUERY_ACTIVE_POWER_STATUS_INFO: MetricMeta("PDU active-power status label (info metric)."),
-    PDU_QUERY_POWER_FACTOR_STATUS_INFO: MetricMeta("PDU power-factor status label (info metric)."),
-    PDU_QUERY_BALANCE_STATUS_INFO: MetricMeta("PDU out-of-balance status label (info metric)."),
-    PDU_QUERY_LOAD_STATUS_INFO: MetricMeta("PDU load status label (info metric)."),
+    PDU_QUERY_LOAD_STATUS: MetricMeta(
+        "PDU line-current/load threshold status code.", priority=Priority.CRITICAL
+    ),
+    PDU_QUERY_ACTIVE_POWER_STATUS_INFO: MetricMeta(
+        "PDU active-power status label (info metric).", priority=Priority.LOW
+    ),
+    PDU_QUERY_POWER_FACTOR_STATUS_INFO: MetricMeta(
+        "PDU power-factor status label (info metric).", priority=Priority.LOW
+    ),
+    PDU_QUERY_BALANCE_STATUS_INFO: MetricMeta(
+        "PDU out-of-balance status label (info metric).", priority=Priority.LOW
+    ),
+    PDU_QUERY_LOAD_STATUS_INFO: MetricMeta(
+        "PDU load status label (info metric).", priority=Priority.LOW
+    ),
     PDU_QUERY_PQ_SEVERITY: MetricMeta(
-        "PDU power-quality severity across device thresholds (0 normal / 1 warning / 2 critical)."
+        "PDU power-quality severity across device thresholds (0 normal / 1 warning / 2 critical).",
+        priority=Priority.CRITICAL,
     ),
     PDU_QUERY_TEMPERATURE_C: MetricMeta(
-        "PDU environmental temperature sensor reading (normalized to Celsius).", unit="Cel"
+        "PDU environmental temperature sensor reading (normalized to Celsius).",
+        priority=Priority.CRITICAL,
+        unit="Cel",
     ),
-    PDU_QUERY_HUMIDITY_PCT: MetricMeta("PDU environmental humidity sensor reading.", unit="%"),
-    PDU_QUERY_SENSOR_INFO: MetricMeta("PDU environmental sensor identity (name/kind) info metric."),
-    PDU_QUERY_OUTLET_STATE: MetricMeta("PDU outlet power state (0=off, 1=on, 2=other) per outlet."),
-    PDU_QUERY_OUTLET_CURRENT_AMPS: MetricMeta("PDU outlet current draw.", unit="A"),
-    PDU_QUERY_OUTLET_POWER_WATTS: MetricMeta("PDU outlet active power.", unit="W"),
-    PDU_QUERY_OUTLET_ENERGY_WH: MetricMeta("PDU outlet accumulated energy (counter).", unit="W.h"),
-    PDU_QUERY_OUTLET_INFO: MetricMeta("PDU outlet identity (name label) as an info metric."),
+    PDU_QUERY_HUMIDITY_PCT: MetricMeta(
+        "PDU environmental humidity sensor reading.", priority=Priority.CRITICAL, unit="%"
+    ),
+    PDU_QUERY_SENSOR_INFO: MetricMeta(
+        "PDU environmental sensor identity (name/kind) info metric.", priority=Priority.LOW
+    ),
+    PDU_QUERY_OUTLET_STATE: MetricMeta(
+        "PDU outlet power state (0=off, 1=on, 2=other) per outlet.", priority=Priority.HIGH
+    ),
+    PDU_QUERY_OUTLET_CURRENT_AMPS: MetricMeta(
+        "PDU outlet current draw.", priority=Priority.MEDIUM, unit="A"
+    ),
+    PDU_QUERY_OUTLET_POWER_WATTS: MetricMeta(
+        "PDU outlet active power.", priority=Priority.MEDIUM, unit="W"
+    ),
+    PDU_QUERY_OUTLET_ENERGY_WH: MetricMeta(
+        "PDU outlet accumulated energy (counter).", priority=Priority.MEDIUM, unit="W.h"
+    ),
+    PDU_QUERY_OUTLET_INFO: MetricMeta(
+        "PDU outlet identity (name label) as an info metric.", priority=Priority.LOW
+    ),
     CODEC_QUERY_UPTIME_SECONDS: MetricMeta(
-        "Video codec uptime in seconds (from sysUpTime).", unit="s"
+        "Video codec uptime in seconds (from sysUpTime).", priority=Priority.MEDIUM, unit="s"
     ),
     MATRIX_QUERY_UPTIME_SECONDS: MetricMeta(
-        "AV matrix switcher uptime in seconds (from sysUpTime).", unit="s"
+        "AV matrix switcher uptime in seconds (from sysUpTime).", priority=Priority.MEDIUM, unit="s"
     ),
 }
+
+
+# ---------------------------------------------------------------------------
+# Priority helpers (the publish-time filter contract)
+# ---------------------------------------------------------------------------
+
+
+def metrics_for_priority(p: Priority) -> set[str]:
+    """Return the EXACT set of metric names classified at tier ``p``.
+
+    Single tier only — NOT cumulative and does NOT implicitly fold in ALWAYS.
+    Use :func:`publishable_metrics` for the set a tiered publisher should emit.
+    """
+    return {name for name, meta in METRIC_META.items() if meta.priority is p}
+
+
+def publishable_metrics(requested: Priority) -> set[str]:
+    """Metric names a publisher must emit for ``requested``: that tier ∪ ALWAYS.
+
+    Tiers are exact, so this is the requested tier plus the ALWAYS guardrails/
+    heartbeats — never any other tier.
+    """
+    return metrics_for_priority(requested) | metrics_for_priority(Priority.ALWAYS)
+
+
+def should_publish(metric_name: str, requested: Priority) -> bool:
+    """Whether ``metric_name`` must be published under the ``requested`` tier.
+
+    ALWAYS metrics always pass. Otherwise a metric passes only if its own tier is
+    exactly ``requested`` (tiers are not cumulative). An unknown metric name never
+    passes under a tiered run (fail-closed).
+    """
+    meta = METRIC_META.get(metric_name)
+    if meta is None:
+        return False
+    if meta.priority is Priority.ALWAYS:
+        return True
+    return meta.priority is requested

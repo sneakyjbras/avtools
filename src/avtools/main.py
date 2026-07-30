@@ -84,6 +84,25 @@ def _otlp_heartbeat_options(f):
     return f
 
 
+def _status_is_failure(status: str | None) -> bool:
+    """Whether a run's terminal status means "this run did NOT sync successfully".
+
+    ``AVTools.run_landb`` returns the same status string it logs on
+    ``avtools_run_landb_end``. Any ``failed_*`` status (including
+    ``failed_landb_fetch_degraded``, where the LanDB fetch was only partial) and
+    ``completed_with_errors`` count as failures: the CLI must then exit non-zero so
+    Kubernetes marks the Job failed, and must NOT publish the heartbeat — a
+    heartbeat on a failed run is what blinded the "LanDB Inventory Sync Stale"
+    alert while the fleet table was empty.
+
+    ``None`` means the callee reported no status (older signature / test doubles)
+    and is treated as success so behaviour is unchanged for those commands.
+    """
+    if not status:
+        return False
+    return str(status).startswith("failed_") or str(status) == "completed_with_errors"
+
+
 def _emit_heartbeat(metric_name: str, **otlp) -> None:
     """Publish a heartbeat iff MONIT creds are available; otherwise skip quietly."""
     if not otlp.get("tenant") or not otlp.get("monit_password"):
@@ -202,13 +221,19 @@ def run_landb(
     dbod_url = ctx.obj["dbod_url"]
     try:
         tools = AVTools(dbod_url)
-        tools.run_landb(
+        status = tools.run_landb(
             client_id=client_id,
             client_secret=client_secret,
             audience=audience,
         )
     except NoRecordsFound as exc:
         raise click.ClickException(str(exc))
+
+    # run_landb() handles its own errors and returns its terminal status, so the
+    # exit code and the heartbeat both have to be derived from that status.
+    if _status_is_failure(status):
+        raise click.ClickException(f"run-landb did not complete successfully (status={status})")
+
     # Heartbeat only after a successful sync (best-effort).
     _emit_heartbeat(m.LANDB_LAST_RUN_TIMESTAMP, **otlp)
 
@@ -340,6 +365,20 @@ def sync_rooms(ctx: click.Context, **otlp) -> None:
         "sharding (unchanged single-process behaviour)."
     ),
 )
+@click.option(
+    "--priority",
+    envvar="AVTOOLS_PRIORITY",
+    type=click.Choice(["all", "critical", "high", "medium", "low"]),
+    default="all",
+    show_default=True,
+    help=(
+        "Publish-time priority tier filter. 'all' (default) publishes every metric "
+        "(today's behaviour). A tier (critical/high/medium/low) publishes only that "
+        "tier's device metrics plus the ALWAYS cycle guardrails; tiers are EXACT, "
+        "not cumulative. Collection is unchanged — this filters at publish time so "
+        "separate CronJobs can emit different tiers at different cadences."
+    ),
+)
 @click.pass_context
 def snmp_timeseries(
     ctx: click.Context,
@@ -355,6 +394,7 @@ def snmp_timeseries(
     availability_zone: str,
     shard_index: int,
     shard_total: int,
+    priority: str,
 ) -> None:
     # Fail fast on a misconfigured partition rather than silently leaving a gap:
     # a wrong N (shard_total) or an out-of-range index means some devices are
@@ -383,6 +423,7 @@ def snmp_timeseries(
         availability_zone=availability_zone,
         shard_index=shard_index,
         shard_total=shard_total,
+        priority=priority,
     )
 
 

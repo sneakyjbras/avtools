@@ -187,7 +187,7 @@ def test_run_landb_no_eam_devices(monkeypatch):
         fetch_called = True
         return []
 
-    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
+    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name, **kwargs):
         nonlocal sync_called
         sync_called = True
 
@@ -248,19 +248,26 @@ def test_run_landb_normal_flow_calls_all_steps(monkeypatch):
             DummyCachedIPAddress(equipmentno="EQ-38", ip="10.0.0.38"),
         ]
 
-    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
+    sync_kwargs: list[dict[str, Any]] = []
+
+    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name, **kwargs):
         sync_calls.append((list(api_items), list(cached_items), get_id, sync_func, name))
+        sync_kwargs.append(dict(kwargs))
 
     av._init_landb_rest_client = fake_init_landb_rest_client.__get__(av, AVTools)
     av._get_landb_ipaddresses = fake_get_landb_ipaddresses.__get__(av, AVTools)
     av._sync_entities = fake_sync_entities.__get__(av, AVTools)
 
-    av.run_landb(
+    status = av.run_landb(
         client_id="CID",
         client_secret="CSECRET",
         audience="AUDIENCE",
         base_url="https://example-landb/api/",
     )
+
+    # A healthy fetch reports success and reconciles normally (deletes enabled).
+    assert status == "ok"
+    assert sync_kwargs == [{"allow_deletes": True}]
 
     # DB calls happen in a predictable order.
     assert dbod.calls == ["get_all_eam_devices", "get_all_landb_devices"]
@@ -316,7 +323,7 @@ def test_run_landb_landb_list_empty_still_calls_sync(monkeypatch):
 
     sync_calls: list[tuple] = []
 
-    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
+    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name, **kwargs):
         sync_calls.append((list(api_items), list(cached_items), get_id, sync_func, name))
 
     av._sync_entities = fake_sync_entities.__get__(av, AVTools)
@@ -411,7 +418,7 @@ def test_run_landb_duplicate_landb_ids_passed_to_sync(monkeypatch):
 
     sync_calls: list[tuple] = []
 
-    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
+    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name, **kwargs):
         sync_calls.append((list(api_items), list(cached_items), get_id, sync_func, name))
 
     av._get_landb_ipaddresses = fake_get_landb_ipaddresses.__get__(av, AVTools)
@@ -449,7 +456,7 @@ def test_run_landb_preserves_unordered_landb_results(monkeypatch):
 
     sync_calls: list[tuple] = []
 
-    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
+    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name, **kwargs):
         sync_calls.append((list(api_items), list(cached_items), get_id, sync_func, name))
 
     av._sync_entities = fake_sync_entities.__get__(av, AVTools)
@@ -483,7 +490,7 @@ def test_run_landb_handles_malformed_landb_cache_entries(monkeypatch):
 
     sync_calls: list[tuple] = []
 
-    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name):
+    def fake_sync_entities(self, api_items, cached_items, get_id, sync_func, name, **kwargs):
         sync_calls.append((list(api_items), list(cached_items), get_id, sync_func, name))
 
     av._sync_entities = fake_sync_entities.__get__(av, AVTools)

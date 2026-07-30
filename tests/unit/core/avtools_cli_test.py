@@ -23,6 +23,9 @@ class DummyAVTools:
     raise_no_records_run_eam: bool = False
     raise_no_records_run_landb: bool = False
 
+    # Terminal status returned by run_landb (None = legacy "reported nothing").
+    run_landb_status: str | None = None
+
     def __init__(self, dbod_url: str, logs: bool = False) -> None:
         self.dbod_url = dbod_url
         self.logs = logs
@@ -39,7 +42,7 @@ class DummyAVTools:
         client_id: str,
         client_secret: str,
         audience: str,
-    ) -> None:
+    ) -> str | None:
         type(self).calls.append(
             (
                 "run_landb",
@@ -53,6 +56,7 @@ class DummyAVTools:
         )
         if type(self).raise_no_records_run_landb:
             raise NoRecordsFound("no LanDB records")
+        return type(self).run_landb_status
 
     def run_snmp_timeseries(
         self,
@@ -69,6 +73,7 @@ class DummyAVTools:
         availability_zone: str = "cern-geneva-b",
         shard_index: int = 0,
         shard_total: int = 1,
+        priority: str = "all",
     ) -> None:
         type(self).calls.append(
             (
@@ -87,6 +92,7 @@ class DummyAVTools:
                     "availability_zone": availability_zone,
                     "shard_index": shard_index,
                     "shard_total": shard_total,
+                    "priority": priority,
                 },
             )
         )
@@ -103,6 +109,7 @@ def patched_avtools(monkeypatch) -> type[DummyAVTools]:
     DummyAVTools.calls.clear()
     DummyAVTools.raise_no_records_run_eam = False
     DummyAVTools.raise_no_records_run_landb = False
+    DummyAVTools.run_landb_status = None
 
     # Patch the symbol used by main.py
     monkeypatch.setattr(main, "AVTools", DummyAVTools)
@@ -326,6 +333,115 @@ def test_run_landb_no_records_is_reported_as_click_error(
     assert "no LanDB records" in res.output
 
 
+# ---------------------------------------------------------------------------
+# W2 — run-landb exit code + heartbeat gating
+#
+# `_emit_heartbeat` used to run unconditionally because run_landb() swallows its
+# own errors, so the "AV SLO: LanDB Inventory Sync Stale" alert stayed green while
+# the fleet table was empty. The heartbeat now follows the returned status.
+# ---------------------------------------------------------------------------
+
+
+def _invoke_run_landb(runner: CliRunner) -> Any:
+    return runner.invoke(
+        main.cli,
+        [
+            "--dbod-url",
+            "postgres://dummy-landb",
+            "run-landb",
+            "--client-id",
+            "cid",
+            "--client-secret",
+            "secret",
+            "--audience",
+            "aud",
+            "--tenant",
+            "monit-tenant",
+            "--monit-password",
+            "monit-pass",
+        ],
+    )
+
+
+@pytest.fixture
+def captured_heartbeats(monkeypatch) -> list[str]:
+    seen: list[str] = []
+    monkeypatch.setattr(main, "publish_heartbeat", lambda name, **kw: seen.append(name))
+    return seen
+
+
+def test_run_landb_ok_status_exits_zero_and_emits_heartbeat(
+    runner: CliRunner,
+    patched_avtools: type[DummyAVTools],
+    captured_heartbeats: list[str],
+) -> None:
+    patched_avtools.run_landb_status = "ok"
+
+    res = _invoke_run_landb(runner)
+
+    assert res.exit_code == 0
+    assert captured_heartbeats == [main.m.LANDB_LAST_RUN_TIMESTAMP]
+
+
+def test_run_landb_degraded_status_exits_nonzero_and_suppresses_heartbeat(
+    runner: CliRunner,
+    patched_avtools: type[DummyAVTools],
+    captured_heartbeats: list[str],
+) -> None:
+    """The outage signature: fetch degraded -> Job must fail, alert must fire."""
+    patched_avtools.run_landb_status = "failed_landb_fetch_degraded"
+
+    res = _invoke_run_landb(runner)
+
+    assert res.exit_code != 0
+    assert "failed_landb_fetch_degraded" in res.output
+    assert captured_heartbeats == []
+
+
+def test_run_landb_any_failed_status_exits_nonzero_and_suppresses_heartbeat(
+    runner: CliRunner,
+    patched_avtools: type[DummyAVTools],
+    captured_heartbeats: list[str],
+) -> None:
+    for status in (
+        "failed_fetch",
+        "failed_sync_mass_delete_refused",
+        "failed_load_cached_devices",
+        "completed_with_errors",
+    ):
+        captured_heartbeats.clear()
+        patched_avtools.run_landb_status = status
+
+        res = _invoke_run_landb(runner)
+
+        assert res.exit_code != 0, status
+        assert captured_heartbeats == [], status
+
+
+def test_run_landb_skipped_status_still_emits_heartbeat(
+    runner: CliRunner,
+    patched_avtools: type[DummyAVTools],
+    captured_heartbeats: list[str],
+) -> None:
+    """An empty EAM snapshot is not a LanDB failure: the job stays healthy."""
+    patched_avtools.run_landb_status = "skipped_no_eam_devices"
+
+    res = _invoke_run_landb(runner)
+
+    assert res.exit_code == 0
+    assert captured_heartbeats == [main.m.LANDB_LAST_RUN_TIMESTAMP]
+
+
+def test_status_is_failure_treats_none_as_success() -> None:
+    """Commands that report no status (run-eam/sync-rooms) keep old behaviour."""
+    assert main._status_is_failure(None) is False
+    assert main._status_is_failure("") is False
+    assert main._status_is_failure("ok") is False
+    assert main._status_is_failure("skipped_no_eam_devices") is False
+    assert main._status_is_failure("failed_landb_fetch_degraded") is True
+    assert main._status_is_failure("completed_with_errors") is True
+
+
 def test_run_snmp_timeseries_passes_all_cli_flags_through(
     runner: CliRunner,
     patched_avtools: type[DummyAVTools],
@@ -374,4 +490,5 @@ def test_run_snmp_timeseries_passes_all_cli_flags_through(
         "availability_zone": "cern-geneva-b",
         "shard_index": 0,
         "shard_total": 1,
+        "priority": "all",
     }

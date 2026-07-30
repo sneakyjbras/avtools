@@ -596,14 +596,14 @@ files = [
 
 [[package]]
 name = "eam-rest-client"
-version = "26.6.1.post2"
+version = "26.7.2.post1"
 description = "EAM REST Client"
 optional = false
 python-versions = ">=3.9.2,<4.0"
 groups = ["main"]
 files = [
-    {file = "eam_rest_client-26.6.1.post2-py3-none-any.whl", hash = "sha256:f91bf917fb174f2aa75888bbde5ea8d6939d4e29ff82b7822fe6a2819117ae3a"},
-    {file = "eam_rest_client-26.6.1.post2.tar.gz", hash = "sha256:f429a7caad940b8ab7cc60758aff7dd3716b92be05db5ea4aea2c304e31c7966"},
+    {file = "eam_rest_client-26.7.2.post1-py3-none-any.whl", hash = "sha256:e0cd810e12cbaae403af3094366430facf340599dfd198fc532069b8196e4209"},
+    {file = "eam_rest_client-26.7.2.post1.tar.gz", hash = "sha256:034f89e889a0a1f801e1d58bda747ef08926860771fb6ae9b6f33b13ee8d8d55"},
 ]
 
 [package.dependencies]
@@ -961,14 +961,14 @@ i18n = ["Babel (>=2.7)"]
 
 [[package]]
 name = "landb-rest-client"
-version = "26.3.5.post1"
+version = "26.7.2.post1"
 description = "LanDB REST Client"
 optional = false
 python-versions = ">=3.9.2,<4.0"
 groups = ["main"]
 files = [
-    {file = "landb_rest_client-26.3.5.post1-py3-none-any.whl", hash = "sha256:f5e591eca22307712cfdef7eb440754cb1a4f79d1ff8c55ab1c895f81a14e85b"},
-    {file = "landb_rest_client-26.3.5.post1.tar.gz", hash = "sha256:f9adb8e651c8d40aa075e30cb49a40f13430c975ea756b424dbdb740d3611bad"},
+    {file = "landb_rest_client-26.7.2.post1-py3-none-any.whl", hash = "sha256:4f7a442510773c7d4e06dc226e4c6427ec22f0f67a3f77b6ca401e66e72e54f7"},
+    {file = "landb_rest_client-26.7.2.post1.tar.gz", hash = "sha256:82e3bcddde025fefa31ae1a514408369739caab38367983fbcd9d96ac7b97bdf"},
 ]
 
 [package.dependencies]
@@ -2285,4 +2285,4 @@ sentry = ["sentry-sdk"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "ac254a9ea554ed8402dbf022411aec551a78b4df07b5c4269b24ebfd61482cce"
+content-hash = "fb54f4229e27ba26c20d9f579e8a61df0ceaae2bcb0503ef10fddbb45b1e9279"

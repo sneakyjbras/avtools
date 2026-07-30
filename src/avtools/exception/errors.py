@@ -324,3 +324,21 @@ class EAMTextSanitizerError(UtilsError):
 
 class SyncReportLoggerError(UtilsError):
     """Errors originating from avtools.utils.sync_reporting."""
+
+
+# --- Reconciliation safety -------------------------------------------------
+
+
+class MassDeleteRefused(AVToolsError):
+    """Raised when a reconciler refused to delete a large fraction of a cache.
+
+    The cache reconciler (``AVTools._sync_entities``) computes deletes as
+    ``cached_ids - api_ids``. An upstream fetch that returns nothing (or almost
+    nothing) therefore looks exactly like "every device was decommissioned", and
+    silently wipes the inventory table the SNMP collection depends on.
+
+    The mass-delete circuit breaker refuses such a delete, applies only the
+    inserts/updates, and raises this error so the run is recorded as FAILED
+    instead of ``ok``. A genuine mass decommission is re-run deliberately with
+    ``allow_mass_delete=True``.
+    """
