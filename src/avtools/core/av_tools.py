@@ -105,6 +105,35 @@ from avtools.utils.sync_reporting import SyncReportLogger
 
 Model = TypeVar("Model")
 
+# ---------------------------------------------------------------------------
+# LanDB request-parameter budget  (why we chunk every `__in` lookup)
+# ---------------------------------------------------------------------------
+# LanDB is served by Tomcat, which HARD-REJECTS any request carrying more than
+# 1000 HTTP parameters (GET plus POST) with:
+#
+#   requests.exceptions.HTTPError: 422 Client Error: More than the maximum
+#   number of request parameters (GET plus POST) for a single request ([1,000])
+#   were detected.
+#
+# `landb_rest_client` encodes an `__in` filter as ONE query parameter PER VALUE
+# (`serialNumber.in=AAA&serialNumber.in=BBB&...`) and always adds `_limit` and
+# `_offset`, so a single `filter(field__in=values)` call costs
+# ``len(values) + 2`` request parameters — it does NOT matter how long the
+# individual values are.
+#
+# With ~4.5k EAM devices (3749 serials / 3231 names in production on
+# 2026-07-30) one un-chunked call is ~3.7k parameters: every LanDB fetch 422s,
+# the failure is swallowed as a warning, the reconciler sees an EMPTY API result
+# and deletes the entire fleet cache. Hence every `__in` lookup is split into
+# chunks of LANDB_IN_CHUNK_SIZE and the results merged.
+#
+# 800 — and NOT 998, and definitely not 5000 — deliberately keeps ~200
+# parameters of headroom under the ceiling for `_limit`/`_offset` and for any
+# extra filter a future caller may add to the same query. Do not raise it
+# without re-verifying the server-side limit below.
+LANDB_MAX_REQUEST_PARAMS = 1000
+LANDB_IN_CHUNK_SIZE = 800
+
 
 def device_in_shard(equipment_no: str, shard_index: int, shard_total: int) -> bool:
     """Return True if this device belongs to the caller's shard.
@@ -143,6 +172,10 @@ class AVTools:
         self.logs = logs
         self.logger = structlog.get_logger(self.__class__.__name__)
         self._landb_initialized = False
+        # True when the last _get_landb_ipaddresses() call returned a PARTIAL view
+        # of LanDB (at least one chunked lookup failed). run_landb() reads it and
+        # refuses to delete cached rows in that case.
+        self._landb_fetch_degraded = False
         self._eam_sanitizer = EAMTextSanitizer()
 
     # ---------------------------------------------------------------------
@@ -870,8 +903,93 @@ class AVTools:
 
         self._landb_initialized = True
 
+    def _landb_fetch_in_chunks(
+        self,
+        *,
+        model: Any,
+        filter_key: str,
+        values: Sequence[str],
+        key_of: Callable[[Any], str | None],
+        failure_event: str,
+        count_field: str,
+        chunk_size: int = LANDB_IN_CHUNK_SIZE,
+    ) -> tuple[dict[str, Any], bool]:
+        """Run one ``field__in`` LanDB lookup in chunks and merge the results.
+
+        Splitting is mandatory, not an optimisation: see LANDB_IN_CHUNK_SIZE for
+        the 1000-request-parameter Tomcat ceiling that a single large ``__in``
+        list blows through.
+
+        Args:
+            model:         LanDB REST model class exposing ``.objects.filter``
+                           (``Device`` / ``IPAddress``). Accessed lazily so an
+                           empty ``values`` list performs no API work at all.
+            filter_key:    Filter kwarg to use, e.g. ``"serial_number__in"``.
+            values:        Full list of values to look up (already de-duplicated
+                           and normalized by the caller).
+            key_of:        Extracts the merge key from a returned record. Records
+                           with a falsy key are dropped, exactly as before.
+            failure_event: Log event name emitted (warning) for a failed chunk.
+                           Kept identical to the pre-chunking event names.
+            count_field:   Field name carrying the TOTAL value count on that
+                           warning event (``serial_count`` / ``name_count``),
+                           again identical to the pre-chunking payload.
+            chunk_size:    Values per request (default LANDB_IN_CHUNK_SIZE).
+
+        Returns:
+            ``(results, degraded)``:
+
+            * ``results`` maps ``key_of(record)`` -> record. Chunks are processed
+              in order and a key already present is never overwritten, so the
+              "first wins" de-duplication of the un-chunked code is preserved
+              across chunk boundaries as well.
+            * ``degraded`` is True when AT LEAST ONE chunk failed. A degraded
+              lookup is NOT the same as "no rows for those values": the merged
+              result is a partial view and callers must not treat it as
+              authoritative (see :meth:`run_landb`, which suppresses deletes).
+        """
+        results: dict[str, Any] = {}
+        if not values:
+            return results, False
+
+        chunks = [list(values[i : i + chunk_size]) for i in range(0, len(values), chunk_size)]
+        chunk_count = len(chunks)
+        degraded = False
+
+        for chunk_index, chunk in enumerate(chunks):
+            try:
+                for rec in model.objects.filter(**{filter_key: chunk}).all():
+                    k = key_of(rec)
+                    if k and k not in results:
+                        results[k] = rec
+            except Exception:
+                degraded = True
+                self.logger.warning(
+                    failure_event,
+                    exc_info=True,
+                    **{
+                        count_field: len(values),
+                        "chunk_index": chunk_index,
+                        "chunk_count": chunk_count,
+                        "chunk_values": len(chunk),
+                        "chunk_size": chunk_size,
+                    },
+                )
+
+        self.logger.info(
+            "landb_chunked_fetch_done",
+            filter_key=filter_key,
+            values=len(values),
+            chunk_count=chunk_count,
+            chunk_size=chunk_size,
+            matched=len(results),
+            degraded=degraded,
+        )
+
+        return results, degraded
+
     def _get_landb_ipaddresses(self, eam_records: list[Equipment]) -> list[CachedIPAddress]:
-        """Bulk LanDB lookup in <=4 API calls.
+        """Bulk LanDB lookup in 4 logical queries (each chunked into N requests).
 
         Strategy:
         1) Fetch LanDB Devices by EAM serial_number (Device.serial_number__in).
@@ -880,14 +998,27 @@ class AVTools:
         3) Using the matched LanDB Devices, fetch IPAddresses by device serial_number, then
            fallback by device name.
 
+        Every one of those four ``__in`` lookups is executed in chunks of
+        LANDB_IN_CHUNK_SIZE values via :meth:`_landb_fetch_in_chunks` because
+        LanDB/Tomcat rejects requests with more than 1000 parameters and the REST
+        client spends one parameter per ``__in`` value (see LANDB_IN_CHUNK_SIZE).
+
         Output:
         - List[CachedIPAddress] enriched with EAM keys (equipment_no, class_code, etc.).
         - Only includes devices that have a usable SNMP target IP (LanDB ipv4 or ipv6).
+
+        Side effect:
+        - Sets ``self._landb_fetch_degraded`` to True when any chunk of any of the
+          four lookups failed, i.e. the returned list is a PARTIAL view of LanDB
+          rather than an authoritative one. :meth:`run_landb` reads that flag and
+          refuses to delete cached rows on a degraded fetch.
 
         IMPORTANT CORRELATION:
         - (EAM) Equipment.serial_number == (LanDB) Device.serial_number
         - (LanDB) Device.name == (LanDB) IPAddress.device   (NOT IPAddress.name)
         """
+        # Reset per call; every chunked lookup below ORs its own failure into it.
+        self._landb_fetch_degraded = False
 
         def norm(v: Any) -> str | None:
             """Normalize a value into a trimmed string.
@@ -920,20 +1051,15 @@ class AVTools:
                 eam_serials.append(s)
 
         # --- (1) Devices by serial_number --------------------------------
-        devices_by_serial: dict[str, Device] = {}
-        try:
-            if eam_serials:
-                devs = Device.objects.filter(serial_number__in=eam_serials).all()
-                for d in devs:
-                    s = norm(getattr(d, "serial_number", None))
-                    if s and s not in devices_by_serial:
-                        devices_by_serial[s] = d
-        except Exception:
-            self.logger.warning(
-                "landb_device_fetch_by_serial_failed",
-                serial_count=len(eam_serials),
-                exc_info=True,
-            )
+        devices_by_serial, degraded = self._landb_fetch_in_chunks(
+            model=Device,
+            filter_key="serial_number__in",
+            values=eam_serials,
+            key_of=lambda d: norm(getattr(d, "serial_number", None)),
+            failure_event="landb_device_fetch_by_serial_failed",
+            count_field="serial_count",
+        )
+        self._landb_fetch_degraded = self._landb_fetch_degraded or degraded
 
         # Determine which EAM records still need a name-based lookup.
         # (includes missing serials AND serials not present in LanDB)
@@ -952,20 +1078,15 @@ class AVTools:
                 names_set.add(n)
                 names_to_query.append(n)
 
-        devices_by_name: dict[str, Device] = {}
-        try:
-            if names_to_query:
-                devs = Device.objects.filter(name__in=names_to_query).all()
-                for d in devs:
-                    n = norm(getattr(d, "name", None))
-                    if n and n not in devices_by_name:
-                        devices_by_name[n] = d
-        except Exception:
-            self.logger.warning(
-                "landb_device_fetch_by_name_failed",
-                name_count=len(names_to_query),
-                exc_info=True,
-            )
+        devices_by_name, degraded = self._landb_fetch_in_chunks(
+            model=Device,
+            filter_key="name__in",
+            values=names_to_query,
+            key_of=lambda d: norm(getattr(d, "name", None)),
+            failure_event="landb_device_fetch_by_name_failed",
+            count_field="name_count",
+        )
+        self._landb_fetch_degraded = self._landb_fetch_degraded or degraded
 
         # --- Match EAM -> LanDB Device (prefer serial match) --------------
         matched: list[tuple[Equipment, Device, str]] = []
@@ -1025,37 +1146,33 @@ class AVTools:
                 device_names.append(n)
 
         # Key by IPAddress.device so we can correlate Device.name == IPAddress.device.
-        ips_by_device: dict[str, IPAddress] = {}
-
-        try:
-            if device_serials:
-                ips = IPAddress.objects.filter(device__serial_number__in=device_serials).all()
-                for ip in ips:
-                    k = norm(getattr(ip, "device", None))
-                    if k and k not in ips_by_device:
-                        ips_by_device[k] = ip
-        except Exception:
-            self.logger.warning(
-                "landb_ipaddress_fetch_by_serial_failed",
-                serial_count=len(device_serials),
-                exc_info=True,
-            )
+        ips_by_device, degraded = self._landb_fetch_in_chunks(
+            model=IPAddress,
+            filter_key="device__serial_number__in",
+            values=device_serials,
+            key_of=lambda ip: norm(getattr(ip, "device", None)),
+            failure_event="landb_ipaddress_fetch_by_serial_failed",
+            count_field="serial_count",
+        )
+        self._landb_fetch_degraded = self._landb_fetch_degraded or degraded
 
         # --- (4) Fallback IPAddresses by device name ----------------------
         missing_ip_names = [n for n in device_names if n not in ips_by_device]
-        try:
-            if missing_ip_names:
-                ips = IPAddress.objects.filter(device__name__in=missing_ip_names).all()
-                for ip in ips:
-                    k = norm(getattr(ip, "device", None))
-                    if k and k not in ips_by_device:
-                        ips_by_device[k] = ip
-        except Exception:
-            self.logger.warning(
-                "landb_ipaddress_fetch_by_name_failed",
-                name_count=len(missing_ip_names),
-                exc_info=True,
-            )
+        ips_by_name, degraded = self._landb_fetch_in_chunks(
+            model=IPAddress,
+            filter_key="device__name__in",
+            values=missing_ip_names,
+            key_of=lambda ip: norm(getattr(ip, "device", None)),
+            failure_event="landb_ipaddress_fetch_by_name_failed",
+            count_field="name_count",
+        )
+        self._landb_fetch_degraded = self._landb_fetch_degraded or degraded
+
+        # Merge the fallback in: keys already resolved by the serial lookup win,
+        # matching the previous single-dict "first wins" behaviour.
+        for k, ip_rec in ips_by_name.items():
+            if k not in ips_by_device:
+                ips_by_device[k] = ip_rec
 
         # --- Correlate EAM -> Device -> IPAddress, enrich, return ---------
         out: list[CachedIPAddress] = []
