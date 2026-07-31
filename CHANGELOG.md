@@ -1,6 +1,21 @@
 # Changelog
 
-## [Unreleased]
+## [1.11.1] — 2026-07-31
+
+### Fixed
+- **Per-outlet current/power reclassified MEDIUM → HIGH.** `avtools_pdu_query_outlet_current_amps`
+  and `avtools_pdu_query_outlet_power_watts` are live electrical readings — the
+  same class as the input-feed active power/line current/voltage, which are
+  already HIGH — and `avtools_pdu_query_outlet_state` (the sibling per-outlet
+  metric) was already HIGH, leaving the group internally inconsistent.
+  `avtools_pdu_query_outlet_current_amps` is also the metric behind the Grafana
+  "AV Tools: PDU Outlet Overcurrent" alert; at the old MEDIUM (hourly) cadence
+  an overcurrent condition would be detected up to an hour late instead of
+  within ~5-15 minutes. `avtools_pdu_query_outlet_energy_wh` (a cumulative
+  counter, like the input-feed `avtools_pdu_query_energy_kwh`) and
+  `avtools_pdu_query_outlet_info` (a string gauge, like every other `*_info`
+  metric) were reviewed and are unchanged. New tier totals: 12 CRITICAL / 9
+  HIGH / 15 MEDIUM / 10 LOW / 7 ALWAYS.
 
 ### Changed
 - **License & Maintainers update**: Updated project license specification to MIT in `pyproject.toml` and updated maintainer/contributor guidelines in `CONTRIBUTING.md` setting José Bras (`jose.bras@cern.ch` / `j.eduardo.bras@outlook.com`, `@jsapinat` / `@sneakyjbras`) as the sole core author and maintainer.
