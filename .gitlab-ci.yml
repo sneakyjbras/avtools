@@ -252,17 +252,34 @@ e2e_tests:
 #   POETRY_PYPI_TOKEN_PYPISERVER_QA   (QA)
 #   POETRY_PYPI_TOKEN_PYPISERVER      (PROD)
 # ==================================================
+# DORMANT since 2026-07-31 — nothing consumes these wheels any more.
+#
+# The Kubernetes image does NOT install avtools from a PyPI index: the builder
+# stage runs `poetry build -f wheel` and the runtime stage pip-installs THAT
+# local wheel (see Dockerfile). AVTOOLS_INDEX_URL is still required there, but
+# only to resolve the CERN client dependencies (eam-rest-client,
+# landb-rest-client, cern-oauthlib) — do NOT remove it.
+#
+# The only consumer of a PUBLISHED avtools wheel was the Puppet monolith, and
+# prod was retired in 2026-07 (`timers_enabled: false`, VM deleted; k8s is the
+# sole prod writer). NB the qa/playground Puppet envs carry no timers_enabled
+# override, so they still inherit the manifest default of `true` — if a QA
+# monolith host is ever revived it will stop receiving new versions while these
+# jobs are dormant.
+#
+# TO RE-ENABLE: delete the `- when: never` line below and restore the rules
+# kept beneath it in comments. Credentials/config are unchanged.
 python-publish-qa:
   extends: .python-test-base
   stage: deploy_qa
   rules:
-    - if: '$CI_COMMIT_BRANCH == "qa"'
-      when: manual
-    - if: '$CI_COMMIT_TAG =~ /^v\d+/'
-      when: manual
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
     - when: never
+    # - if: '$CI_COMMIT_BRANCH == "qa"'
+    #   when: manual
+    # - if: '$CI_COMMIT_TAG =~ /^v\d+/'
+    #   when: manual
+    # - if: '$CI_PIPELINE_SOURCE == "web"'
+    #   when: manual
   script:
     # Register the QA upload endpoint (upload URL differs from /simple install URL)
     - poetry config repositories.pypiserver_qa https://qa-pypi-itdcim.cern.ch
@@ -270,15 +287,17 @@ python-publish-qa:
     - poetry build
     - poetry publish -r pypiserver_qa
 
+# DORMANT since 2026-07-31 — see the note on python-publish-qa above.
+# TO RE-ENABLE: delete `- when: never` and restore the commented rules.
 python-publish-stable:
   extends: .python-test-base
   stage: deploy_stable
   rules:
-    - if: '$CI_COMMIT_TAG =~ /^v\d+/'
-      when: manual
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
     - when: never
+    # - if: '$CI_COMMIT_TAG =~ /^v\d+/'
+    #   when: manual
+    # - if: '$CI_PIPELINE_SOURCE == "web"'
+    #   when: manual
   script:
     # Register the PROD upload endpoint
     - poetry config repositories.pypiserver https://pypi-itdcim.cern.ch
