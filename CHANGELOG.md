@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.11.1] — 2026-07-31
 
 ### Fixed
 - **Per-outlet current/power reclassified MEDIUM → HIGH.** `avtools_pdu_query_outlet_current_amps`
