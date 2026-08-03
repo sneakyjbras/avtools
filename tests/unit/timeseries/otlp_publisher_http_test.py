@@ -479,3 +479,173 @@ def test_both_transports_build_the_same_resource_attributes(monkeypatch: Any) ->
         instance_id="avtools-shard-7",
     )
     assert http_publisher._resource_attributes == grpc_publisher._resource_attributes
+
+
+# ---------------------------------------------------------------------------
+# Transport parity — the QA gate compares sample counts before/after the cutover
+# ---------------------------------------------------------------------------
+
+
+class _RecordingExporter:
+    """Capture the MetricsData the SDK would have shipped over gRPC."""
+
+    _preferred_temporality: dict = {}
+    _preferred_aggregation: dict = {}
+    captured: list = []
+
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        pass
+
+    def export(self, metrics_data: Any, **_kwargs: Any):
+        from opentelemetry.sdk.metrics.export import MetricExportResult
+
+        type(self).captured.append(metrics_data)
+        return MetricExportResult.SUCCESS
+
+    def force_flush(self, *_a: Any, **_k: Any) -> bool:
+        return True
+
+    def shutdown(self, *_a: Any, **_k: Any) -> bool:
+        return True
+
+
+def _grpc_series(samples, metric_labels, monkeypatch: Any) -> set[tuple]:
+    """(metric name, sorted attributes, value) the gRPC transport would emit.
+
+    The publisher takes its meter from the *global* meter provider, and
+    ``opentelemetry.metrics.set_meter_provider()`` only takes effect once per
+    process — so in a test session the second publisher onwards would register
+    instruments on the first provider and flush an empty one. Bind the meter to
+    this publisher's own provider so the comparison measures the payload, which
+    is what the QA sample-count gate looks at.
+    """
+    _RecordingExporter.captured = []
+    monkeypatch.setattr(mod, "OTLPMetricExporter", _RecordingExporter)
+
+    publisher = OTLPMetricsPublisher(
+        endpoint=_LEGACY_ENDPOINT,
+        tenant=_TENANT,
+        password=_CREDENTIAL,
+        insecure=True,
+        protocol="grpc",
+        instance_id="avtools-shard-0",
+        metric_labels=metric_labels,
+    )
+    publisher._meter = publisher._provider.get_meter("avtools")
+    assert publisher.publish(samples) is True
+
+    series: set[tuple] = set()
+    for metrics_data in _RecordingExporter.captured:
+        for resource_metrics in metrics_data.resource_metrics:
+            for scope_metrics in resource_metrics.scope_metrics:
+                for metric in scope_metrics.metrics:
+                    for point in metric.data.data_points:
+                        attributes = tuple(
+                            sorted((str(k), str(v)) for k, v in point.attributes.items())
+                        )
+                        series.add((metric.name, attributes, float(point.value)))
+    return series
+
+
+def _http_series(samples, metric_labels, monkeypatch: Any) -> set[tuple]:
+    """(metric name, sorted attributes, value) the HTTP transport actually posts."""
+    captured: dict[str, Any] = {}
+
+    def fake_urlopen(request: Any, **_kwargs: Any) -> _FakeResponse:
+        captured["body"] = request.data
+        return _FakeResponse(200)
+
+    publisher = _publisher(
+        monkeypatch,
+        fake_urlopen,
+        instance_id="avtools-shard-0",
+        metric_labels=metric_labels,
+    )
+    assert publisher.publish(samples) is True
+
+    proto = metrics_encoder.load_otlp_proto()
+    decoded = proto.ExportMetricsServiceRequest()
+    decoded.ParseFromString(captured["body"])
+
+    series: set[tuple] = set()
+    for resource_metrics in decoded.resource_metrics:
+        for scope_metrics in resource_metrics.scope_metrics:
+            for metric in scope_metrics.metrics:
+                for point in metric.gauge.data_points:
+                    attributes = tuple(
+                        sorted((kv.key, kv.value.string_value) for kv in point.attributes)
+                    )
+                    series.add((metric.name, attributes, float(point.as_double)))
+    return series
+
+
+def test_both_transports_emit_exactly_the_same_series(monkeypatch: Any) -> None:
+    """A silent sample-count drop is the worst outcome of this migration.
+
+    Same input samples through both transports must produce an identical set of
+    (metric, attributes, value) triples — so the QA before/after comparison sees
+    no change in what MONIT receives.
+    """
+    metric_labels = {
+        "job": "avtools",
+        "submitter_environment": "qa",
+        "toplevel_hostgroup": "itdcim",
+        "region": "cern",
+    }
+    samples = (
+        [
+            MetricSample(
+                name="avtools_ping_check_status",
+                value=index % 2,
+                labels={"equipmentno": f"EQ{index}", "building": "B1", "room": f"R{index}"},
+            )
+            for index in range(50)
+        ]
+        + [
+            MetricSample(
+                name="avtools_ping_check_rtt_ms",
+                value=float(index) / 3,
+                labels={"equipmentno": f"EQ{index}"},
+            )
+            for index in range(50)
+        ]
+        + [
+            MetricSample(name="avtools_snmp_devices_targeted", value=50, labels={"shard": "0"}),
+            MetricSample(name="avtools_snmp_devices_polled", value=48, labels={"shard": "0"}),
+        ]
+    )
+
+    grpc_series = _grpc_series(samples, metric_labels, monkeypatch)
+    http_series = _http_series(samples, metric_labels, monkeypatch)
+
+    assert len(http_series) == 102
+    assert http_series == grpc_series
+
+
+def test_duplicate_label_sets_collapse_identically_on_both_transports(monkeypatch: Any) -> None:
+    """Last-write-wins per label set, in both transports."""
+    samples = [
+        MetricSample(name="avtools_ping_check_status", value=0, labels={"equipmentno": "EQ1"}),
+        MetricSample(name="avtools_ping_check_status", value=1, labels={"equipmentno": "EQ1"}),
+    ]
+    grpc_series = _grpc_series(samples, {}, monkeypatch)
+    http_series = _http_series(samples, {}, monkeypatch)
+
+    assert len(http_series) == 1
+    assert http_series == grpc_series
+    assert next(iter(http_series))[2] == 1.0
+
+
+def test_none_valued_labels_are_dropped_by_both_transports(monkeypatch: Any) -> None:
+    samples = [
+        MetricSample(
+            name="avtools_ping_check_status",
+            value=1,
+            labels={"equipmentno": "EQ1", "room": None},
+        )
+    ]
+    grpc_series = _grpc_series(samples, {}, monkeypatch)
+    http_series = _http_series(samples, {}, monkeypatch)
+
+    assert http_series == grpc_series
+    assert next(iter(http_series))[1] == (("equipmentno", "EQ1"),)
