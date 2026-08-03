@@ -11,8 +11,13 @@ authors = [
     "jsapinat <jose.bras@cern.ch>",
 ]
 
-# Ship vendored MIB sources + the compiled metadata the resolver loads at runtime.
+# Ship vendored MIB sources + the compiled metadata the resolver loads at runtime,
+# and the CERN CA chain the OTLP/HTTP transport verifies monit-otlp.cern.ch with
+# (MONIT does not send its intermediate, so the client must supply the full chain;
+# see avtools/otlp/http_transport.py). Shipping it inside the wheel makes the path
+# resolve identically in the container image, the Puppet install and a dev checkout.
 include = [
+    { path = "src/avtools/certs/*.pem", format = ["sdist", "wheel"] },
     { path = "src/avtools/mibs/compiled/*.metadata.json", format = ["sdist", "wheel"] },
     { path = "src/avtools/mibs/sources/*", format = ["sdist", "wheel"] },
     { path = "src/avtools/mibs/reference/*", format = ["sdist", "wheel"] },

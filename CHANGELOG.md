@@ -1,5 +1,62 @@
 # Changelog
 
+## [Unreleased]
+
+### Security
+- **Metrics no longer leave the cluster in cleartext.** AV Tools exported to MONIT
+  over OTLP/**gRPC** on `monit-otlp.cern.ch:4316` with `MONIT_OTLP_INSECURE=true`,
+  i.e. unencrypted, carrying CERN equipment numbers and device IPs for ~1375
+  devices. That was not a misconfiguration: **the MONIT gRPC ports offer no TLS
+  listener at all** — the server closes the connection during the TLS handshake
+  (`UNEXPECTED_EOF_WHILE_READING`), so plaintext was the only thing that worked
+  there. Metrics now go to `https://monit-otlp.cern.ch:4319/v1/metrics` over
+  OTLP/HTTP with TLSv1.3 and HTTP Basic auth.
+- **The CERN CA chain ships with the package** at
+  `avtools/certs/cern-otlp-chain.pem`. `monit-otlp.cern.ch:4319` does **not** send
+  its `CERN Grid Certification Authority` intermediate, so the client has to
+  supply the full chain: the Debian bundle in `python:3.11-slim` fails, and
+  `CERN Root Certification Authority 2` alone fails. Shipping it inside the wheel
+  makes the path resolve identically in the container image, the Puppet install
+  and a dev checkout. `--otlp-ca-file` / `OTLP_CA_FILE` override it (e.g. a
+  rotated chain from a ConfigMap); there is deliberately no way to disable
+  verification.
+
+### Added
+- **`avtools.otlp`: a shared OTLP/HTTP transport** used by the metrics publisher
+  and, next, by the log publisher. It derives success from the **HTTP response
+  status and nothing else** — `MeterProvider.force_flush()` has been observed
+  returning `True` while the exporter logged `Failed to export ... UNAVAILABLE`,
+  which is the silent-drop failure mode behind the historical export gaps.
+- **`--otlp-protocol` / `MONIT_OTLP_PROTOCOL`** (`http` | `grpc`, default `http`)
+  and **`--otlp-encoding` / `MONIT_OTLP_ENCODING`** (`protobuf` | `json`, default
+  `protobuf`). protobuf is the default because it is materially smaller on the
+  wire at ~42,900 samples/hr; `json` exists for debugging a payload by eye.
+
+### Changed
+- **`--otlp-endpoint` / `MONIT_OTLP_ENDPOINT` is now a URL**
+  (`https://host:4319/v1/metrics`), and its default moved from
+  `monit-otlp.cern.ch:4316` to `https://monit-otlp.cern.ch:4319/v1/metrics`. The
+  legacy OTLP/gRPC `host:port` form is still **accepted and migrated**
+  automatically (4316/4317 → `https://host:4319/…`, 4318 → `http://host:4318/…`),
+  logging `otlp_endpoint_migrated` with both the given and the derived value.
+  Deployment charts live in a separate repository and still pass the old form, so
+  hard-failing on it would have stopped production metrics on the first rollout.
+- **`MONIT_OTLP_INSECURE` / `--otlp-insecure` is ignored on the OTLP/HTTP path**
+  (logged once as `otlp_insecure_ignored`) instead of being honoured. Honouring it
+  would keep the cleartext export this change exists to remove. It still applies
+  to `--otlp-protocol grpc`.
+- Publisher behaviour is otherwise preserved exactly: the same retry budget
+  (3 attempts, 0.75s × attempt backoff, 10s timeout), the same
+  `otlp_export_unconfirmed` error event and wording, the same `publish() -> bool`
+  contract, and the same Layer-1 resource attributes and Layer-2 label-collision
+  guard on both transports.
+
+### Deprecated
+- **OTLP/gRPC (`--otlp-protocol grpc`).** Kept as a rollback path that needs no
+  code change, and unchanged from the previous implementation, but it can only
+  ever run in cleartext because MONIT offers no TLS on the gRPC ports. It logs
+  `otlp_grpc_transport_deprecated` on every run.
+
 ## [1.11.1] — 2026-07-31
 
 ### Fixed

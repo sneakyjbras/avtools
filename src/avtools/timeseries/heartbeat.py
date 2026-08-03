@@ -17,7 +17,11 @@ import time
 import structlog
 
 from avtools.timeseries.models import MetricSample
-from avtools.timeseries.otlp_publisher import OTLPMetricsPublisher
+from avtools.timeseries.otlp_publisher import (
+    DEFAULT_ENCODING,
+    DEFAULT_PROTOCOL,
+    OTLPMetricsPublisher,
+)
 
 _log = structlog.get_logger(__name__)
 
@@ -34,6 +38,8 @@ def publish_heartbeat(
     environment: str,
     hostgroup: str,
     availability_zone: str,
+    otlp_protocol: str = DEFAULT_PROTOCOL,
+    otlp_encoding: str = DEFAULT_ENCODING,
 ) -> None:
     """Publish a single ``metric_name = now`` gauge via OTLP (best-effort).
 
@@ -58,6 +64,8 @@ def publish_heartbeat(
             service_name=service_name,
             ca_file=otlp_ca_file,
             insecure=otlp_insecure,
+            protocol=otlp_protocol,
+            encoding=otlp_encoding,
             metric_labels=metric_labels,
         )
         now = time.time()
