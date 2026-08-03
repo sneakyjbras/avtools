@@ -1,4 +1,9 @@
-"""Additional OTLPMetricsPublisher tests — TLS/CA-file path and publish success."""
+"""Additional OTLPMetricsPublisher tests — the deprecated OTLP/gRPC transport.
+
+These cover the gRPC rollback path (``protocol="grpc"``): its CA handling, gauge
+registration, and the force_flush retry budget. The default OTLP/HTTP transport is
+covered in ``otlp_publisher_http_test.py``.
+"""
 
 from __future__ import annotations
 
@@ -27,6 +32,7 @@ def test_tls_ca_file_path_is_used(monkeypatch: Any, tmp_path: Path) -> None:
         tenant="t",
         password="p",
         insecure=False,
+        protocol="grpc",
         ca_file=str(ca),
     )
 
@@ -40,6 +46,7 @@ def test_publish_success_path_registers_gauge(monkeypatch: Any) -> None:
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
         export_interval_s=0.1,
         timeout_s=0.1,
     )
@@ -67,6 +74,7 @@ def test_second_publish_does_not_re_register_same_gauge(monkeypatch: Any) -> Non
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
         export_interval_s=0.1,
         timeout_s=0.1,
     )
@@ -99,6 +107,7 @@ def test_publish_returns_false_and_retries_when_flush_unconfirmed(monkeypatch: A
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
     )
     monkeypatch.setattr(mod.time, "sleep", lambda *_a, **_k: None)
     monkeypatch.setattr(pub._provider, "shutdown", lambda: None)
@@ -154,5 +163,7 @@ def test_publisher_uses_stable_instance_id_in_resource(monkeypatch: Any) -> None
         return orig(attrs)
 
     monkeypatch.setattr(mod.Resource, "create", staticmethod(fake_create))
-    mod.OTLPMetricsPublisher(endpoint="h:4317", tenant="t", password="p", insecure=True)
+    mod.OTLPMetricsPublisher(
+        endpoint="h:4317", tenant="t", password="p", insecure=True, protocol="grpc"
+    )
     assert captured["service.instance.id"] == "avtools-shard-5"

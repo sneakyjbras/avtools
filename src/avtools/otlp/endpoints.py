@@ -74,7 +74,6 @@ def normalize_http_endpoint(endpoint: str, *, signal: str) -> str:
        ``/v1/<signal>`` suffix is appended.
     3. The legacy OTLP/gRPC target (``monit-otlp.cern.ch:4316``) — migrated per
        the port table in the module docstring.
-    4. A bare host with no port — assumed to be MONIT's TLS OTLP/HTTP port.
 
     Args:
         endpoint: Endpoint in any of the forms above.
@@ -170,12 +169,19 @@ def _with_signal_path(url: str, signal_path: str) -> str:
 
 
 def _split_host_port(raw: str) -> tuple[str, int]:
-    """Split a bare ``host:port`` target, defaulting to MONIT's TLS OTLP/HTTP port."""
+    """Split a bare ``host:port`` target.
+
+    A port is required. A bare hostname is far more often a truncated value than
+    a deliberate "use the default port", and the old publisher rejected it too —
+    so it keeps failing, loudly, rather than silently connecting somewhere else.
+    """
     target = raw.rstrip("/")
     if ":" not in target:
-        if not target:
-            raise OTLPEndpointError(f"OTLP endpoint {raw!r} has no host.")
-        return target, OTLP_HTTPS_PORT
+        raise OTLPEndpointError(
+            f"OTLP endpoint {raw!r} must be in 'host:port' form (e.g. "
+            f"{DEFAULT_OTLP_GRPC_ENDPOINT!r}) or a full URL (e.g. "
+            f"{DEFAULT_OTLP_HTTP_METRICS_ENDPOINT!r})."
+        )
 
     host, _, port_text = target.rpartition(":")
     if not host:

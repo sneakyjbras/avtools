@@ -100,7 +100,12 @@ from avtools.postgres.inventory.orm.eam_room import EAMRoom
 from avtools.postgres.inventory.orm.landb_ipaddress import CachedIPAddress
 from avtools.snmp.client import InterfaceResult, PingResult, ProbeResult, QueryResult, SNMPClient
 from avtools.timeseries.models import MetricSample
-from avtools.timeseries.otlp_publisher import OTLPMetricsPublisher, OTLPPublishError
+from avtools.timeseries.otlp_publisher import (
+    DEFAULT_ENCODING,
+    DEFAULT_PROTOCOL,
+    OTLPMetricsPublisher,
+    OTLPPublishError,
+)
 from avtools.utils.eam_sanitizer import EAMTextSanitizer
 from avtools.utils.sync_reporting import SyncReportLogger
 
@@ -1359,6 +1364,8 @@ class AVTools:
         service_name: str = "avtools",
         otlp_ca_file: str | None = None,
         otlp_insecure: bool = False,
+        otlp_protocol: str = DEFAULT_PROTOCOL,
+        otlp_encoding: str = DEFAULT_ENCODING,
         submitter_environment: str = "prod",
         submitter_hostgroup: str = "itdcim/av",
         availability_zone: str = "cern-geneva-b",
@@ -1382,13 +1389,21 @@ class AVTools:
             category, hostname (all sourced from CachedIPAddress / EAM / LanDB).
 
         Args:
-            otlp_endpoint:          OTLP gRPC endpoint in 'host:port' form.
+            otlp_endpoint:          MONIT OTLP endpoint: a full OTLP/HTTP URL
+                                    ('https://host:4319/v1/metrics') or the legacy
+                                    OTLP/gRPC 'host:port' form, which is migrated
+                                    automatically.
             monit_tenant:           MONIT tenant name (Basic auth username).
             monit_password:         MONIT tenant password (Basic auth password).
             max_workers:            Number of concurrent worker tasks.
             service_name:           OTel resource service.name (default: avtools).
-            otlp_ca_file:           Optional CA bundle path for gRPC TLS.
-            otlp_insecure:          If True, use plaintext OTLP/gRPC (no TLS).
+            otlp_ca_file:           Optional PEM CA bundle. Defaults to the CERN
+                                    chain bundled in the wheel on the HTTP path.
+            otlp_insecure:          Plaintext OTLP/gRPC. Ignored on the HTTP path,
+                                    which always verifies TLS.
+            otlp_protocol:          'http' (default, TLS) or 'grpc' (deprecated
+                                    plaintext rollback path).
+            otlp_encoding:          OTLP/HTTP payload encoding ('protobuf'/'json').
             submitter_environment:  Deployment environment ("prod" or "qa").
                                     Exposed as the ``submitter_environment`` label.
             submitter_hostgroup:    Full Puppet hostgroup path (e.g. "itdcim/av").
@@ -1512,6 +1527,8 @@ class AVTools:
                     service_name=service_name,
                     otlp_ca_file=otlp_ca_file,
                     otlp_insecure=otlp_insecure,
+                    otlp_protocol=otlp_protocol,
+                    otlp_encoding=otlp_encoding,
                     metric_labels=metric_labels,
                     shard_index=shard_index,
                     shard_total=shard_total,
@@ -1560,6 +1577,8 @@ class AVTools:
                     service_name=service_name,
                     ca_file=otlp_ca_file,
                     insecure=otlp_insecure,
+                    protocol=otlp_protocol,
+                    encoding=otlp_encoding,
                     metric_labels=metric_labels,
                 )
 
@@ -1652,6 +1671,8 @@ class AVTools:
         otlp_ca_file: str | None,
         otlp_insecure: bool,
         metric_labels: dict[str, str],
+        otlp_protocol: str = DEFAULT_PROTOCOL,
+        otlp_encoding: str = DEFAULT_ENCODING,
         shard_index: int,
         shard_total: int,
         priority: str,
@@ -1674,13 +1695,15 @@ class AVTools:
         "nothing to do" cycle into a crash.
 
         Args:
-            otlp_endpoint:  MONIT OTLP gRPC endpoint.
+            otlp_endpoint:  MONIT OTLP endpoint (URL or legacy 'host:port').
             monit_tenant:   MONIT tenant (Basic auth user).
             monit_password: MONIT tenant password.
             service_name:   OTel resource service.name.
-            otlp_ca_file:   Optional CA bundle for gRPC TLS.
-            otlp_insecure:  Use plaintext OTLP/gRPC.
+            otlp_ca_file:   Optional PEM CA bundle for the OTLP transport.
+            otlp_insecure:  Use plaintext OTLP/gRPC (gRPC path only).
             metric_labels:  Layer-2 global labels (same dict as the normal path).
+            otlp_protocol:  'http' (default) or 'grpc' (deprecated).
+            otlp_encoding:  OTLP/HTTP payload encoding ('protobuf'/'json').
             shard_index:    This pod's shard index.
             shard_total:    Total shards (1 = unsharded).
             priority:       ``--priority`` token in force this cycle.
@@ -1696,6 +1719,8 @@ class AVTools:
                 service_name=service_name,
                 ca_file=otlp_ca_file,
                 insecure=otlp_insecure,
+                protocol=otlp_protocol,
+                encoding=otlp_encoding,
                 metric_labels=metric_labels,
             )
             # targeted=0/polled=0: the guardrails are Priority.ALWAYS, so they are
@@ -1887,8 +1912,10 @@ class AVTools:
         service_name: str,
         otlp_ca_file: str | None = None,
         otlp_insecure: bool = False,
+        otlp_protocol: str = DEFAULT_PROTOCOL,
+        otlp_encoding: str = DEFAULT_ENCODING,
     ) -> None:
-        """Publish samples to Prometheus via MONIT OTLP (gRPC)."""
+        """Publish samples to Prometheus via MONIT OTLP (HTTP by default)."""
         if not samples:
             self.logger.info("No metrics collected; skipping publish")
             return
@@ -1901,6 +1928,8 @@ class AVTools:
                 service_name=service_name,
                 ca_file=otlp_ca_file,
                 insecure=otlp_insecure,
+                protocol=otlp_protocol,
+                encoding=otlp_encoding,
             )
             confirmed = publisher.publish(samples)
             if confirmed:

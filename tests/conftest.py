@@ -103,3 +103,24 @@ def _mock_otlp_metric_exporter(monkeypatch):
             return True
 
     monkeypatch.setattr(otlp_mod, "OTLPMetricExporter", _DummyOTLPMetricExporter, raising=True)
+
+
+@pytest.fixture(autouse=True)
+def _block_real_otlp_http(monkeypatch):
+    """Fail loudly if a unit test tries to open a real OTLP/HTTP connection.
+
+    OTLP/HTTP is now the default transport, so a test that builds a publisher and
+    calls publish() without stubbing the socket would reach out to
+    monit-otlp.cern.ch for real. Tests that exercise the transport override this
+    seam themselves; anything else gets an explicit error instead of a hang.
+    """
+
+    import avtools.otlp.http_transport as transport_mod
+
+    def _refuse(*_args, **_kwargs):
+        raise AssertionError(
+            "A unit test attempted a real OTLP/HTTP request. Patch "
+            "avtools.otlp.http_transport._urlopen in the test instead."
+        )
+
+    monkeypatch.setattr(transport_mod, "_urlopen", _refuse, raising=True)

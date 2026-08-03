@@ -8,8 +8,15 @@ from avtools.core.av_tools import AVTools
 from avtools.exception.errors import NoRecordsFound
 from avtools.logsink import DEFAULT_LOG_FILE, bind_envelope, configure_logging
 from avtools.observability import init_sentry
+from avtools.otlp.endpoints import DEFAULT_OTLP_HTTP_METRICS_ENDPOINT
 from avtools.timeseries import metrics as m
 from avtools.timeseries.heartbeat import publish_heartbeat
+from avtools.timeseries.otlp_publisher import (
+    DEFAULT_ENCODING,
+    DEFAULT_PROTOCOL,
+    SUPPORTED_ENCODINGS,
+    SUPPORTED_PROTOCOLS,
+)
 
 
 def _otlp_heartbeat_options(f):
@@ -25,9 +32,13 @@ def _otlp_heartbeat_options(f):
         click.option(
             "--otlp-endpoint",
             envvar="MONIT_OTLP_ENDPOINT",
-            default="monit-otlp.cern.ch:4316",
+            default=DEFAULT_OTLP_HTTP_METRICS_ENDPOINT,
             show_default=True,
-            help="MONIT OTLP gRPC endpoint (host:port).",
+            help=(
+                "MONIT OTLP endpoint. Either a full OTLP/HTTP URL "
+                "('https://host:4319/v1/metrics') or the legacy OTLP/gRPC 'host:port' "
+                "form, which is migrated to the HTTP URL automatically."
+            ),
         ),
         click.option("--tenant", envvar="MONIT_TENANT", default=None, help="MONIT tenant name."),
         click.option(
@@ -48,14 +59,37 @@ def _otlp_heartbeat_options(f):
             "--otlp-ca-file",
             envvar="OTLP_CA_FILE",
             default=None,
-            help="Optional CA bundle path for OTLP gRPC.",
+            help=(
+                "PEM CA bundle used to verify MONIT's OTLP/HTTP certificate. "
+                "Defaults to the CERN chain bundled in the wheel."
+            ),
+        ),
+        click.option(
+            "--otlp-protocol",
+            envvar="MONIT_OTLP_PROTOCOL",
+            type=click.Choice(SUPPORTED_PROTOCOLS),
+            default=DEFAULT_PROTOCOL,
+            show_default=True,
+            help=(
+                "OTLP transport. 'http' publishes over TLS on :4319. 'grpc' is the "
+                "DEPRECATED plaintext rollback path (MONIT has no TLS listener on the "
+                "gRPC ports)."
+            ),
+        ),
+        click.option(
+            "--otlp-encoding",
+            envvar="MONIT_OTLP_ENCODING",
+            type=click.Choice(SUPPORTED_ENCODINGS),
+            default=DEFAULT_ENCODING,
+            show_default=True,
+            help="OTLP/HTTP payload encoding. 'json' is for debugging only.",
         ),
         click.option(
             "--otlp-insecure/--otlp-tls",
             envvar="MONIT_OTLP_INSECURE",
             default=False,
             show_default=True,
-            help="Use plaintext OTLP/gRPC (no TLS).",
+            help="Use plaintext OTLP/gRPC (no TLS). Ignored unless --otlp-protocol grpc.",
         ),
         click.option(
             "--environment",
@@ -116,6 +150,8 @@ def _emit_heartbeat(metric_name: str, **otlp) -> None:
         service_name=otlp["service_name"],
         otlp_ca_file=otlp["otlp_ca_file"],
         otlp_insecure=otlp["otlp_insecure"],
+        otlp_protocol=otlp.get("otlp_protocol", DEFAULT_PROTOCOL),
+        otlp_encoding=otlp.get("otlp_encoding", DEFAULT_ENCODING),
         environment=otlp["environment"],
         hostgroup=otlp["hostgroup"],
         availability_zone=otlp["availability_zone"],
@@ -275,9 +311,14 @@ def sync_rooms(ctx: click.Context, **otlp) -> None:
 @click.option(
     "--otlp-endpoint",
     envvar="MONIT_OTLP_ENDPOINT",
-    default="monit-otlp.cern.ch:4316",
+    default=DEFAULT_OTLP_HTTP_METRICS_ENDPOINT,
     show_default=True,
-    help="MONIT OTLP gRPC endpoint (host:port).",
+    help=(
+        "MONIT OTLP endpoint. Either a full OTLP/HTTP URL "
+        "('https://host:4319/v1/metrics') or the legacy OTLP/gRPC 'host:port' form "
+        "(e.g. 'monit-otlp.cern.ch:4316'), which is migrated to the HTTP URL "
+        "automatically so existing deployments keep working."
+    ),
 )
 @click.option(
     "--tenant",
@@ -304,8 +345,32 @@ def sync_rooms(ctx: click.Context, **otlp) -> None:
     envvar="OTLP_CA_FILE",
     default=None,
     help=(
-        "Optional CA bundle path for OTLP gRPC. "
-        "Usually not needed on CERN hosts with system CAs."
+        "PEM CA bundle used to verify MONIT's OTLP/HTTP certificate. Defaults to the "
+        "CERN chain bundled in the wheel (monit-otlp.cern.ch does not send its "
+        "intermediate, so the system trust store alone does NOT work)."
+    ),
+)
+@click.option(
+    "--otlp-protocol",
+    envvar="MONIT_OTLP_PROTOCOL",
+    type=click.Choice(SUPPORTED_PROTOCOLS),
+    default=DEFAULT_PROTOCOL,
+    show_default=True,
+    help=(
+        "OTLP transport. 'http' publishes over TLS to :4319. 'grpc' is the DEPRECATED "
+        "rollback path: MONIT offers no TLS listener on the gRPC ports, so it can only "
+        "run in cleartext."
+    ),
+)
+@click.option(
+    "--otlp-encoding",
+    envvar="MONIT_OTLP_ENCODING",
+    type=click.Choice(SUPPORTED_ENCODINGS),
+    default=DEFAULT_ENCODING,
+    show_default=True,
+    help=(
+        "OTLP/HTTP payload encoding. protobuf is the default (smaller on the wire at "
+        "this sample volume); json is for debugging."
     ),
 )
 @click.option(
@@ -314,8 +379,8 @@ def sync_rooms(ctx: click.Context, **otlp) -> None:
     default=False,
     show_default=True,
     help=(
-        "Use plaintext OTLP/gRPC (no TLS). "
-        "Required for endpoints that do not speak TLS (e.g. monit-otlp.cern.ch:4316)."
+        "Use plaintext OTLP/gRPC (no TLS). Only meaningful with --otlp-protocol grpc; "
+        "the OTLP/HTTP transport always verifies TLS and ignores this flag."
     ),
 )
 @click.option(
@@ -388,6 +453,8 @@ def snmp_timeseries(
     password: str,
     service_name: str,
     otlp_ca_file: str | None,
+    otlp_protocol: str,
+    otlp_encoding: str,
     otlp_insecure: bool,
     environment: str,
     hostgroup: str,
@@ -418,6 +485,8 @@ def snmp_timeseries(
         service_name=service_name,
         otlp_ca_file=otlp_ca_file,
         otlp_insecure=otlp_insecure,
+        otlp_protocol=otlp_protocol,
+        otlp_encoding=otlp_encoding,
         submitter_environment=environment,
         submitter_hostgroup=hostgroup,
         availability_zone=availability_zone,

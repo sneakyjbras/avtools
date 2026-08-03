@@ -1,5 +1,11 @@
 """Tests for OTLPMetricsPublisher — init validation, Layer 1, and Layer 2.
 
+Everything here that reaches into ``_provider`` / ``_meter`` / ``Resource.create``
+is exercising the **deprecated OTLP/gRPC** transport, so those cases now select it
+explicitly with ``protocol="grpc"``. It stays covered because it is the rollback
+path. The OTLP/HTTP transport (the default) is covered in
+``otlp_publisher_http_test.py``.
+
 Layer 1 (OTel resource attributes):
     service.name, service.instance.id, service.version, service.namespace
     are verified via the Resource created inside the publisher.
@@ -59,6 +65,7 @@ def test_layer1_resource_contains_service_version(monkeypatch: Any) -> None:
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
     )
 
     assert captured.get("service.version") == _AVTOOLS_VERSION
@@ -81,6 +88,7 @@ def test_layer1_resource_contains_service_namespace(monkeypatch: Any) -> None:
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
     )
 
     assert captured.get("service.namespace") == "itdcim"
@@ -102,6 +110,7 @@ def test_layer1_resource_contains_service_name_and_instance(monkeypatch: Any) ->
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
         service_name="avtools-test",
     )
 
@@ -133,6 +142,7 @@ def test_layer2_no_metric_labels_by_default() -> None:
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
     )
     assert pub._metric_labels == {}
 
@@ -144,6 +154,7 @@ def test_layer2_collision_raises_otlp_publish_error(monkeypatch: Any) -> None:
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
         metric_labels={"equipmentno": "GLOBAL"},  # collides with device label
     )
     monkeypatch.setattr(pub._provider, "shutdown", lambda: None)
@@ -166,6 +177,7 @@ def test_layer2_collision_on_room_label_raises(monkeypatch: Any) -> None:
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
         metric_labels={"room": "GLOBAL_ROOM"},  # would shadow device label
     )
     monkeypatch.setattr(pub._provider, "shutdown", lambda: None)
@@ -191,6 +203,7 @@ def test_layer2_metric_labels_merged_into_observations(monkeypatch: Any) -> None
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
         export_interval_s=0.1,
         timeout_s=0.1,
         metric_labels=global_labels,
@@ -237,6 +250,7 @@ def test_layer2_empty_metric_labels_no_extra_attrs(monkeypatch: Any) -> None:
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
         export_interval_s=0.1,
         timeout_s=0.1,
     )
@@ -274,6 +288,7 @@ def test_export_error_raises_otlp_publish_error(monkeypatch: Any) -> None:
         tenant="t",
         password="p",
         insecure=True,
+        protocol="grpc",
         export_interval_s=0.1,
         timeout_s=0.1,
     )

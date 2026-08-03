@@ -68,6 +68,8 @@ class DummyAVTools:
         service_name: str = "avtools",
         otlp_ca_file: str | None = None,
         otlp_insecure: bool = False,
+        otlp_protocol: str = "http",
+        otlp_encoding: str = "protobuf",
         submitter_environment: str = "prod",
         submitter_hostgroup: str = "itdcim/av",
         availability_zone: str = "cern-geneva-b",
@@ -87,6 +89,8 @@ class DummyAVTools:
                     "service_name": service_name,
                     "otlp_ca_file": otlp_ca_file,
                     "otlp_insecure": otlp_insecure,
+                    "otlp_protocol": otlp_protocol,
+                    "otlp_encoding": otlp_encoding,
                     "submitter_environment": submitter_environment,
                     "submitter_hostgroup": submitter_hostgroup,
                     "availability_zone": availability_zone,
@@ -216,10 +220,14 @@ def test_run_snmp_timeseries_happy_path_uses_default_workers_and_invokes_avtools
     assert kwargs["max_workers"] == 8
     assert kwargs["monit_tenant"] == "monit_tenant"
     assert kwargs["monit_password"] == "monit_pass"
-    assert kwargs["otlp_endpoint"] == "monit-otlp.cern.ch:4316"
+    # Default endpoint moved to the TLS OTLP/HTTP URL (the gRPC ports have no
+    # TLS listener at all — see avtools.otlp.endpoints).
+    assert kwargs["otlp_endpoint"] == "https://monit-otlp.cern.ch:4319/v1/metrics"
     assert kwargs["service_name"] == "avtools"
     assert kwargs["otlp_ca_file"] is None
     assert kwargs["otlp_insecure"] is False
+    assert kwargs["otlp_protocol"] == "http"
+    assert kwargs["otlp_encoding"] == "protobuf"
 
 
 def test_run_snmp_timeseries_invalid_threads_type_causes_click_error(
@@ -485,6 +493,8 @@ def test_run_snmp_timeseries_passes_all_cli_flags_through(
         "service_name": "svc",
         "otlp_ca_file": "/tmp/ca.pem",
         "otlp_insecure": True,
+        "otlp_protocol": "http",
+        "otlp_encoding": "protobuf",
         "submitter_environment": "prod",
         "submitter_hostgroup": "itdcim/av",
         "availability_zone": "cern-geneva-b",
